@@ -1,0 +1,9 @@
+{
+  "name": "Bepacom",
+  "content_in_root": false,
+  "domains": [
+    "bepacom"
+  ],
+  "homeassistant": "2026.6.0",
+  "render_readme": true
+}
