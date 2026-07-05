@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from enum import Enum
 from typing import TYPE_CHECKING
 
@@ -34,40 +35,52 @@ class EntityType(Enum):
 class BacnetObjectTypeMapper:
     """Maps BACnet object types to Home Assistant entity types."""
 
-    BACNET_TO_HA_UNIT_MAP = {
+    OBJECT_TYPE_MAP = {
+        "analog_input": EntityType.SENSOR,
+        "analog_value": EntityType.SENSOR,
+        "analog_output": EntityType.NUMBER,
+        "binary_input": EntityType.BINARY_SENSOR,
+        "binary_value": EntityType.SWITCH,
+        "binary_output": EntityType.SWITCH,
+        "multi_state_input": EntityType.SENSOR,
+        "multi_state_output": EntityType.NUMBER,
+        "temperature_sensor": EntityType.SENSOR,
+        "humidity_sensor": EntityType.SENSOR,
+        "pressure_sensor": EntityType.SENSOR,
+        "loop": EntityType.SENSOR,
+    }
+
+    UNIT_NORMALIZATION_MAP = {
+        "°c": UnitOfTemperature.CELSIUS,
+        "c": UnitOfTemperature.CELSIUS,
+        "celsius": UnitOfTemperature.CELSIUS,
+        "degreecelsius": UnitOfTemperature.CELSIUS,
         "degreescelsius": UnitOfTemperature.CELSIUS,
         "degreesfahrenheit": UnitOfTemperature.FAHRENHEIT,
         "kelvin": UnitOfTemperature.KELVIN,
+        "%": PERCENTAGE,
         "percent": PERCENTAGE,
+        "percentage": PERCENTAGE,
+        "pa": UnitOfPressure.PA,
+        "pascal": UnitOfPressure.PA,
         "pascals": UnitOfPressure.PA,
+        "w": UnitOfPower.WATT,
+        "watt": UnitOfPower.WATT,
         "watts": UnitOfPower.WATT,
+        "kwh": UnitOfEnergy.KILO_WATT_HOUR,
+        "kilowatthour": UnitOfEnergy.KILO_WATT_HOUR,
         "kilowatthours": UnitOfEnergy.KILO_WATT_HOUR,
     }
 
-    # Mapping of BACnet object types to HA entity types
-    OBJECT_TYPE_MAP = {
-        # Analog inputs - always read-only sensors
-        "analog_input": EntityType.SENSOR,
-        "analog_value": EntityType.SENSOR,
-        # Analog outputs - writable number entities
-        "analog_output": EntityType.NUMBER,
-        # Binary inputs - read-only binary sensors
-        "binary_input": EntityType.BINARY_SENSOR,
-        "binary_value": EntityType.SWITCH,
-        # Binary outputs - switches
-        "binary_output": EntityType.SWITCH,
-        # Multi-state input - sensor
-        "multi_state_input": EntityType.SENSOR,
-        # Multi-state output - number
-        "multi_state_output": EntityType.NUMBER,
-        # Temperature sensor - sensor with temperature device class
-        "temperature_sensor": EntityType.SENSOR,
-        # Humidity sensor - sensor with humidity device class
-        "humidity_sensor": EntityType.SENSOR,
-        # Pressure sensor - sensor with pressure device class
-        "pressure_sensor": EntityType.SENSOR,
-        # Loop object (setpoint, feedback) - sensor or number
-        "loop": EntityType.SENSOR,
+    UNIT_KEYWORD_MAP = {
+        "temperature": UnitOfTemperature.CELSIUS,
+        "temp": UnitOfTemperature.CELSIUS,
+        "humidity": PERCENTAGE,
+        "pressure": UnitOfPressure.PA,
+        "power": UnitOfPower.WATT,
+        "watt": UnitOfPower.WATT,
+        "energy": UnitOfEnergy.KILO_WATT_HOUR,
+        "kwh": UnitOfEnergy.KILO_WATT_HOUR,
     }
 
     @staticmethod
@@ -88,82 +101,67 @@ class BacnetObjectTypeMapper:
 
     @staticmethod
     def get_entity_type(obj: BacnetObject) -> EntityType:
-        """Determine the best Home Assistant entity type for a BACnet object.
-
-        Args:
-            obj: BacnetObject to map
-
-        Returns:
-            EntityType enum value
-        """
+        """Determine the best Home Assistant entity type for a BACnet object."""
         obj_type_lower = BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
 
-        # Check exact match first
         if obj_type_lower in BacnetObjectTypeMapper.OBJECT_TYPE_MAP:
             entity_type = BacnetObjectTypeMapper.OBJECT_TYPE_MAP[obj_type_lower]
-            # Override for writable objects
             if obj.writable and entity_type == EntityType.SENSOR:
                 return EntityType.NUMBER
             return entity_type
 
-        # Default mapping based on common patterns
         if "input" in obj_type_lower:
             return EntityType.BINARY_SENSOR if "binary" in obj_type_lower else EntityType.SENSOR
-        elif "output" in obj_type_lower:
+        if "output" in obj_type_lower:
             return EntityType.SWITCH if "binary" in obj_type_lower else EntityType.NUMBER
-        elif "switch" in obj_type_lower:
+        if "switch" in obj_type_lower:
             return EntityType.SWITCH
-        elif "setpoint" in obj_type_lower or "command" in obj_type_lower:
+        if "setpoint" in obj_type_lower or "command" in obj_type_lower:
             return EntityType.NUMBER
-        else:
-            # Default to sensor for unknown types
-            return EntityType.SENSOR
+        return EntityType.SENSOR
 
     @staticmethod
-    def get_device_class(obj: BacnetObject) -> str | None:
-        """Determine the Home Assistant device class for a BACnet object.
-
-        Args:
-            obj: BacnetObject to map
-
-        Returns:
-            Device class string or None
-        """
+    def get_device_class(obj: BacnetObject) -> SensorDeviceClass | None:
+        """Determine the Home Assistant device class for a BACnet object."""
         obj_type_lower = BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
         obj_name_lower = obj.object_name.lower() if obj.object_name else ""
-        unit = BacnetObjectTypeMapper.get_unit_of_measurement(obj)
+        normalized_unit = BacnetObjectTypeMapper.get_unit_of_measurement(obj)
 
-        # Temperature
         if (
-            "temperature" in obj_type_lower
-            or "temp" in obj_name_lower
-            or unit
+            normalized_unit
             in {
                 UnitOfTemperature.CELSIUS,
                 UnitOfTemperature.FAHRENHEIT,
                 UnitOfTemperature.KELVIN,
             }
+            or "temperature" in obj_type_lower
+            or "temp" in obj_name_lower
         ):
             return SensorDeviceClass.TEMPERATURE
-        # Humidity
         if "humidity" in obj_type_lower or "humidity" in obj_name_lower:
             return SensorDeviceClass.HUMIDITY
-        # Pressure
-        if "pressure" in obj_type_lower or "pressure" in obj_name_lower:
+        if (
+            normalized_unit == UnitOfPressure.PA
+            or "pressure" in obj_type_lower
+            or "pressure" in obj_name_lower
+        ):
             return SensorDeviceClass.PRESSURE
-        # Power
-        if "power" in obj_name_lower or "watt" in obj_name_lower:
+        if (
+            normalized_unit == UnitOfPower.WATT
+            or "power" in obj_name_lower
+            or "watt" in obj_name_lower
+        ):
             return SensorDeviceClass.POWER
-        # Energy
-        if "energy" in obj_name_lower or "kwh" in obj_name_lower:
+        if (
+            normalized_unit == UnitOfEnergy.KILO_WATT_HOUR
+            or "energy" in obj_name_lower
+            or "kwh" in obj_name_lower
+        ):
             return SensorDeviceClass.ENERGY
-        # CO2
         if "co2" in obj_name_lower:
             return SensorDeviceClass.CO2
-        # PM2.5
         if "pm2.5" in obj_name_lower or "pm25" in obj_name_lower:
             return SensorDeviceClass.PM25
-        # PM10
         if "pm10" in obj_name_lower:
             return SensorDeviceClass.PM10
 
@@ -171,74 +169,54 @@ class BacnetObjectTypeMapper:
 
     @staticmethod
     def get_unit_of_measurement(obj: BacnetObject) -> str | None:
-        """Get the unit of measurement for a BACnet object.
+        """Get the unit of measurement for a BACnet object."""
+        normalized_unit = BacnetObjectTypeMapper._normalize_unit_value(obj.units)
+        if normalized_unit:
+            return normalized_unit
 
-        Args:
-            obj: BacnetObject to map
-
-        Returns:
-            Unit string or None (Home Assistant will auto-detect from device class)
-        """
-        # If BACnet object already has units, map them to Home Assistant standards
-        if obj.units:
-            unit_key = obj.units.strip().lower()
-            return BacnetObjectTypeMapper.BACNET_TO_HA_UNIT_MAP.get(unit_key, obj.units)
-
-        # Try to infer from object name
         obj_name_lower = obj.object_name.lower() if obj.object_name else ""
+        obj_type_lower = BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
+        combined = f"{obj_type_lower} {obj_name_lower}"
 
-        if "temperature" in obj_name_lower:
-            return UnitOfTemperature.CELSIUS
-        elif "humidity" in obj_name_lower:
-            return PERCENTAGE
-        elif "pressure" in obj_name_lower:
-            return UnitOfPressure.PA
-        elif "power" in obj_name_lower:
-            return UnitOfPower.WATT
-        elif "energy" in obj_name_lower:
-            return UnitOfEnergy.KILO_WATT_HOUR
+        for keyword, mapped_unit in BacnetObjectTypeMapper.UNIT_KEYWORD_MAP.items():
+            if keyword in combined:
+                return mapped_unit
 
         return None
 
     @staticmethod
     def is_writable(obj: BacnetObject) -> bool:
-        """Check if a BACnet object is writable.
-
-        Args:
-            obj: BacnetObject to check
-
-        Returns:
-            True if object supports write operations
-        """
+        """Check if a BACnet object is writable."""
         return obj.writable
 
     @staticmethod
-    def get_state_class(obj: BacnetObject) -> str | None:
-        """Determine the Home Assistant state class for a BACnet object.
+    def get_state_class(obj: BacnetObject) -> SensorStateClass | None:
+        """Determine the Home Assistant state class for a BACnet object."""
+        normalized_unit = BacnetObjectTypeMapper.get_unit_of_measurement(obj)
+        if normalized_unit == UnitOfEnergy.KILO_WATT_HOUR:
+            return SensorStateClass.TOTAL_INCREASING
+        if normalized_unit in {
+            UnitOfTemperature.CELSIUS,
+            UnitOfTemperature.FAHRENHEIT,
+            UnitOfTemperature.KELVIN,
+            PERCENTAGE,
+            UnitOfPressure.PA,
+            UnitOfPower.WATT,
+        }:
+            return SensorStateClass.MEASUREMENT
 
-        Args:
-            obj: BacnetObject to map
-
-        Returns:
-            State class string or None
-        """
         obj_name_lower = obj.object_name.lower() if obj.object_name else ""
         obj_type_lower = BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
         device_class = BacnetObjectTypeMapper.get_device_class(obj)
 
-        # total_increasing - for counters/energy meters
-        if any(
-            x in obj_name_lower
-            for x in ["counter", "total", "cumulative", "energy", "kwh"]
-        ):
+        if any(token in obj_name_lower for token in ["counter", "total", "cumulative"]):
             return SensorStateClass.TOTAL_INCREASING
 
-        # measurement - state changes frequently, important for statistics
         if (
             "analog" in obj_type_lower
             or any(
-                x in obj_type_lower
-                for x in ["input", "sensor", "temperature", "humidity", "pressure"]
+                token in obj_type_lower
+                for token in ["input", "sensor", "temperature", "humidity", "pressure"]
             )
             or device_class
             in {
@@ -256,37 +234,104 @@ class BacnetObjectTypeMapper:
         return None
 
     @staticmethod
-    def should_use_numeric_value(obj: BacnetObject) -> bool:
-        """Determine whether the object should expose a numeric native value."""
+    def should_native_value_be_float(obj: BacnetObject) -> bool:
+        """Return True if the object should expose a float native value."""
         obj_type_lower = BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
-        return (
-            "analog" in obj_type_lower
-            or BacnetObjectTypeMapper.get_state_class(obj) in {
-                SensorStateClass.MEASUREMENT,
-                SensorStateClass.TOTAL_INCREASING,
-            }
-        )
+        if obj_type_lower.startswith("analog_"):
+            return True
+
+        return BacnetObjectTypeMapper.get_state_class(obj) in {
+            SensorStateClass.MEASUREMENT,
+            SensorStateClass.TOTAL_INCREASING,
+        }
 
     @staticmethod
-    def get_entity_name(obj: BacnetObject) -> str:
-        """Return a user-friendly entity name with object identifier."""
-        object_name = (obj.object_name or "").strip()
+    def get_display_name(obj: BacnetObject) -> tuple[str, bool]:
+        """Return entity name and whether has_entity_name should be enabled."""
+        object_name = obj.object_name.strip() if obj.object_name else ""
+        if object_name and BacnetObjectTypeMapper._is_human_friendly_name(object_name, obj):
+            return object_name, False
 
-        if BacnetObjectTypeMapper._is_raw_object_identifier_name(obj, object_name):
-            object_name = ""
+        return BacnetObjectTypeMapper.get_measurement_label(obj), True
 
-        if object_name:
-            object_id = str(obj.object_id)
-            tokens = (
-                object_name.replace("(", " ")
-                .replace(")", " ")
-                .replace("[", " ")
-                .replace("]", " ")
-                .replace(",", " ")
-                .split()
+    @staticmethod
+    def get_measurement_label(obj: BacnetObject) -> str:
+        """Return a readable measurement label for an object."""
+        device_class = BacnetObjectTypeMapper.get_device_class(obj)
+        if device_class == SensorDeviceClass.TEMPERATURE:
+            return "Temperature"
+        if device_class == SensorDeviceClass.HUMIDITY:
+            return "Humidity"
+        if device_class == SensorDeviceClass.PRESSURE:
+            return "Pressure"
+        if device_class == SensorDeviceClass.POWER:
+            return "Power"
+        if device_class == SensorDeviceClass.ENERGY:
+            return "Energy"
+        if device_class == SensorDeviceClass.CO2:
+            return "CO2"
+        if device_class == SensorDeviceClass.PM25:
+            return "PM2.5"
+        if device_class == SensorDeviceClass.PM10:
+            return "PM10"
+        if BacnetObjectTypeMapper.get_unit_of_measurement(obj) == PERCENTAGE:
+            return "Percent"
+
+        object_type = obj.object_type.replace("-", " ").replace("_", " ").strip().title()
+        if object_type:
+            return f"{object_type} {obj.object_id}"
+        return f"Object {obj.object_id}"
+
+    @staticmethod
+    def _normalize_unit_value(unit: str | None) -> str | None:
+        """Normalize BACnet units to Home Assistant units."""
+        if not unit:
+            return None
+
+        unit_str = str(unit).strip()
+        if not unit_str:
+            return None
+
+        if unit_str in BacnetObjectTypeMapper.UNIT_NORMALIZATION_MAP:
+            return BacnetObjectTypeMapper.UNIT_NORMALIZATION_MAP[unit_str]
+
+        normalized_key = re.sub(r"[\s_\-]+", "", unit_str).lower()
+        return BacnetObjectTypeMapper.UNIT_NORMALIZATION_MAP.get(normalized_key)
+
+    @staticmethod
+    def _is_human_friendly_name(name: str, obj: BacnetObject) -> bool:
+        """Return True if BACnet object name is readable for end users."""
+        stripped = name.strip()
+        lowered = stripped.lower()
+
+        if BacnetObjectTypeMapper._is_raw_object_identifier_name(obj, stripped):
+            return False
+
+        technical_patterns = (
+            f"{str(obj.object_type).lower()} {str(obj.object_id).lower()}",
+            f"{str(obj.object_type).lower()}:{str(obj.object_id).lower()}",
+        )
+        if lowered in technical_patterns:
+            return False
+
+        if re.match(r"^\(.*\)$", stripped) and "[" in stripped and "]" in stripped:
+            return False
+
+        if any(
+            token in lowered
+            for token in (
+                "analog-input",
+                "analog_input",
+                "analog-output",
+                "analog_output",
+                "binary-input",
+                "binary_input",
+                "binary-output",
+                "binary_output",
+                "multi-state",
+                "multi_state",
             )
-            if object_id and object_id not in tokens:
-                return f"{object_name} {object_id}"
-            return object_name
+        ) and any(char.isdigit() for char in lowered):
+            return False
 
-        return f"{obj.object_type} {obj.object_id}"
+        return True
