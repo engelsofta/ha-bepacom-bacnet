@@ -36,9 +36,7 @@ class BacnetObjectTypeMapper:
 
     BACNET_TO_HA_UNIT_MAP = {
         "degreescelsius": UnitOfTemperature.CELSIUS,
-        "degreecelsius": UnitOfTemperature.CELSIUS,
         "degreesfahrenheit": UnitOfTemperature.FAHRENHEIT,
-        "degreefahrenheit": UnitOfTemperature.FAHRENHEIT,
         "kelvin": UnitOfTemperature.KELVIN,
         "percent": PERCENTAGE,
         "pascals": UnitOfPressure.PA,
@@ -76,6 +74,17 @@ class BacnetObjectTypeMapper:
     def _normalize_object_type(object_type: str) -> str:
         """Normalize BACnet object type formatting."""
         return object_type.lower().replace("-", "_")
+
+    @staticmethod
+    def _is_raw_object_identifier_name(obj: BacnetObject, object_name: str) -> bool:
+        """Check if object_name is just a BACnet object identifier representation."""
+        normalized_name = object_name.lower().replace(" ", "")
+        normalized_type = obj.object_type.lower().replace("_", "-")
+        normalized_id = str(obj.object_id).lower().replace(" ", "")
+        return normalized_name in {
+            f"({normalized_type},{normalized_id})",
+            f"{normalized_type}:{normalized_id}",
+        }
 
     @staticmethod
     def get_entity_type(obj: BacnetObject) -> EntityType:
@@ -172,7 +181,7 @@ class BacnetObjectTypeMapper:
         """
         # If BACnet object already has units, map them to Home Assistant standards
         if obj.units:
-            unit_key = obj.units.lower().replace("_", "").replace("-", "").replace(" ", "")
+            unit_key = obj.units.strip().lower()
             return BacnetObjectTypeMapper.BACNET_TO_HA_UNIT_MAP.get(unit_key, obj.units)
 
         # Try to infer from object name
@@ -263,11 +272,7 @@ class BacnetObjectTypeMapper:
         """Return a user-friendly entity name with object identifier."""
         object_name = (obj.object_name or "").strip()
 
-        if (
-            object_name.startswith("(")
-            and object_name.endswith(")")
-            and "," in object_name
-        ):
+        if BacnetObjectTypeMapper._is_raw_object_identifier_name(obj, object_name):
             object_name = ""
 
         if object_name:
