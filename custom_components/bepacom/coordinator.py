@@ -18,9 +18,11 @@ from .const import (
     FALLBACK_POLL_INTERVAL,
 )
 from .discovery import DiscoveryEngine
+from .exceptions import InvalidResponse
 from .websocket_manager import BepacomWebSocketManager
 
 _LOGGER = logging.getLogger(__name__)
+_MAX_INVALID_FALLBACK_RESPONSES = 3
 
 
 class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -50,6 +52,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             on_subscription_failure=self._async_handle_subscription_failure,
         )
         self._fallback_objects: set[tuple[str, str]] = set()
+        self._fallback_invalid_responses: dict[tuple[str, str], int] = {}
         self._fallback_task = None
         self._subscriptions_started = False
 
@@ -112,6 +115,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._fallback_task = None
 
         self._fallback_objects.clear()
+        self._fallback_invalid_responses.clear()
         await self._websocket_manager.async_unsubscribe_all()
 
     async def _async_subscribe_discovered_objects(self) -> None:
@@ -119,6 +123,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         for device_id, object_id in self._iter_subscription_targets():
             if await self._websocket_manager.async_subscribe(device_id, object_id):
                 self._fallback_objects.discard((device_id, object_id))
+                self._fallback_invalid_responses.pop((device_id, object_id), None)
 
         self._ensure_fallback_polling()
 
@@ -239,7 +244,32 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 for device_id, object_id in tuple(self._fallback_objects):
                     try:
                         payload = await self.client.async_get_object(device_id, object_id)
+                        self._fallback_invalid_responses.pop((device_id, object_id), None)
+                    except InvalidResponse:
+                        object_key = (device_id, object_id)
+                        attempts = self._fallback_invalid_responses.get(object_key, 0) + 1
+                        self._fallback_invalid_responses[object_key] = attempts
+
+                        if attempts >= _MAX_INVALID_FALLBACK_RESPONSES:
+                            _LOGGER.warning(
+                                "Disabling fallback polling for %s/%s after %s invalid gateway responses",
+                                device_id,
+                                object_id,
+                                attempts,
+                            )
+                            self._fallback_objects.discard(object_key)
+                            self._fallback_invalid_responses.pop(object_key, None)
+                        else:
+                            _LOGGER.debug(
+                                "Invalid fallback payload for %s/%s (%s/%s)",
+                                device_id,
+                                object_id,
+                                attempts,
+                                _MAX_INVALID_FALLBACK_RESPONSES,
+                            )
+                        continue
                     except Exception:
+                        self._fallback_invalid_responses.pop((device_id, object_id), None)
                         _LOGGER.exception(
                             "Fallback polling failed for %s/%s",
                             device_id,
