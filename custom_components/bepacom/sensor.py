@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -57,12 +57,15 @@ class BepacomSensor(CoordinatorEntity[BepacomCoordinator], SensorEntity):
 
         self._obj = obj
         self._attr_unique_id = obj.unique_id
-        self._attr_name = obj.object_name or f"{obj.object_type} {obj.object_id}"
-        self._attr_native_unit_of_measurement = (
-            BacnetObjectTypeMapper.get_unit_of_measurement(obj)
+        display_name, has_entity_name = BacnetObjectTypeMapper.get_display_name(obj)
+        self._attr_name = display_name
+        self._attr_has_entity_name = has_entity_name
+        self._attr_native_unit_of_measurement = BacnetObjectTypeMapper.get_unit_of_measurement(
+            obj
         )
         self._attr_device_class = BacnetObjectTypeMapper.get_device_class(obj)
         self._attr_state_class = BacnetObjectTypeMapper.get_state_class(obj)
+        self._attr_device_info = self._build_device_info()
         self._attr_extra_state_attributes = {
             "device_id": obj.device_id,
             "object_id": obj.object_id,
@@ -71,8 +74,25 @@ class BepacomSensor(CoordinatorEntity[BepacomCoordinator], SensorEntity):
             "writable": obj.writable,
         }
 
+    def _build_device_info(self) -> DeviceInfo:
+        """Build Home Assistant device info for this BACnet device."""
+        device = self.coordinator.discovery.devices.get(self._obj.device_id)
+        if device is None:
+            return DeviceInfo(
+                identifiers={(DOMAIN, f"device_{self._obj.device_id}")},
+                name=f"Device {self._obj.device_id}",
+            )
+
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"device_{self._obj.device_id}")},
+            name=device.name,
+            manufacturer=device.vendor,
+            model=device.model,
+            sw_version=device.firmware,
+        )
+
     @property
-    def native_value(self) -> Any:
+    def native_value(self) -> float | str | bool | None:
         """Return the state of the sensor."""
         # Update the object from latest data
         if self.coordinator.data:
@@ -88,8 +108,43 @@ class BepacomSensor(CoordinatorEntity[BepacomCoordinator], SensorEntity):
 
                     if isinstance(obj_data, dict):
                         self._obj.update(obj_data)
+                        display_name, has_entity_name = (
+                            BacnetObjectTypeMapper.get_display_name(self._obj)
+                        )
+                        self._attr_name = display_name
+                        self._attr_has_entity_name = has_entity_name
+                        self._attr_native_unit_of_measurement = (
+                            BacnetObjectTypeMapper.get_unit_of_measurement(self._obj)
+                        )
+                        self._attr_device_class = BacnetObjectTypeMapper.get_device_class(
+                            self._obj
+                        )
+                        self._attr_state_class = BacnetObjectTypeMapper.get_state_class(
+                            self._obj
+                        )
 
-        return self._obj.present_value
+        value = self._obj.present_value
+        if value is None:
+            return None
+
+        if BacnetObjectTypeMapper.should_native_value_be_float(self._obj):
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                _LOGGER.warning(
+                    "Cannot convert %s to float for %s",
+                    value,
+                    self._obj.unique_id,
+                )
+                return None
+
+        if isinstance(value, (bool, str)):
+            return value
+
+        if isinstance(value, (int, float)):
+            return float(value)
+
+        return str(value)
 
     @property
     def available(self) -> bool:
