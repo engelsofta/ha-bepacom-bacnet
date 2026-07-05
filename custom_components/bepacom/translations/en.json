@@ -1,0 +1,21 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Bepacom Gateway",
+        "description": "Enter the host and port of your Bepacom Gateway.",
+        "data": {
+          "host": "Host",
+          "port": "Port"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect.",
+      "unknown": "Unknown error."
+    },
+    "abort": {
+      "already_configured": "Gateway is already configured."
+    }
+  }
+}
