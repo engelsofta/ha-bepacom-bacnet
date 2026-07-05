@@ -36,7 +36,8 @@ Die Integration wird automatisch BACnet-Geräte und -Objekte erkennen und als Se
 
 - 🔍 Automatische Erkennung von BACnet-Geräten
 - 📊 Überwachung von BACnet-Objekten (Sensoren, Werte, etc.)
-- 🔄 Regelmäßige Datenabfrage (standardmäßig alle 30 Sekunden)
+- ⚡ Echtzeit-Updates via WebSocket-Subscriptions
+- 🔄 Fallback-Polling für Objekte ohne aktive Subscription
 - 📱 Vollständige Integration mit Home Assistant UI
 
 ## Anforderungen
