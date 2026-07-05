@@ -3,10 +3,9 @@ tag-template: "$RESOLVED_VERSION"
 change-template: "- $TITLE ([#$NUMBER]($URL)) by [@$AUTHOR](https://github.com/$AUTHOR)"
 change-title-escapes: '\<*_&'
 no-changes-template: "- Keine Änderungen"
+exclude-labels:
+  - "skip-changelog"
 categories:
-  - type: "pre-exclude"
-    when:
-      label: "skip-changelog"
   - title: "💥 Breaking Changes"
     semver-increment: "major"
     exclusive: true
