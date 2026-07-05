@@ -239,7 +239,9 @@ class BepacomWebSocketManager:
         object_id: str,
     ) -> None:
         """Invoke the failure callback."""
-        assert self._on_subscription_failure is not None
+        if self._on_subscription_failure is None:
+            return
+
         result = self._on_subscription_failure(device_id, object_id)
 
         if asyncio.iscoroutine(result):

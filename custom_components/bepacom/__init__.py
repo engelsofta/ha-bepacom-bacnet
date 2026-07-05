@@ -68,6 +68,10 @@ async def async_unload_entry(
 ) -> bool:
     """Unload a config entry."""
 
+    data = hass.data[DOMAIN][entry.entry_id]
+    coordinator: BepacomCoordinator = data["coordinator"]
+    client: BepacomClient = data["client"]
+
     unload_ok = await hass.config_entries.async_unload_platforms(
         entry,
         PLATFORMS,
@@ -75,10 +79,6 @@ async def async_unload_entry(
 
     if not unload_ok:
         return False
-
-    data = hass.data[DOMAIN][entry.entry_id]
-    coordinator: BepacomCoordinator = data["coordinator"]
-    client: BepacomClient = data["client"]
 
     await coordinator.async_shutdown()
     await client.async_close()
