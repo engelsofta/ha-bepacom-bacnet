@@ -8,6 +8,7 @@ from typing import Any
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -58,12 +59,15 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
 
         self._obj = obj
         self._attr_unique_id = obj.unique_id
-        self._attr_name = BacnetObjectTypeMapper.get_entity_name(obj)
+        display_name, has_entity_name = BacnetObjectTypeMapper.get_display_name(obj)
+        self._attr_name = display_name
+        self._attr_has_entity_name = has_entity_name
         self._attr_native_unit_of_measurement = (
             BacnetObjectTypeMapper.get_unit_of_measurement(obj)
         )
         self._attr_device_class = BacnetObjectTypeMapper.get_device_class(obj)
         self._attr_mode = NumberMode.BOX
+        self._attr_device_info = self._build_device_info()
         self._attr_extra_state_attributes = {
             "device_id": obj.device_id,
             "object_id": obj.object_id,
@@ -71,6 +75,23 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
             "description": obj.description,
             "writable": obj.writable,
         }
+
+    def _build_device_info(self) -> DeviceInfo:
+        """Build Home Assistant device info for this BACnet device."""
+        device = self.coordinator.discovery.devices.get(self._obj.device_id)
+        if device is None:
+            return DeviceInfo(
+                identifiers={(DOMAIN, f"device_{self._obj.device_id}")},
+                name=f"Device {self._obj.device_id}",
+            )
+
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"device_{self._obj.device_id}")},
+            name=device.name,
+            manufacturer=device.vendor,
+            model=device.model,
+            sw_version=device.firmware,
+        )
 
     @property
     def native_value(self) -> float | None:
@@ -89,6 +110,17 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
 
                     if isinstance(obj_data, dict):
                         self._obj.update(obj_data)
+                        display_name, has_entity_name = (
+                            BacnetObjectTypeMapper.get_display_name(self._obj)
+                        )
+                        self._attr_name = display_name
+                        self._attr_has_entity_name = has_entity_name
+                        self._attr_native_unit_of_measurement = (
+                            BacnetObjectTypeMapper.get_unit_of_measurement(self._obj)
+                        )
+                        self._attr_device_class = BacnetObjectTypeMapper.get_device_class(
+                            self._obj
+                        )
 
         value = self._obj.present_value
 

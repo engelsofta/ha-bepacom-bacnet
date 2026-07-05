@@ -27,7 +27,10 @@ class BacnetObject:
     @property
     def unique_id(self) -> str:
         """Return a unique id for Home Assistant."""
-        return f"{self.device_id}_{self.object_type}_{self.object_id}"
+        device_id = str(self.device_id).strip()
+        object_type = str(self.object_type).strip().lower()
+        object_id = str(self.object_id).strip()
+        return f"{device_id}_{object_type}_{object_id}"
 
     @property
     def entity_id(self) -> str:
