@@ -51,6 +51,21 @@ Die Integration wird automatisch BACnet-Geräte und -Objekte erkennen und als Se
 - Nur Lesezugriff auf BACnet-Objekte (Schreiben wird in zukünftigen Versionen unterstützt)
 - Es werden derzeit nur einfache Sensoren erstellt
 
+## Release Notes & Pre-Releases
+
+- Gemergte Pull Requests werden automatisch in den Draft-Release-Notes gesammelt (Release Drafter).
+- Für die Kategorisierung bitte PR-Labels verwenden:
+  - `feature` / `enhancement` / `feat`
+  - `fix` / `bug` / `bugfix`
+  - `docs` / `documentation`
+  - `chore` / `refactor` / `ci` / `build`
+  - `breaking` / `breaking-change` / `major`
+- Mit `skip-changelog` wird ein PR aus den Release Notes ausgeschlossen.
+- Ein neues Pre-Release wird automatisch beim Push eines Pre-Release-Tags erstellt, z. B.:
+  - `v1.2.0-beta.1`
+  - `v1.2.0-rc.1`
+- Das GitHub Pre-Release wird als `prerelease: true` veröffentlicht und enthält die automatisch aggregierten PR-Änderungen.
+
 ## Troubleshooting
 
 ### Integration verbindet sich nicht
