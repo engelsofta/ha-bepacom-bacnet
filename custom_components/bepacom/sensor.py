@@ -13,6 +13,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import BepacomCoordinator
+from .entity_factory import BacnetObjectTypeMapper, EntityType
 from .models import BacnetObject
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,17 +30,18 @@ async def async_setup_entry(
         "coordinator"
     ]
 
-    # Erstelle Sensoren für alle erkannten BACnet-Objekte
+    # Create sensors for read-only analog/sensor objects
     entities: list[SensorEntity] = []
 
     for obj in coordinator.discovery.objects.values():
-        entities.append(BepacomSensor(coordinator, obj))
+        entity_type = BacnetObjectTypeMapper.get_entity_type(obj)
+
+        if entity_type == EntityType.SENSOR:
+            entities.append(BepacomSensor(coordinator, obj))
 
     if entities:
         async_add_entities(entities)
         _LOGGER.info("Added %d sensor entities", len(entities))
-    else:
-        _LOGGER.info("No BACnet objects found to create sensors")
 
 
 class BepacomSensor(CoordinatorEntity[BepacomCoordinator], SensorEntity):
@@ -56,7 +58,11 @@ class BepacomSensor(CoordinatorEntity[BepacomCoordinator], SensorEntity):
         self._obj = obj
         self._attr_unique_id = obj.unique_id
         self._attr_name = obj.object_name or f"{obj.object_type} {obj.object_id}"
-        self._attr_native_unit_of_measurement = obj.units
+        self._attr_native_unit_of_measurement = (
+            BacnetObjectTypeMapper.get_unit_of_measurement(obj)
+        )
+        self._attr_device_class = BacnetObjectTypeMapper.get_device_class(obj)
+        self._attr_state_class = BacnetObjectTypeMapper.get_state_class(obj)
         self._attr_extra_state_attributes = {
             "device_id": obj.device_id,
             "object_id": obj.object_id,
@@ -68,7 +74,7 @@ class BepacomSensor(CoordinatorEntity[BepacomCoordinator], SensorEntity):
     @property
     def native_value(self) -> Any:
         """Return the state of the sensor."""
-        # Aktualisiere das Objekt aus den neuesten Daten
+        # Update the object from latest data
         if self.coordinator.data:
             device_key = f"device:{self._obj.device_id}"
 
