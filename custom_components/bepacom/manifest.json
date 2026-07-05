@@ -5,7 +5,7 @@
   "config_flow": true,
   "documentation": "https://github.com/engelsofta/bepacom",
   "requirements": [],
-  "version": "0.2.0-alpha1",
+  "version": "0.2.0-alpha2",
   "integration_type": "hub",
   "iot_class": "local_polling",
   "platforms": ["sensor", "binary_sensor", "switch", "number"],
