@@ -1,0 +1,60 @@
+name-template: "$RESOLVED_VERSION"
+tag-template: "$RESOLVED_VERSION"
+change-template: "- $TITLE ([#$NUMBER]($URL)) by [@$AUTHOR](https://github.com/$AUTHOR)"
+change-title-escapes: '\<*_&'
+no-changes-template: "- Keine Änderungen"
+categories:
+  - type: "pre-exclude"
+    when:
+      label: "skip-changelog"
+  - title: "💥 Breaking Changes"
+    semver-increment: "major"
+    exclusive: true
+    when:
+      labels:
+        - "breaking"
+        - "breaking-change"
+        - "major"
+  - title: "🚀 Features"
+    semver-increment: "minor"
+    exclusive: true
+    when:
+      labels:
+        - "feature"
+        - "enhancement"
+        - "feat"
+  - title: "🐛 Fixes"
+    semver-increment: "patch"
+    exclusive: true
+    when:
+      labels:
+        - "fix"
+        - "bug"
+        - "bugfix"
+  - title: "📚 Documentation"
+    semver-increment: "patch"
+    exclusive: true
+    when:
+      labels:
+        - "docs"
+        - "documentation"
+  - title: "🧰 Chores"
+    semver-increment: "patch"
+    exclusive: true
+    when:
+      labels:
+        - "chore"
+        - "refactor"
+        - "ci"
+        - "build"
+  - title: "📦 Other Changes"
+    semver-increment: "patch"
+    exclusive: true
+template: |
+  ## Changes
+
+  $CHANGES
+
+  ## Contributors
+
+  $CONTRIBUTORS
