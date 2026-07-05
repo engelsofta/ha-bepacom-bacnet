@@ -261,11 +261,23 @@ class BacnetObjectTypeMapper:
         """Return a user-friendly entity name with object identifier."""
         object_name = (obj.object_name or "").strip()
 
-        if object_name.startswith("(") and object_name.endswith(")"):
+        if (
+            object_name.startswith("(")
+            and object_name.endswith(")")
+            and "," in object_name
+        ):
             object_name = ""
 
         if object_name:
-            if obj.object_id and obj.object_id not in object_name:
+            tokens = (
+                object_name.replace("(", " ")
+                .replace(")", " ")
+                .replace("[", " ")
+                .replace("]", " ")
+                .replace(",", " ")
+                .split()
+            )
+            if obj.object_id and obj.object_id not in tokens:
                 return f"{object_name} {obj.object_id}"
             return object_name
 
