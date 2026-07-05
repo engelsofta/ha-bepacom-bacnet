@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.2.0-alpha2] - 2026-07-05
+
+### Added
+- **Write operations support** (Phase 1.2)
+  - `async_write_property()` method in BepacomClient
+  - Write support for switch entities (turn on/off)
+  - Write support for number entities (set value)
+  - Priority parameter for BACnet writes (default priority 8)
+  - Error handling for write failures
+  - Automatic coordinator refresh after write operations
+
+### Changed
+- Switch platform: async_turn_on/off now execute actual write operations
+- Number platform: async_set_native_value now executes actual write operations
+- Both platforms now log and handle write errors properly
+
+### Technical Details
+- New `WriteError` exception for write operation failures
+- POST endpoint: `/apiv1/write-property`
+- Write payload includes: device_id, object_type, object_id, value, priority
+- Response validation: checks for `success` flag in response
+
+### Testing
+- Fully testable in Home Assistant
+- Switches and numbers can now be controlled via UI
+- Coordinator auto-refreshes after write to get latest state
+
+### Known Limitations
+- No min/max value validation on number entities yet
+- No priority selection UI yet (hardcoded to priority 8)
+- Write confirmations not yet implemented
+
 ## [0.2.0-alpha1] - 2026-07-05
 
 ### Added
