@@ -55,6 +55,8 @@ async def async_setup_entry(
             PLATFORMS,
         )
 
+    await coordinator.async_start()
+
     _LOGGER.info("Bepacom integration started successfully")
 
     return True
@@ -66,9 +68,20 @@ async def async_unload_entry(
 ) -> bool:
     """Unload a config entry."""
 
-    data = hass.data[DOMAIN].pop(entry.entry_id)
-
+    data = hass.data[DOMAIN][entry.entry_id]
+    coordinator: BepacomCoordinator = data["coordinator"]
     client: BepacomClient = data["client"]
-    await client.async_close()
 
-    return True
+    unload_ok = await hass.config_entries.async_unload_platforms(
+        entry,
+        PLATFORMS,
+    )
+
+    if not unload_ok:
+        return False
+
+    await coordinator.async_shutdown()
+    await client.async_close()
+    hass.data[DOMAIN].pop(entry.entry_id, None)
+
+    return unload_ok

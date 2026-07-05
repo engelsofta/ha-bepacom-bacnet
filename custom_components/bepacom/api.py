@@ -8,7 +8,9 @@ import logging
 from typing import Any
 
 import aiohttp
+from yarl import URL
 
+from .const import DEFAULT_SUBSCRIPTION_LIFETIME
 from .exceptions import CannotConnect, InvalidResponse, WriteError
 
 _LOGGER = logging.getLogger(__name__)
@@ -53,7 +55,7 @@ class BepacomClient:
                 text = await response.text()
                 _LOGGER.debug("Response: %s", text[:500])
 
-                return await response.json()
+                return self._decode_response(text)
 
         except asyncio.TimeoutError as err:
             _LOGGER.exception("Timeout while connecting to Bepacom")
@@ -67,7 +69,12 @@ class BepacomClient:
             _LOGGER.exception("Unexpected API error")
             raise InvalidResponse from err
 
-    async def _post(self, path: str, data: dict[str, Any]) -> Any:
+    async def _post(
+        self,
+        path: str,
+        data: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+    ) -> Any:
         """Perform a POST request."""
 
         await self.async_connect()
@@ -77,13 +84,14 @@ class BepacomClient:
         url = f"{self._base}{path}"
 
         _LOGGER.debug("POST %s with data: %s", url, data)
+        request_kwargs: dict[str, Any] = {"params": params}
+
+        if data is not None:
+            request_kwargs["json"] = data
+            request_kwargs["headers"] = {"Content-Type": "application/json"}
 
         try:
-            async with self._session.post(
-                url,
-                json=data,
-                headers={"Content-Type": "application/json"},
-            ) as response:
+            async with self._session.post(url, **request_kwargs) as response:
                 _LOGGER.debug("HTTP Status: %s", response.status)
 
                 response.raise_for_status()
@@ -91,7 +99,7 @@ class BepacomClient:
                 text = await response.text()
                 _LOGGER.debug("Response: %s", text[:500])
 
-                return await response.json()
+                return self._decode_response(text)
 
         except asyncio.TimeoutError as err:
             _LOGGER.exception("Timeout while writing to Bepacom")
@@ -105,6 +113,75 @@ class BepacomClient:
             _LOGGER.exception("Unexpected API error during write")
             raise InvalidResponse from err
 
+    async def _delete(
+        self,
+        path: str,
+        params: dict[str, Any] | None = None,
+    ) -> Any:
+        """Perform a DELETE request."""
+
+        await self.async_connect()
+
+        assert self._session is not None
+
+        url = f"{self._base}{path}"
+
+        _LOGGER.debug("DELETE %s", url)
+
+        try:
+            async with self._session.delete(url, params=params) as response:
+                _LOGGER.debug("HTTP Status: %s", response.status)
+
+                response.raise_for_status()
+
+                text = await response.text()
+                _LOGGER.debug("Response: %s", text[:500])
+
+                return self._decode_response(text)
+
+        except asyncio.TimeoutError as err:
+            _LOGGER.exception("Timeout while deleting Bepacom resource")
+            raise CannotConnect from err
+
+        except aiohttp.ClientError as err:
+            _LOGGER.exception("HTTP error while deleting Bepacom resource")
+            raise CannotConnect from err
+
+        except Exception as err:
+            _LOGGER.exception("Unexpected API error during delete")
+            raise InvalidResponse from err
+
+    async def async_ws_connect(
+        self,
+        url: str,
+    ) -> aiohttp.ClientWebSocketResponse:
+        """Open a WebSocket connection."""
+        await self.async_connect()
+
+        assert self._session is not None
+
+        return await self._session.ws_connect(url, heartbeat=30)
+
+    def _decode_response(self, text: str) -> Any:
+        """Decode a gateway response."""
+        if not text:
+            return None
+
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError as err:
+            raise InvalidResponse from err
+
+    def _normalize_websocket_url(self, url: str) -> str:
+        """Normalize relative subscription URLs returned by the gateway."""
+        parsed_url = URL(url)
+
+        if parsed_url.is_absolute():
+            return str(parsed_url)
+
+        base_url = URL(self._base).with_scheme("ws")
+        return str(base_url.join(parsed_url))
+
     async def async_get_database(self) -> dict[str, Any]:
         """Read the complete BACnet database."""
         return await self._get("/apiv1/json")
@@ -116,6 +193,48 @@ class BepacomClient:
             return True
         except Exception:
             return False
+
+    async def async_get_object(
+        self,
+        device_id: str,
+        object_id: str,
+    ) -> dict[str, Any]:
+        """Read a single BACnet object."""
+        result = await self._get(f"/apiv1/{device_id}/{object_id}")
+
+        if not isinstance(result, dict):
+            raise InvalidResponse
+
+        return result
+
+    async def async_subscribe(
+        self,
+        device_id: str,
+        object_id: str,
+        confirmation_type: str = "changes",
+        lifetime: int = DEFAULT_SUBSCRIPTION_LIFETIME,
+    ) -> str:
+        """Create a gateway subscription for one BACnet object."""
+        result = await self._post(
+            f"/apiv1/subscribe/{device_id}/{object_id}",
+            params={
+                "confirmationType": confirmation_type,
+                "lifetime": lifetime,
+            },
+        )
+
+        if not isinstance(result, str):
+            raise InvalidResponse
+
+        return self._normalize_websocket_url(result)
+
+    async def async_unsubscribe(
+        self,
+        device_id: str,
+        object_id: str,
+    ) -> None:
+        """Remove a gateway subscription for one BACnet object."""
+        await self._delete(f"/apiv1/subscribe/{device_id}/{object_id}")
 
     async def async_write_property(
         self,
