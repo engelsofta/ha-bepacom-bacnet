@@ -36,7 +36,9 @@ class BacnetObjectTypeMapper:
 
     BACNET_TO_HA_UNIT_MAP = {
         "degreescelsius": UnitOfTemperature.CELSIUS,
+        "degreecelsius": UnitOfTemperature.CELSIUS,
         "degreesfahrenheit": UnitOfTemperature.FAHRENHEIT,
+        "degreefahrenheit": UnitOfTemperature.FAHRENHEIT,
         "kelvin": UnitOfTemperature.KELVIN,
         "percent": PERCENTAGE,
         "pascals": UnitOfPressure.PA,
@@ -269,6 +271,7 @@ class BacnetObjectTypeMapper:
             object_name = ""
 
         if object_name:
+            object_id = str(obj.object_id)
             tokens = (
                 object_name.replace("(", " ")
                 .replace(")", " ")
@@ -277,8 +280,8 @@ class BacnetObjectTypeMapper:
                 .replace(",", " ")
                 .split()
             )
-            if obj.object_id and obj.object_id not in tokens:
-                return f"{object_name} {obj.object_id}"
+            if object_id and object_id not in tokens:
+                return f"{object_name} {object_id}"
             return object_name
 
         return f"{obj.object_type} {obj.object_id}"
