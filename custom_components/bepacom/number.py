@@ -14,6 +14,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN
 from .coordinator import BepacomCoordinator
 from .entity_factory import BacnetObjectTypeMapper, EntityType
+from .exceptions import WriteError
 from .models import BacnetObject
 
 _LOGGER = logging.getLogger(__name__)
@@ -113,12 +114,29 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
             )
             return
 
-        # TODO: Implement write operation through API
-        # This requires async_write_property method in BepacomClient
-        _LOGGER.warning(
-            "Write operation not yet implemented for %s",
-            self._obj.unique_id,
-        )
+        try:
+            client = self.coordinator.client
+            await client.async_write_property(
+                device_id=self._obj.device_id,
+                object_type=self._obj.object_type,
+                object_id=self._obj.object_id,
+                value=value,
+            )
+            
+            # Force coordinator update to reflect new state
+            await self.coordinator.async_request_refresh()
+            
+        except WriteError as err:
+            _LOGGER.error(
+                "Failed to set value for %s: %s",
+                self._obj.unique_id,
+                err,
+            )
+        except Exception as err:
+            _LOGGER.exception(
+                "Unexpected error setting value for %s",
+                self._obj.unique_id,
+            )
 
     @property
     def available(self) -> bool:
