@@ -1,5 +1,6 @@
 """Exceptions for the Bepacom integration."""
 
+
 class BepacomError(Exception):
     """Base exception."""
 
@@ -14,3 +15,7 @@ class InvalidAuth(BepacomError):
 
 class InvalidResponse(BepacomError):
     """Raised when the gateway returns invalid data."""
+
+
+class WriteError(BepacomError):
+    """Raised when a write operation fails."""
