@@ -296,8 +296,8 @@ class BacnetObjectTypeMapper:
         lowered = stripped.lower()
 
         technical_patterns = (
-            f"{obj.object_type.lower()} {obj.object_id.lower()}",
-            f"{obj.object_type.lower()}:{obj.object_id.lower()}",
+            f"{str(obj.object_type).lower()} {str(obj.object_id).lower()}",
+            f"{str(obj.object_type).lower()}:{str(obj.object_id).lower()}",
         )
         if lowered in technical_patterns:
             return False

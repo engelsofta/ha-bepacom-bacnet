@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
@@ -92,7 +93,7 @@ class BepacomSensor(CoordinatorEntity[BepacomCoordinator], SensorEntity):
         )
 
     @property
-    def native_value(self) -> float | str | bool | None:
+    def native_value(self) -> Any:
         """Return the state of the sensor."""
         # Update the object from latest data
         if self.coordinator.data:
