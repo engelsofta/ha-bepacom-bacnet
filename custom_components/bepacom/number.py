@@ -58,7 +58,7 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
 
         self._obj = obj
         self._attr_unique_id = obj.unique_id
-        self._attr_name = obj.object_name or f"{obj.object_type} {obj.object_id}"
+        self._attr_name = BacnetObjectTypeMapper.get_entity_name(obj)
         self._attr_native_unit_of_measurement = (
             BacnetObjectTypeMapper.get_unit_of_measurement(obj)
         )
