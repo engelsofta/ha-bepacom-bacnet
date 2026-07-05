@@ -76,11 +76,12 @@ async def async_unload_entry(
     if not unload_ok:
         return False
 
-    data = hass.data[DOMAIN].pop(entry.entry_id)
+    data = hass.data[DOMAIN][entry.entry_id]
     coordinator: BepacomCoordinator = data["coordinator"]
     client: BepacomClient = data["client"]
 
     await coordinator.async_shutdown()
     await client.async_close()
+    hass.data[DOMAIN].pop(entry.entry_id, None)
 
     return unload_ok

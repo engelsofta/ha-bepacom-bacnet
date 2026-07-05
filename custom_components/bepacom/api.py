@@ -84,16 +84,14 @@ class BepacomClient:
         url = f"{self._base}{path}"
 
         _LOGGER.debug("POST %s with data: %s", url, data)
+        request_kwargs: dict[str, Any] = {"params": params}
+
+        if data is not None:
+            request_kwargs["json"] = data
+            request_kwargs["headers"] = {"Content-Type": "application/json"}
 
         try:
-            async with self._session.post(
-                url,
-                json=data,
-                params=params,
-                headers=(
-                    {"Content-Type": "application/json"} if data is not None else None
-                ),
-            ) as response:
+            async with self._session.post(url, **request_kwargs) as response:
                 _LOGGER.debug("HTTP Status: %s", response.status)
 
                 response.raise_for_status()

@@ -154,9 +154,10 @@ class BepacomWebSocketManager:
                 if state.stop_event.is_set():
                     break
 
-                if message.type == aiohttp.WSMsgType.TEXT:
-                    payload = self._parse_message(message.data)
-                elif message.type == aiohttp.WSMsgType.BINARY:
+                if message.type in (
+                    aiohttp.WSMsgType.TEXT,
+                    aiohttp.WSMsgType.BINARY,
+                ):
                     payload = self._parse_message(message.data)
                 elif message.type == aiohttp.WSMsgType.ERROR:
                     raise RuntimeError("WebSocket error received from gateway")
