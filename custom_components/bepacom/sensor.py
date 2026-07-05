@@ -128,6 +128,9 @@ class BepacomSensor(CoordinatorEntity[BepacomCoordinator], SensorEntity):
         if value is None:
             return None
 
+        if isinstance(value, bool):
+            return value
+
         if BacnetObjectTypeMapper.should_native_value_be_float(self._obj):
             try:
                 return float(value)
@@ -139,7 +142,7 @@ class BepacomSensor(CoordinatorEntity[BepacomCoordinator], SensorEntity):
                 )
                 return None
 
-        if isinstance(value, (bool, str)):
+        if isinstance(value, str):
             return value
 
         if isinstance(value, (int, float)):
