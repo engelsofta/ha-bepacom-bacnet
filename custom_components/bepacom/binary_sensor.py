@@ -8,6 +8,7 @@ from typing import Any
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -57,14 +58,34 @@ class BepacomBinarySensor(CoordinatorEntity[BepacomCoordinator], BinarySensorEnt
 
         self._obj = obj
         self._attr_unique_id = obj.unique_id
-        self._attr_name = obj.object_name or f"{obj.object_type} {obj.object_id}"
+        display_name, has_entity_name = BacnetObjectTypeMapper.get_display_name(obj)
+        self._attr_name = display_name
+        self._attr_has_entity_name = has_entity_name
         self._attr_device_class = BacnetObjectTypeMapper.get_device_class(obj)
+        self._attr_device_info = self._build_device_info()
         self._attr_extra_state_attributes = {
             "device_id": obj.device_id,
             "object_id": obj.object_id,
             "object_type": obj.object_type,
             "description": obj.description,
         }
+
+    def _build_device_info(self) -> DeviceInfo:
+        """Build Home Assistant device info for this BACnet device."""
+        device = self.coordinator.discovery.devices.get(self._obj.device_id)
+        if device is None:
+            return DeviceInfo(
+                identifiers={(DOMAIN, f"device_{self._obj.device_id}")},
+                name=f"Device {self._obj.device_id}",
+            )
+
+        return DeviceInfo(
+            identifiers={(DOMAIN, f"device_{self._obj.device_id}")},
+            name=device.name,
+            manufacturer=device.vendor,
+            model=device.model,
+            sw_version=device.firmware,
+        )
 
     @property
     def is_on(self) -> bool | None:
@@ -83,6 +104,14 @@ class BepacomBinarySensor(CoordinatorEntity[BepacomCoordinator], BinarySensorEnt
 
                     if isinstance(obj_data, dict):
                         self._obj.update(obj_data)
+                        display_name, has_entity_name = (
+                            BacnetObjectTypeMapper.get_display_name(self._obj)
+                        )
+                        self._attr_name = display_name
+                        self._attr_has_entity_name = has_entity_name
+                        self._attr_device_class = BacnetObjectTypeMapper.get_device_class(
+                            self._obj
+                        )
 
         # Convert present_value to boolean
         value = self._obj.present_value
