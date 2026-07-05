@@ -57,7 +57,7 @@ class BepacomSensor(CoordinatorEntity[BepacomCoordinator], SensorEntity):
 
         self._obj = obj
         self._attr_unique_id = obj.unique_id
-        self._attr_name = obj.object_name or f"{obj.object_type} {obj.object_id}"
+        self._attr_name = BacnetObjectTypeMapper.get_entity_name(obj)
         self._attr_native_unit_of_measurement = (
             BacnetObjectTypeMapper.get_unit_of_measurement(obj)
         )
@@ -89,7 +89,23 @@ class BepacomSensor(CoordinatorEntity[BepacomCoordinator], SensorEntity):
                     if isinstance(obj_data, dict):
                         self._obj.update(obj_data)
 
-        return self._obj.present_value
+        value = self._obj.present_value
+
+        if value is None:
+            return None
+
+        if not BacnetObjectTypeMapper.should_use_numeric_value(self._obj):
+            return value
+
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            _LOGGER.warning(
+                "Cannot convert %s to float for %s",
+                value,
+                self._obj.unique_id,
+            )
+            return None
 
     @property
     def available(self) -> bool:
