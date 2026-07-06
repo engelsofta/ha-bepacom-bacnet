@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections import deque
 from typing import Any
 
 import aiohttp
@@ -14,6 +15,7 @@ from .const import DEFAULT_SUBSCRIPTION_LIFETIME
 from .exceptions import CannotConnect, InvalidResponse, WriteError
 
 _LOGGER = logging.getLogger(__name__)
+# Gateways return different key names depending on firmware/API variant.
 _SUBSCRIPTION_URL_KEYS = (
     "url",
     "ws_url",
@@ -194,25 +196,37 @@ class BepacomClient:
         return str(base_url.join(parsed_url))
 
     def _extract_subscription_url(self, payload: Any) -> str | None:
-        """Extract a WebSocket URL from variable subscription responses."""
-        if isinstance(payload, str):
-            return payload
+        """Extract WebSocket URLs from string or nested dict subscription payloads."""
+        queue: deque[Any] = deque([payload])
+        visited: set[int] = set()
 
-        if not isinstance(payload, dict):
-            return None
+        while queue:
+            candidate = queue.popleft()
+            candidate_id = id(candidate)
 
-        for key in _SUBSCRIPTION_URL_KEYS:
-            value = payload.get(key)
+            if candidate_id in visited:
+                continue
 
-            if isinstance(value, str):
-                return value
+            visited.add(candidate_id)
 
-        for key in ("data", "result", "subscription"):
-            nested_payload = payload.get(key)
-            nested_url = self._extract_subscription_url(nested_payload)
+            if isinstance(candidate, str):
+                return candidate
 
-            if nested_url is not None:
-                return nested_url
+            if not isinstance(candidate, dict):
+                continue
+
+            for key in _SUBSCRIPTION_URL_KEYS:
+                value = candidate.get(key)
+
+                if isinstance(value, str):
+                    return value
+
+            # Common response wrappers used by different gateway firmware variants.
+            for key in ("data", "result", "subscription"):
+                nested_payload = candidate.get(key)
+
+                if nested_payload is not None:
+                    queue.append(nested_payload)
 
         return None
 
