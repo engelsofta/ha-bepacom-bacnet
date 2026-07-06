@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections import deque
 from typing import Any
 
 import aiohttp
@@ -14,6 +15,18 @@ from .const import DEFAULT_SUBSCRIPTION_LIFETIME
 from .exceptions import CannotConnect, InvalidResponse, WriteError
 
 _LOGGER = logging.getLogger(__name__)
+# Gateways return different key names depending on firmware/API variant.
+_SUBSCRIPTION_URL_KEYS = (
+    "url",
+    "ws_url",
+    "wsUrl",
+    "websocket_url",
+    "websocketUrl",
+    "webSocketUrl",
+    "websocket",
+    "webSocket",
+    "location",
+)
 
 
 class BepacomClient:
@@ -182,6 +195,41 @@ class BepacomClient:
         base_url = URL(self._base).with_scheme("ws")
         return str(base_url.join(parsed_url))
 
+    def _extract_subscription_url(self, payload: Any) -> str | None:
+        """Extract WebSocket URLs from string or nested dict subscription payloads."""
+        queue: deque[Any] = deque([payload])
+        visited: set[int] = set()
+
+        while queue:
+            candidate = queue.popleft()
+            candidate_id = id(candidate)
+
+            if candidate_id in visited:
+                continue
+
+            visited.add(candidate_id)
+
+            if isinstance(candidate, str):
+                return candidate
+
+            if not isinstance(candidate, dict):
+                continue
+
+            for key in _SUBSCRIPTION_URL_KEYS:
+                value = candidate.get(key)
+
+                if isinstance(value, str):
+                    return value
+
+            # Common response wrappers used by different gateway firmware variants.
+            for key in ("data", "result", "subscription"):
+                nested_payload = candidate.get(key)
+
+                if nested_payload is not None:
+                    queue.append(nested_payload)
+
+        return None
+
     async def async_get_database(self) -> dict[str, Any]:
         """Read the complete BACnet database."""
         return await self._get("/apiv1/json")
@@ -223,10 +271,12 @@ class BepacomClient:
             },
         )
 
-        if not isinstance(result, str):
+        ws_url = self._extract_subscription_url(result)
+
+        if ws_url is None:
             raise InvalidResponse
 
-        return self._normalize_websocket_url(result)
+        return self._normalize_websocket_url(ws_url)
 
     async def async_unsubscribe(
         self,
