@@ -12,6 +12,7 @@ from typing import Any
 import aiohttp
 
 from .api import BepacomClient
+from .exceptions import InvalidResponse
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -56,6 +57,17 @@ class BepacomWebSocketManager:
 
         try:
             ws_url = await self._client.async_subscribe(device_id, object_id)
+        except InvalidResponse:
+            _LOGGER.warning(
+                "Gateway returned invalid subscription payload for %s/%s",
+                device_id,
+                object_id,
+            )
+
+            if self._on_subscription_failure is not None:
+                await self._invoke_failure_callback(device_id, object_id)
+
+            return False
         except Exception:
             _LOGGER.exception(
                 "Failed to create subscription for %s/%s",
