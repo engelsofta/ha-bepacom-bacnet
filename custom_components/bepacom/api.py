@@ -14,6 +14,17 @@ from .const import DEFAULT_SUBSCRIPTION_LIFETIME
 from .exceptions import CannotConnect, InvalidResponse, WriteError
 
 _LOGGER = logging.getLogger(__name__)
+_SUBSCRIPTION_URL_KEYS = (
+    "url",
+    "ws_url",
+    "wsUrl",
+    "websocket_url",
+    "websocketUrl",
+    "webSocketUrl",
+    "websocket",
+    "webSocket",
+    "location",
+)
 
 
 class BepacomClient:
@@ -182,6 +193,29 @@ class BepacomClient:
         base_url = URL(self._base).with_scheme("ws")
         return str(base_url.join(parsed_url))
 
+    def _extract_subscription_url(self, payload: Any) -> str | None:
+        """Extract a WebSocket URL from variable subscription responses."""
+        if isinstance(payload, str):
+            return payload
+
+        if not isinstance(payload, dict):
+            return None
+
+        for key in _SUBSCRIPTION_URL_KEYS:
+            value = payload.get(key)
+
+            if isinstance(value, str):
+                return value
+
+        for key in ("data", "result", "subscription"):
+            nested_payload = payload.get(key)
+            nested_url = self._extract_subscription_url(nested_payload)
+
+            if nested_url is not None:
+                return nested_url
+
+        return None
+
     async def async_get_database(self) -> dict[str, Any]:
         """Read the complete BACnet database."""
         return await self._get("/apiv1/json")
@@ -223,10 +257,12 @@ class BepacomClient:
             },
         )
 
-        if not isinstance(result, str):
+        ws_url = self._extract_subscription_url(result)
+
+        if ws_url is None:
             raise InvalidResponse
 
-        return self._normalize_websocket_url(result)
+        return self._normalize_websocket_url(ws_url)
 
     async def async_unsubscribe(
         self,
