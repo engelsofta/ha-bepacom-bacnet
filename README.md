@@ -1,5 +1,8 @@
+
 <p align="center">
-  <img src="images/logo.png" width="180" alt="Bepacom BACnet/IP">
+  <img width="512" height="512" alt="logo" src="https://github.com/user-attachments/assets/ad27ce78-03ef-45c2-a4a2-490d39b90440" />  
+
+
 </p>
 
 # Bepacom BACnet/IP for Home Assistant
