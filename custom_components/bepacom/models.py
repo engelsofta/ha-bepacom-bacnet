@@ -29,13 +29,16 @@ class BacnetObject:
 
     raw: dict[str, Any] = field(default_factory=dict)
 
+
     @property
     def unique_id(self) -> str:
-        """Return a unique id for Home Assistant."""
         device_id = str(self.device_id).strip()
         object_type = str(self.object_type).strip().lower()
         object_id = str(self.object_id).strip()
-        return f"{device_id}_{object_type}_{object_id}"
+
+        return f"bepacom_{device_id}_{object_type}_{object_id}"
+
+
 
     @property
     def entity_id(self) -> str:
