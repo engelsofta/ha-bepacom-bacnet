@@ -1,89 +1,113 @@
-# Bepacom BACnet/IP Home Assistant Integration
+<p align="center">
+  <img src="images/logo.png" width="180" alt="Bepacom BACnet/IP">
+</p>
 
-Home Assistant integration für die Bepacom BACnet/IP Interface.
+# Bepacom BACnet/IP for Home Assistant
 
-Diese Integration ermöglicht die Verbindung zu einem Bepacom BACnet/IP Gateway und die Überwachung von BACnet-Geräten und -Objekten direkt in Home Assistant.
+Custom Home Assistant integration for Bepacom BACnet/IP gateways.
+
+> Current release: **0.2.0-alpha2**
+
+## Features
+
+- Local BACnet/IP gateway communication
+- Automatic BACnet discovery
+- WebSocket subscriptions with live push updates
+- One shared WebSocket connection for subscribed objects
+- Parallel subscription initialization
+- Optional cyclic `/apiv1/json` polling
+- Heartbeat monitoring with automatic reconnect
+- Automatic subscription renewal after reconnect
+- WebSocket diagnostic sensor
+- Optional push-value logging for troubleshooting
+- BACnet metadata support:
+  - `units`
+  - `resolution`
+  - `statusFlags`
+  - `reliability`
+  - `covIncrement`
+  - `outOfService`
+
+## Recommended configuration
+
+For the currently tested Bepacom gateway behavior:
+
+| Option | Recommended |
+|---|---|
+| Cyclic data update | Disabled |
+| Snapshot WebSocket mode | Disabled |
+| Push-value logging | Disabled during normal use |
+| Subscribed objects | Select all live values that should update by push |
+
+The tested gateway appears to require an explicit subscription for every object whose value should update reliably. Even with many subscriptions, the integration uses one shared WebSocket connection.
 
 ## Installation
 
-### Über HACS (empfohlen)
+### Manual installation
 
-1. Öffne Home Assistant und navigiere zu **HACS**
-2. Klicke auf **Integrationen**
-3. Suche nach **Bepacom**
-4. Klicke auf **Installieren**
-5. Starte Home Assistant neu
+Copy this folder:
 
-### Manuelle Installation
+```text
+custom_components/bepacom
+```
 
-1. Lade den Inhalt dieses Repositories herunter
-2. Kopiere den `custom_components/bepacom` Ordner in dein Home Assistant `custom_components` Verzeichnis
-3. Starte Home Assistant neu
+to:
 
-## Konfiguration
+```text
+/config/custom_components/bepacom
+```
 
-### Über die UI
+Restart Home Assistant, then add the integration:
 
-1. Gehe zu **Einstellungen > Geräte und Dienste > Integrationen**
-2. Klicke auf **+ Neue Integration erstellen**
-3. Suche nach **Bepacom** und klicke darauf
-4. Gib die Host-Adresse und den Port deines Bepacom Gateways ein (Standard: 8099)
-5. Klicke auf **Absenden**
+```text
+Settings → Devices & services → Add integration → Bepacom BACnet/IP
+```
 
-Die Integration wird automatisch BACnet-Geräte und -Objekte erkennen und als Sensoren verfügbar machen.
+### HACS custom repository
 
-## Funktionen
+1. Open HACS.
+2. Go to **Integrations**.
+3. Open the three-dot menu.
+4. Select **Custom repositories**.
+5. Add this repository URL.
+6. Select category **Integration**.
+7. Install and restart Home Assistant.
 
-- 🔍 Automatische Erkennung von BACnet-Geräten
-- 📊 Überwachung von BACnet-Objekten (Sensoren, Werte, etc.)
-- ⚡ Echtzeit-Updates via WebSocket-Subscriptions
-- 🔄 Fallback-Polling für Objekte ohne aktive Subscription
-- 📱 Vollständige Integration mit Home Assistant UI
+## Options
 
-## Anforderungen
+The integration options include:
 
-- Home Assistant 2023.12 oder höher
-- Bepacom BACnet/IP Gateway (erreichbar im lokalen Netzwerk)
+- **Cyclic data update**  
+  Enables or disables recurring `/apiv1/json` polling.
 
-## Bekannte Limitierungen
+- **Snapshot WebSocket mode**  
+  Experimental. Uses one gateway subscription and processes configured objects from snapshot payloads. Keep disabled if your gateway requires one subscription per object.
 
-- Diese Version ist **Alpha** und wird noch aktiv entwickelt
-- Nur Lesezugriff auf BACnet-Objekte (Schreiben wird in zukünftigen Versionen unterstützt)
-- Es werden derzeit nur einfache Sensoren erstellt
+- **WebSocket push-value logging**  
+  Logs push payload values for troubleshooting. Keep disabled during normal operation.
 
-## Release Notes & Pre-Releases
+- **WebSocket heartbeat timeout**  
+  Time in seconds before the WebSocket is considered stale and reconnected.
 
-- Gemergte Pull Requests werden automatisch in den Draft-Release-Notes gesammelt (Release Drafter).
-- Für die Kategorisierung bitte PR-Labels verwenden:
-  - `feature` / `enhancement` / `feat`
-  - `fix` / `bug` / `bugfix`
-  - `docs` / `documentation`
-  - `chore` / `refactor` / `ci` / `build`
-  - `breaking` / `breaking-change` / `major`
-- Mit `skip-changelog` wird ein PR aus den Release Notes ausgeschlossen.
-- Ein neues Pre-Release wird automatisch beim Push eines Pre-Release-Tags erstellt, z. B.:
-  - `v1.2.0-beta.1`
-  - `v1.2.0-rc.1`
-- Das GitHub Pre-Release wird als `prerelease: true` veröffentlicht und enthält die automatisch aggregierten PR-Änderungen.
+- **Subscribed objects**  
+  BACnet objects that should be updated through WebSocket push.
 
-## Troubleshooting
+## Diagnostics
 
-### Integration verbindet sich nicht
+The integration creates a diagnostic WebSocket sensor with attributes such as:
 
-- Überprüfe die Host-Adresse und den Port deines Bepacom Gateways
-- Stelle sicher, dass das Gateway im selben Netzwerk erreichbar ist
-- Prüfe deine Firewall-Einstellungen
+- connection state
+- number of subscriptions
+- push count
+- reconnect count
+- last push age
+- heartbeat timeout
+- polling mode
 
-### Keine Sensoren werden erstellt
+## Branding
 
-- Überprüfe die Home Assistant Logs auf Fehler
-- Stelle sicher, dass dein Bepacom Gateway BACnet-Objekte enthält
-- Die Integration sucht nach Geräten mit dem Präfix `device:` in der API-Response
+The `brands/bepacom` folder is prepared for a future Home Assistant Brands pull request.
 
-## Support
+## License
 
-Für Bugs, Feature-Requests oder Fragen, bitte öffne ein [Issue](https://github.com/engelsofta/bepacom/issues).
-
-## Lizenz
-
-[Siehe LICENSE Datei](LICENSE)
+MIT
