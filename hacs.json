@@ -2,11 +2,5 @@
   "name": "Bepacom BACnet/IP",
   "content_in_root": false,
   "render_readme": true,
-  "domains": [
-    "sensor",
-    "binary_sensor",
-    "switch",
-    "number"
-  ],
   "homeassistant": "2025.1.0"
 }
