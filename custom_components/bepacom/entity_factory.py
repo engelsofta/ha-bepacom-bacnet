@@ -496,13 +496,19 @@ class BacnetObjectTypeMapper:
 
         return BacnetObjectTypeMapper.get_measurement_label(obj), True
 
+
     @staticmethod
     def get_measurement_label(obj: BacnetObject) -> str:
-        """Return a readable measurement label for an object."""
-        if obj.object_type:
-            return f"{obj.object_type}:{obj.object_id}"
+        """Return the object id as entity name suffix.
 
-        return f"Object:{obj.object_id}"
+        With has_entity_name=True, Home Assistant builds:
+        sensor.device_1_analoginput_545
+        instead of:
+        sensor.device_1_analoginput_analoginput_545
+        """
+        return str(obj.object_id)
+
+
 
     @staticmethod
     def _is_generic_measurement_name(name: str) -> bool:
