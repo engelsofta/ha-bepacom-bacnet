@@ -1,0 +1,46 @@
+name: Bug report
+description: Report a problem with the Bepacom BACnet/IP integration
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+      placeholder: "2026.7.0"
+    validations:
+      required: true
+  - type: input
+    id: integration_version
+    attributes:
+      label: Integration version
+      placeholder: "0.2.0-alpha2"
+    validations:
+      required: true
+  - type: input
+    id: gateway
+    attributes:
+      label: Gateway model / firmware
+    validations:
+      required: false
+  - type: dropdown
+    id: polling
+    attributes:
+      label: Cyclic polling enabled?
+      options:
+        - "Yes"
+        - "No"
+  - type: dropdown
+    id: snapshot
+    attributes:
+      label: Snapshot WebSocket mode enabled?
+      options:
+        - "Yes"
+        - "No"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      render: text
+    validations:
+      required: true
