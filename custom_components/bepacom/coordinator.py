@@ -14,6 +14,16 @@ from homeassistant.helpers.update_coordinator import (
 
 from .api import BepacomClient
 from .const import (
+    CONF_ENABLE_POLLING,
+    CONF_HEARTBEAT_TIMEOUT,
+    CONF_PUSH_VALUE_LOGGING,
+    CONF_SNAPSHOT_WEBSOCKET_MODE,
+    CONF_SUBSCRIBED_OBJECTS,
+    DEFAULT_ENABLE_POLLING,
+    DEFAULT_HEARTBEAT_TIMEOUT,
+    DEFAULT_PUSH_VALUE_LOGGING,
+    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_SNAPSHOT_WEBSOCKET_MODE,
     DOMAIN,
     FALLBACK_POLL_INTERVAL,
 )
@@ -23,6 +33,8 @@ from .websocket_manager import BepacomWebSocketManager
 
 _LOGGER = logging.getLogger(__name__)
 _MAX_INVALID_FALLBACK_RESPONSES = 3
+_PUSH_UPDATE_DEBOUNCE_SECONDS = 0.5
+_SUBSCRIBE_CONCURRENCY = 5
 
 
 class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -32,34 +44,93 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self,
         hass: HomeAssistant,
         client: BepacomClient,
+        entry,
     ) -> None:
         """Initialize coordinator."""
+
+        self._polling_enabled = entry.options.get(
+            CONF_ENABLE_POLLING,
+            DEFAULT_ENABLE_POLLING,
+        )
+        self._snapshot_websocket_mode = entry.options.get(
+            CONF_SNAPSHOT_WEBSOCKET_MODE,
+            DEFAULT_SNAPSHOT_WEBSOCKET_MODE,
+        )
+        self._push_value_logging = entry.options.get(
+            CONF_PUSH_VALUE_LOGGING,
+            DEFAULT_PUSH_VALUE_LOGGING,
+        )
+        self._heartbeat_timeout = entry.options.get(
+            CONF_HEARTBEAT_TIMEOUT,
+            DEFAULT_HEARTBEAT_TIMEOUT,
+        )
 
         super().__init__(
             hass,
             _LOGGER,
             name=DOMAIN,
+            update_interval=DEFAULT_SCAN_INTERVAL if self._polling_enabled else None,
         )
 
         self.client = client
+        self._entry = entry
+
+        if self._polling_enabled:
+            _LOGGER.info(
+                "Bepacom cyclic polling enabled: interval=%s",
+                DEFAULT_SCAN_INTERVAL,
+            )
+        else:
+            _LOGGER.info(
+                "Bepacom cyclic polling disabled; using initial discovery and WebSocket/subscription updates only",
+            )
+
+        if self._snapshot_websocket_mode:
+            _LOGGER.info(
+                "Bepacom snapshot WebSocket mode enabled; only one gateway subscription will be created and configured objects will be processed from each snapshot",
+            )
 
         self.discovery = DiscoveryEngine()
+
+        self._discovery_completed = False
 
         self.data: dict[str, Any] = {}
         self._websocket_manager = BepacomWebSocketManager(
             client=client,
             on_update=self._async_handle_subscription_update,
             on_subscription_failure=self._async_handle_subscription_failure,
+            heartbeat_timeout=self._heartbeat_timeout,
+            push_value_logging=self._push_value_logging,
         )
         self._fallback_objects: set[tuple[str, str]] = set()
         self._fallback_invalid_responses: dict[tuple[str, str], int] = {}
         self._fallback_task = None
         self._subscriptions_started = False
+        self._subscriptions_initialized = False
+        self._last_subscription_summary: tuple[int, int] | None = None
+        self._last_inventory_summary: tuple[int, int] | None = None
+        self._pending_push_update_task: asyncio.Task[None] | None = None
+
+    @property
+    def websocket_diagnostics(self) -> dict[str, Any]:
+        """Return WebSocket diagnostics for diagnostic entities."""
+        diagnostics = dict(self._websocket_manager.diagnostics)
+        diagnostics.update(
+            {
+                "polling_enabled": self._polling_enabled,
+                "snapshot_websocket_mode": self._snapshot_websocket_mode,
+                "subscriptions_started": self._subscriptions_started,
+                "subscriptions_initialized": self._subscriptions_initialized,
+                "last_subscription_summary": self._last_subscription_summary,
+                "fallback_objects": len(self._fallback_objects),
+            }
+        )
+        return diagnostics
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from the Bepacom gateway."""
 
-        _LOGGER.info("Requesting BACnet database...")
+        _LOGGER.debug("Requesting BACnet database...")
 
         try:
             raw = await self.client.async_get_database()
@@ -72,18 +143,37 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     f"Unexpected response type: {type(raw)}"
                 )
 
-            self.discovery.parse(raw)
+
+
+
+            if not self._discovery_completed:
+                _LOGGER.info("Running initial BACnet discovery...")
+
+                self.discovery.parse(raw)
+
+                inventory_summary = (
+                    len(self.discovery.devices),
+                    len(self.discovery.objects),
+                )
+
+                _LOGGER.info(
+                    "Discovery finished: %s devices / %s objects",
+                    inventory_summary[0],
+                    inventory_summary[1],
+                )
+
+                self._last_inventory_summary = inventory_summary
+                self._discovery_completed = True
 
             self.data = raw
 
-            _LOGGER.info(
-                "Discovery finished: %s devices / %s objects",
-                len(self.discovery.devices),
-                len(self.discovery.objects),
-            )
 
-            if self._subscriptions_started:
-                await self._async_subscribe_discovered_objects()
+            if (
+                self._subscriptions_started
+                and self._websocket_manager.subscriptions_enabled
+                and not self._subscriptions_initialized
+            ):
+                await self._async_initialize_subscriptions()
 
             return raw
 
@@ -98,11 +188,13 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
 
         self._subscriptions_started = True
-        await self._async_subscribe_discovered_objects()
+        await self._async_initialize_subscriptions()
 
     async def async_shutdown(self) -> None:
         """Stop subscriptions and fallback polling."""
         self._subscriptions_started = False
+        self._subscriptions_initialized = False
+        self._last_subscription_summary = None
 
         if self._fallback_task is not None:
             self._fallback_task.cancel()
@@ -113,23 +205,184 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 pass
 
             self._fallback_task = None
+        
+        if self._pending_push_update_task is not None:
+            self._pending_push_update_task.cancel()
+            
+            try:
+                await self._pending_push_update_task
+            except asyncio.CancelledError:
+                pass
+            
+            self._pending_push_update_task = None
 
         self._fallback_objects.clear()
         self._fallback_invalid_responses.clear()
         await self._websocket_manager.async_unsubscribe_all()
 
-    async def _async_subscribe_discovered_objects(self) -> None:
-        """Subscribe to every discovered object."""
-        for device_id, object_id in self._iter_subscription_targets():
-            if await self._websocket_manager.async_subscribe(device_id, object_id):
-                self._fallback_objects.discard((device_id, object_id))
-                self._fallback_invalid_responses.pop((device_id, object_id), None)
+    async def _async_initialize_subscriptions(self) -> None:
+        """Initialize subscriptions once after discovery has completed."""
+        if self._subscriptions_initialized:
+            return
+
+        if not self._websocket_manager.subscriptions_enabled:
+            _LOGGER.debug("Skipping Bepacom subscriptions because subscriptions are disabled.")
+            return
+
+        targets = self._iter_subscription_targets()
+
+        if not targets:
+            _LOGGER.debug(
+                "No Bepacom subscription targets configured; using coordinator polling only."
+            )
+            self._subscriptions_initialized = True
+            self._last_subscription_summary = (0, 0)
+            return
+
+        if self._snapshot_websocket_mode:
+            self._websocket_manager.set_snapshot_targets(targets)
+            gateway_targets = targets[:1]
+
+            _LOGGER.info(
+                "Initializing Bepacom snapshot WebSocket subscription: trigger=%s/%s, processed_targets=%s",
+                gateway_targets[0][0],
+                gateway_targets[0][1],
+                len(targets),
+            )
+        else:
+            gateway_targets = targets
+            self._websocket_manager.clear_snapshot_targets()
+
+            _LOGGER.info("Initializing Bepacom subscriptions for %s objects...", len(targets))
+
+        successful = await self._async_subscribe_discovered_objects(gateway_targets)
+
+        self._subscriptions_initialized = True
+        self._last_subscription_summary = (successful, len(targets))
+
+        if self._snapshot_websocket_mode:
+            _LOGGER.info(
+                "Bepacom snapshot WebSocket initialized: gateway_subscriptions=%s processed_targets=%s",
+                successful,
+                len(targets),
+            )
+        else:
+            _LOGGER.info(
+                "Bepacom subscriptions initialized: %s/%s active",
+                successful,
+                len(targets),
+            )
+
+    async def _async_subscribe_discovered_objects(
+        self,
+        targets: list[tuple[str, str]] | None = None,
+    ) -> int:
+        """Subscribe to discovered objects and return the number of active subscriptions."""
+        if not self._websocket_manager.subscriptions_enabled:
+            return 0
+
+        subscription_targets = targets if targets is not None else self._iter_subscription_targets()
+
+        if not subscription_targets:
+            return 0
+
+        successful = await self._async_subscribe_targets(subscription_targets)
 
         self._ensure_fallback_polling()
+        return successful
+
+    async def _async_subscribe_targets(
+        self,
+        targets: list[tuple[str, str]],
+    ) -> int:
+        """Subscribe targets with bounded concurrency.
+
+        This is the central subscription scheduler. It is used during startup and can later
+        also be reused for reconnect/resubscribe handling.
+        """
+        if not targets:
+            return 0
+
+        queue: asyncio.Queue[tuple[str, str]] = asyncio.Queue()
+
+        for target in targets:
+            queue.put_nowait(target)
+
+        successful = 0
+        successful_lock = asyncio.Lock()
+
+        async def worker(worker_id: int) -> None:
+            nonlocal successful
+
+            while True:
+                try:
+                    device_id, object_id = queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    return
+
+                try:
+                    subscribed = await self._websocket_manager.async_subscribe(
+                        device_id,
+                        object_id,
+                    )
+
+                    if subscribed:
+                        self._fallback_objects.discard((device_id, object_id))
+                        self._fallback_invalid_responses.pop((device_id, object_id), None)
+
+                        async with successful_lock:
+                            successful += 1
+
+                except Exception:
+                    _LOGGER.exception(
+                        "Subscription worker %s failed for %s/%s",
+                        worker_id,
+                        device_id,
+                        object_id,
+                    )
+                finally:
+                    queue.task_done()
+
+        worker_count = min(_SUBSCRIBE_CONCURRENCY, len(targets))
+
+        _LOGGER.debug(
+            "Starting Bepacom subscription scheduler: targets=%s workers=%s",
+            len(targets),
+            worker_count,
+        )
+
+        workers = [
+            self.hass.async_create_task(
+                worker(index + 1),
+                name=f"bepacom-subscribe-worker-{index + 1}",
+            )
+            for index in range(worker_count)
+        ]
+
+        try:
+            await queue.join()
+        finally:
+            for task in workers:
+                if not task.done():
+                    task.cancel()
+
+            await asyncio.gather(*workers, return_exceptions=True)
+
+        _LOGGER.debug(
+            "Bepacom subscription scheduler finished: successful=%s targets=%s",
+            successful,
+            len(targets),
+        )
+
+        return successful
 
     def _iter_subscription_targets(self) -> list[tuple[str, str]]:
         """Return all object paths that can be subscribed."""
         targets: list[tuple[str, str]] = []
+        enabled_keys = self._enabled_subscription_keys()
+
+        if not enabled_keys:
+            return targets
 
         for device_key, device_data in self.data.items():
             if not device_key.startswith("device:") or not isinstance(device_data, dict):
@@ -141,9 +394,86 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if ":" not in object_key or not isinstance(object_data, dict):
                     continue
 
+                object_type = object_key.split(":", 1)[0].lower()
+
+                if object_type in {"device", "file"}:
+                    continue
+
+                option_key = self._subscription_option_key(device_id, object_key)
+
+                if option_key not in enabled_keys:
+                    continue
+
                 targets.append((device_id, object_key))
 
         return targets
+
+    def subscription_option_map(self) -> dict[str, str]:
+        """Return selectable subscriptions for the options flow."""
+        options_with_order: list[tuple[tuple[str, int, str, str], str, str]] = []
+
+        for device_key, device_data in self.data.items():
+            if not device_key.startswith("device:") or not isinstance(device_data, dict):
+                continue
+
+            device_id = device_key.split(":", 1)[1]
+
+            for object_key, object_data in device_data.items():
+                if ":" not in object_key or not isinstance(object_data, dict):
+                    continue
+
+                object_type = object_key.split(":", 1)[0].lower()
+
+                if object_type in {"device", "file"}:
+                    continue
+
+                object_name = object_data.get("objectName")
+                object_instance = self._object_instance(object_key)
+                object_display_name = (
+                    object_name.strip()
+                    if isinstance(object_name, str) and object_name.strip()
+                    else "-"
+                )
+
+                # Prefix the label with object type to make long lists easier to scan.
+                label = (
+                    f"[{object_type}] {device_id}/{object_key}"
+                    f" | Name: {object_display_name}"
+                )
+
+                sort_key = (object_type, object_instance, object_display_name.lower(), device_id)
+                option_key = self._subscription_option_key(device_id, object_key)
+                options_with_order.append((sort_key, option_key, label))
+
+        return {
+            option_key: label
+            for _, option_key, label in sorted(options_with_order, key=lambda item: item[0])
+        }
+
+    def _object_instance(self, object_id: str) -> int:
+        """Return BACnet object instance for sorting, if available."""
+        if ":" not in object_id:
+            return 999999999
+
+        _, instance = object_id.split(":", 1)
+
+        try:
+            return int(instance)
+        except ValueError:
+            return 999999999
+
+    def _enabled_subscription_keys(self) -> set[str]:
+        """Return option keys for objects that should use subscribe."""
+        selected = self._entry.options.get(CONF_SUBSCRIBED_OBJECTS, [])
+
+        if not isinstance(selected, list):
+            return set()
+
+        return {str(item) for item in selected}
+
+    def _subscription_option_key(self, device_id: str, object_id: str) -> str:
+        """Build a stable key for per-object subscription options."""
+        return f"{device_id}|{object_id}"
 
     async def _async_handle_subscription_update(
         self,
@@ -153,16 +483,19 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     ) -> None:
         """Apply one pushed object update."""
         if self._apply_object_update(device_id, object_id, payload):
-            self.async_set_updated_data(self.data)
+            self._schedule_push_update()
 
     async def _async_handle_subscription_failure(
         self,
         device_id: str,
         object_id: str,
     ) -> None:
-        """Enable fallback polling for an object."""
-        self._fallback_objects.add((device_id, object_id))
-        self._ensure_fallback_polling()
+        """Fall back to coordinator polling when subscriptions fail."""
+        _LOGGER.debug(
+            "Subscription unavailable for %s/%s, using periodic full-database polling",
+            device_id,
+            object_id,
+        )
 
     def _apply_object_update(
         self,
@@ -278,10 +611,41 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         continue
 
                     if self._apply_object_update(device_id, object_id, payload):
-                        self.async_set_updated_data(self.data)
+                        self._schedule_push_update()
 
                 await asyncio.sleep(FALLBACK_POLL_INTERVAL.total_seconds())
         except asyncio.CancelledError:
             raise
         finally:
             self._fallback_task = None
+
+    def _schedule_push_update(self) -> None:
+        """Batch frequent push updates into a single coordinator update."""
+        if self._pending_push_update_task is not None and not self._pending_push_update_task.done():
+            return
+
+        self._pending_push_update_task = self.hass.async_create_task(
+            self._async_flush_push_update(),
+            name="bepacom-push-update-flush",
+        )
+
+    async def _async_flush_push_update(self) -> None:
+        """Flush pending push updates after a short debounce window.
+
+        Important:
+        Do not use async_set_updated_data() here. Home Assistant's
+        DataUpdateCoordinator treats that as fresh coordinator data and resets
+        the normal polling timer. With frequent WebSocket pushes, that can delay
+        the scheduled full database poll indefinitely.
+
+        The WebSocket handler already merged the pushed payload into
+        self.data. Therefore we only need to notify listeners here and keep the
+        regular poll schedule independent from push updates.
+        """
+        try:
+            await asyncio.sleep(_PUSH_UPDATE_DEBOUNCE_SECONDS)
+            self.async_update_listeners()
+        except asyncio.CancelledError:
+            raise
+        finally:
+            self._pending_push_update_task = None

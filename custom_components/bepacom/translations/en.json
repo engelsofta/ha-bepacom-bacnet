@@ -17,5 +17,20 @@
     "abort": {
       "already_configured": "Gateway is already configured."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Subscription settings",
+        "description": "Default: cyclic full polling is enabled. You can disable it and update selected objects via Subscribe/WebSocket only.",
+        "data": {
+          "enable_polling": "Enable cyclic data updates",
+          "subscribed_objects": "Objects with subscription enabled",
+          "snapshot_websocket_mode": "Enable snapshot WebSocket mode",
+          "push_value_logging": "Log WebSocket push values",
+          "heartbeat_timeout": "WebSocket heartbeat timeout in seconds"
+        }
+      }
+    }
   }
 }

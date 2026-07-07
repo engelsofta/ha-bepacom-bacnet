@@ -16,6 +16,7 @@ class DiscoveryEngine:
         """Initialize discovery."""
         self.devices: dict[str, BacnetDevice] = {}
         self.objects: dict[str, BacnetObject] = {}
+        self._last_summary_signature: tuple[int, int, tuple[tuple[str, int], ...]] | None = None
 
     def clear(self) -> None:
         """Clear current discovery cache."""
@@ -88,6 +89,17 @@ class DiscoveryEngine:
 
         for obj in self.objects.values():
             counter[obj.object_type] = counter.get(obj.object_type, 0) + 1
+
+        summary_signature = (
+            len(self.devices),
+            len(self.objects),
+            tuple(sorted(counter.items())),
+        )
+
+        if summary_signature == self._last_summary_signature:
+            return
+
+        self._last_summary_signature = summary_signature
 
         _LOGGER.info("========== Bepacom Discovery ==========")
         _LOGGER.info("Devices found : %s", len(self.devices))
