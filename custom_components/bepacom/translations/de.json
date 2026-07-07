@@ -17,5 +17,20 @@
     "abort": {
       "already_configured": "Gateway ist bereits eingerichtet."
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Subscribe-Einstellungen",
+        "description": "Standard: zyklische Vollabfrage ist aktiv. Optional kannst du sie deaktivieren und ausgewählte Objekte nur per Subscribe/WebSocket aktualisieren lassen.",
+        "data": {
+          "enable_polling": "Zyklische Datenaktualisierung aktivieren",
+          "subscribed_objects": "Objekte mit aktivem Subscribe",
+          "snapshot_websocket_mode": "Snapshot-WebSocket-Modus aktivieren",
+          "push_value_logging": "WebSocket-Push-Werte protokollieren",
+          "heartbeat_timeout": "WebSocket-Heartbeat-Timeout in Sekunden"
+        }
+      }
+    }
   }
 }

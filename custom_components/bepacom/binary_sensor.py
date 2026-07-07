@@ -73,18 +73,10 @@ class BepacomBinarySensor(CoordinatorEntity[BepacomCoordinator], BinarySensorEnt
     def _build_device_info(self) -> DeviceInfo:
         """Build Home Assistant device info for this BACnet device."""
         device = self.coordinator.discovery.devices.get(self._obj.device_id)
-        if device is None:
-            return DeviceInfo(
-                identifiers={(DOMAIN, f"device_{self._obj.device_id}")},
-                name=f"Device {self._obj.device_id}",
-            )
-
-        return DeviceInfo(
-            identifiers={(DOMAIN, f"device_{self._obj.device_id}")},
-            name=device.name,
-            manufacturer=device.vendor,
-            model=device.model,
-            sw_version=device.firmware,
+        return BacnetObjectTypeMapper.build_device_info(
+            domain=DOMAIN,
+            obj=self._obj,
+            device=device,
         )
 
     @property

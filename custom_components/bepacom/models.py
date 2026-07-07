@@ -19,6 +19,11 @@ class BacnetObject:
     present_value: Any = None
     description: str = ""
     units: str | None = None
+    resolution: float | None = None
+    reliability: str | None = None
+    status_flags: list[bool] | dict[str, bool] | None = None
+    out_of_service: bool | None = None
+    cov_increment: float | None = None
 
     writable: bool = False
 
@@ -55,17 +60,43 @@ class BacnetObject:
 
         self.raw = data
 
-        self.object_name = data.get("objectName", self.object_name)
-        self.present_value = data.get("presentValue")
-        self.units = data.get("units")
-        self.description = data.get("description", self.description)
+        if "objectName" in data:
+            self.object_name = data.get("objectName", self.object_name)
 
-        writable = data.get("writable", [])
+        if "presentValue" in data:
+            self.present_value = data.get("presentValue")
 
-        if isinstance(writable, list):
-            self.writable = "presentValue" in writable
-        else:
-            self.writable = False
+        # Keep the last known unit when incremental updates do not include units.
+        if "units" in data:
+            self.units = data.get("units")
+
+        # Keep the last known BACnet metadata when incremental updates omit it.
+        if "resolution" in data:
+            self.resolution = data.get("resolution")
+
+        if "reliability" in data:
+            self.reliability = data.get("reliability")
+
+        if "statusFlags" in data:
+            self.status_flags = data.get("statusFlags")
+
+        if "outOfService" in data:
+            self.out_of_service = data.get("outOfService")
+
+        if "covIncrement" in data:
+            self.cov_increment = data.get("covIncrement")
+
+        if "description" in data:
+            self.description = data.get("description", self.description)
+
+        # Do not reset writable state on partial updates that omit this field.
+        if "writable" in data:
+            writable = data.get("writable", [])
+
+            if isinstance(writable, list):
+                self.writable = "presentValue" in writable
+            else:
+                self.writable = False
 
 
 @dataclass(slots=True)
