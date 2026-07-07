@@ -6,8 +6,6 @@
 
 Custom Home Assistant integration for Bepacom BACnet/IP gateways.
 
-> Current release: **0.2.0-alpha2**
-
 ## Features
 
 - Local BACnet/IP gateway communication
