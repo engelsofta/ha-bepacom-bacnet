@@ -17,6 +17,7 @@ from .coordinator import BepacomCoordinator
 from .entity_factory import BacnetObjectTypeMapper, EntityType
 from .exceptions import WriteError
 from .models import BacnetObject
+from .override_manager import BepacomOverrideManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,8 +35,12 @@ async def async_setup_entry(
 
     # Create number entities for writable analog objects
     entities: list[NumberEntity] = []
+    overrides = BepacomOverrideManager(entry.options)
 
-    for obj in coordinator.discovery.objects.values():
+    for obj in coordinator.point_registry.all():
+        if not overrides.is_enabled(obj):
+            continue
+
         entity_type = BacnetObjectTypeMapper.get_entity_type(obj)
 
         if entity_type == EntityType.NUMBER:
@@ -58,23 +63,32 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
         super().__init__(coordinator)
 
         self._obj = obj
+        self._overrides = BepacomOverrideManager(coordinator._entry.options)
         self._attr_unique_id = obj.unique_id
+        self._attr_entity_id = f"number.{obj.entity_id}"
+        self._attr_suggested_object_id = obj.entity_id
         display_name, has_entity_name = BacnetObjectTypeMapper.get_display_name(obj)
         self._attr_name = display_name
         self._attr_has_entity_name = has_entity_name
         self._attr_native_unit_of_measurement = (
-            BacnetObjectTypeMapper.get_unit_of_measurement(obj)
+            self._overrides.get_unit_of_measurement(obj)
         )
-        self._attr_device_class = BacnetObjectTypeMapper.get_device_class(obj)
+        self._attr_device_class = self._overrides.get_device_class(obj)
         self._attr_mode = NumberMode.BOX
         self._attr_device_info = self._build_device_info()
-        self._attr_extra_state_attributes = {
-            "device_id": obj.device_id,
-            "object_id": obj.object_id,
-            "object_type": obj.object_type,
-            "description": obj.description,
-            "writable": obj.writable,
+        self._attr_extra_state_attributes = self._build_extra_state_attributes()
+
+    def _build_extra_state_attributes(self) -> dict[str, Any]:
+        """Build extra attributes for BACnet Point Inspector."""
+        attrs: dict[str, Any] = {
+            "device_id": self._obj.device_id,
+            "object_id": self._obj.object_id,
+            "object_type": self._obj.object_type,
+            "description": self._obj.description,
+            "writable": self._obj.writable,
         }
+        attrs.update(self.coordinator.point_registry.inspector_attributes(self._obj))
+        return attrs
 
     def _build_device_info(self) -> DeviceInfo:
         """Build Home Assistant device info for this BACnet device."""
@@ -108,11 +122,12 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
                         self._attr_name = display_name
                         self._attr_has_entity_name = has_entity_name
                         self._attr_native_unit_of_measurement = (
-                            BacnetObjectTypeMapper.get_unit_of_measurement(self._obj)
+                            self._overrides.get_unit_of_measurement(self._obj)
                         )
-                        self._attr_device_class = BacnetObjectTypeMapper.get_device_class(
+                        self._attr_device_class = self._overrides.get_device_class(
                             self._obj
                         )
+                        self._attr_extra_state_attributes = self._build_extra_state_attributes()
 
         value = self._obj.present_value
 
