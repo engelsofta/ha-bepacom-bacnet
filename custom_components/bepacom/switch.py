@@ -35,7 +35,7 @@ async def async_setup_entry(
     # Create switches for binary output objects
     entities: list[SwitchEntity] = []
 
-    for obj in coordinator.discovery.objects.values():
+    for obj in coordinator.point_registry.all():
         entity_type = BacnetObjectTypeMapper.get_entity_type(obj)
 
         if entity_type == EntityType.SWITCH:
@@ -59,6 +59,8 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
 
         self._obj = obj
         self._attr_unique_id = obj.unique_id
+        self._attr_entity_id = f"switch.{obj.entity_id}"
+        self._attr_suggested_object_id = obj.entity_id
         display_name, has_entity_name = BacnetObjectTypeMapper.get_display_name(obj)
         self._attr_name = display_name
         self._attr_has_entity_name = has_entity_name
@@ -70,6 +72,9 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
             "description": obj.description,
             "writable": obj.writable,
         }
+        self._attr_extra_state_attributes.update(
+            coordinator.point_registry.inspector_attributes(obj)
+        )
 
     def _build_device_info(self) -> DeviceInfo:
         """Build Home Assistant device info for this BACnet device."""

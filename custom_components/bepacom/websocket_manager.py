@@ -20,7 +20,7 @@ _MAX_INVALID_SUBSCRIPTION_WARNINGS = 5
 _MAX_INVALID_SUBSCRIPTION_FAILURES = 25
 _UNSUBSCRIBE_CONCURRENCY = 20
 
-type UpdateCallback = Callable[[str, str, dict[str, Any]], Awaitable[None] | None]
+type UpdateCallback = Callable[[str, str, dict[str, Any]], Awaitable[bool | None] | bool | None]
 type FailureCallback = Callable[[str, str], Awaitable[None] | None]
 
 
@@ -74,7 +74,28 @@ class BepacomWebSocketManager:
         self._subscribe_attempts = 0
         self._subscribe_successes = 0
         self._websocket_connects = 0
+        # Raw WebSocket/COV payloads received from the BACnet gateway.
         self._websocket_updates = 0
+        # Object payloads extracted from those messages and forwarded to the coordinator.
+        self._websocket_processed_objects = 0
+        # Object payloads present in snapshots but ignored because they are not configured.
+        self._websocket_ignored_objects = 0
+        # Object payloads inspected while dispatching snapshot messages.
+        self._websocket_payload_objects = 0
+        # Time spent dispatching push payloads, for lightweight performance diagnostics.
+        self._dispatch_time_total = 0.0
+        self._dispatch_time_max = 0.0
+        # Push path instrumentation: these counters describe where work happens.
+        self._websocket_direct_messages = 0
+        self._websocket_snapshot_messages = 0
+        self._websocket_fallback_messages = 0
+        self._websocket_callback_invocations = 0
+        self._websocket_callback_value_changes = 0
+        self._websocket_callback_no_changes = 0
+        # Configured snapshot payloads that were skipped before callbacks because
+        # their logical value did not change since the last dispatched push.
+        self._websocket_prefiltered_no_change_objects = 0
+        self._last_dispatched_values: dict[tuple[str, str], Any] = {}
         self._connection_statistics: dict[str, _ConnectionStatistics] = {}
         self._snapshot_targets: set[tuple[str, str]] = set()
         self._heartbeat_closes = 0
@@ -136,14 +157,34 @@ class BepacomWebSocketManager:
             self._websocket_updates,
         )
 
-    def set_snapshot_targets(self, targets: list[tuple[str, str]]) -> None:
+    def set_snapshot_targets(
+        self,
+        targets: list[tuple[str, str]],
+        initial_values: dict[tuple[str, str], Any] | None = None,
+    ) -> None:
         """Set targets that should be processed from full snapshot WebSocket payloads.
 
         In snapshot mode the gateway is only subscribed once, but each push contains
         a full device snapshot. These targets are therefore processed without creating
         one gateway subscription per object.
+
+        The latest discovery value is used to seed the prefilter cache. Without this
+        seed, the first snapshot after startup would dispatch every configured point
+        even if all values are unchanged.  Seeding lets the dispatcher suppress those
+        startup no-op callbacks as well.
         """
         self._snapshot_targets = set(targets)
+
+        if initial_values:
+            for key, value in initial_values.items():
+                if key in self._snapshot_targets:
+                    self._last_dispatched_values[key] = self._comparable_value(value)
+
+        # Drop stale snapshot-cache entries for targets that are no longer active.
+        for key in tuple(self._last_dispatched_values):
+            if key not in self._snapshot_targets and key not in self._subscriptions:
+                self._last_dispatched_values.pop(key, None)
+
         _LOGGER.info(
             "Bepacom snapshot WebSocket mode active: processing %s targets from snapshot payloads",
             len(self._snapshot_targets),
@@ -195,6 +236,19 @@ class BepacomWebSocketManager:
             "subscribe_successes": self._subscribe_successes,
             "websocket_connects": self._websocket_connects,
             "websocket_updates": self._websocket_updates,
+            "bacnet_push_notifications": self._websocket_updates,
+            "websocket_payload_objects": self._websocket_payload_objects,
+            "websocket_processed_objects": self._websocket_processed_objects,
+            "websocket_ignored_objects": self._websocket_ignored_objects,
+            "websocket_direct_messages": self._websocket_direct_messages,
+            "websocket_snapshot_messages": self._websocket_snapshot_messages,
+            "websocket_fallback_messages": self._websocket_fallback_messages,
+            "websocket_callback_invocations": self._websocket_callback_invocations,
+            "websocket_callback_value_changes": self._websocket_callback_value_changes,
+            "websocket_callback_no_changes": self._websocket_callback_no_changes,
+            "websocket_prefiltered_no_change_objects": self._websocket_prefiltered_no_change_objects,
+            "dispatch_time_avg_ms": (self._dispatch_time_total / self._websocket_updates * 1000) if self._websocket_updates else 0,
+            "dispatch_time_max_ms": self._dispatch_time_max * 1000,
             "subscriptions_enabled": self.subscriptions_enabled,
             "push_value_logging": self._push_value_logging,
             "heartbeat_timeout": self._heartbeat_timeout,
@@ -573,18 +627,31 @@ class BepacomWebSocketManager:
                 stats.push_count += 1
                 stats.last_push = time.monotonic()
 
-                processed, ignored = await self._dispatch_payload(state, payload)
+                dispatch_started = time.monotonic()
+                processed, ignored, seen, changed = await self._dispatch_payload(state, payload)
+                dispatch_elapsed = time.monotonic() - dispatch_started
+                self._dispatch_time_total += dispatch_elapsed
+                self._dispatch_time_max = max(self._dispatch_time_max, dispatch_elapsed)
+                self._websocket_processed_objects += processed
+                self._websocket_ignored_objects += ignored
+                self._websocket_payload_objects += seen
+                self._websocket_callback_invocations += processed
+                self._websocket_callback_value_changes += changed
+                self._websocket_callback_no_changes += max(0, processed - changed)
 
                 if self._push_value_logging and (
                     stats.push_count <= 5 or stats.push_count % 100 == 0
                 ):
                     _LOGGER.debug(
-                        "Bepacom WebSocket push received: url=%s owner=%s/%s processed=%s ignored=%s value=%s push_count=%s total_updates=%s",
+                        "Bepacom WebSocket push path: url=%s owner=%s/%s processed=%s changed=%s no_change=%s ignored=%s seen=%s value=%s push_count=%s total_updates=%s",
                         state.ws_url,
                         state.device_id,
                         state.object_id,
                         processed,
+                        changed,
+                        max(0, processed - changed),
                         ignored,
+                        seen,
                         self._payload_debug_summary(payload),
                         stats.push_count,
                         self._websocket_updates,
@@ -634,57 +701,135 @@ class BepacomWebSocketManager:
         self,
         state: _SubscriptionState,
         payload: dict[str, Any],
-    ) -> tuple[int, int]:
+    ) -> tuple[int, int, int, int]:
         """Dispatch one websocket payload to matching subscriptions.
 
         Returns:
-            A tuple with (processed, ignored).
+            A tuple with (processed, ignored, seen, changed).
 
-        The Bepacom gateway may send a full device snapshot for every push.
-        In snapshot mode we only create one gateway subscription and process the
-        configured snapshot targets from each payload.
+        The gateway can send either an object-specific payload or a full device
+        snapshot.  Older code iterated all configured points for each snapshot.
+        That made the work proportional to the number of configured entities and
+        produced misleading counters.  This dispatcher now walks the payload once
+        and uses a set lookup to decide whether an object is configured.
         """
         # Object-specific payloads belong to the owning subscription only.
         if "presentValue" in payload or "value" in payload:
-            await self._invoke_update_callback(state.device_id, state.object_id, payload)
-            return (1, 0)
+            self._websocket_direct_messages += 1
+            if not self._should_dispatch_value(state.device_id, state.object_id, payload):
+                return (0, 0, 1, 0)
 
-        processed = 0
-        ignored = 0
+            changed = await self._invoke_update_callback(state.device_id, state.object_id, payload)
+            return (1, 0, 1, 1 if changed else 0)
 
-        if self._snapshot_targets:
-            target_iterable = tuple(self._snapshot_targets)
-        else:
-            target_iterable = tuple(
+        targets = self._snapshot_targets
+        if not targets:
+            targets = {
                 (subscribed_state.device_id, subscribed_state.object_id)
                 for subscribed_state in self._subscriptions.values()
                 if subscribed_state.ws_url == state.ws_url
-            )
+            }
 
-        for device_id, object_id in target_iterable:
-            subscribed_payload = self._payload_for_subscription(
-                payload,
-                device_id,
-                object_id,
-            )
+        processed = 0
+        ignored = 0
+        seen = 0
+        changed = 0
 
-            if subscribed_payload is None:
+        # Full-snapshot payloads from the gateway may contain hundreds of BACnet
+        # objects although only a small subset is configured for push.  Do not
+        # iterate the complete snapshot.  Dispatch by configured target instead:
+        # this makes the hot path proportional to active subscriptions, not to
+        # all discovered points.
+        if targets:
+            for device_id, object_id in targets:
+                object_payload = self._payload_for_subscription(
+                    payload,
+                    device_id,
+                    object_id,
+                )
+                if object_payload is None:
+                    continue
+
+                seen += 1
+                if not self._should_dispatch_value(device_id, object_id, object_payload):
+                    continue
+
+                processed += 1
+                if await self._invoke_update_callback(device_id, object_id, object_payload):
+                    changed += 1
+
+            if seen > 0:
+                self._websocket_snapshot_messages += 1
+                return (processed, ignored, seen, changed)
+
+        # Conservative fallback for unexpected payload shapes.  This path is not
+        # used for normal snapshot mode, but keeps compatibility if the gateway
+        # sends a partial object map without the expected device wrapper.
+        for device_id, object_id, object_payload in self._iter_object_payloads(payload):
+            seen += 1
+            if targets and (device_id, object_id) not in targets:
                 ignored += 1
                 continue
 
-            processed += 1
+            if not self._should_dispatch_value(device_id, object_id, object_payload):
+                continue
 
-            await self._invoke_update_callback(
-                device_id,
-                object_id,
+            processed += 1
+            if await self._invoke_update_callback(device_id, object_id, object_payload):
+                changed += 1
+
+        if seen > 0:
+            self._websocket_snapshot_messages += 1
+            return (processed, ignored, seen, changed)
+
+        # Some gateways wrap a single object in a shape that is neither a direct
+        # presentValue payload nor a full device snapshot.  Keep a conservative
+        # fallback for those messages.
+        subscribed_payload = self._payload_for_subscription(
+            payload,
+            state.device_id,
+            state.object_id,
+        )
+        if subscribed_payload is not None:
+            self._websocket_fallback_messages += 1
+            if not self._should_dispatch_value(state.device_id, state.object_id, subscribed_payload):
+                return (0, 0, 1, 0)
+
+            value_changed = await self._invoke_update_callback(
+                state.device_id,
+                state.object_id,
                 subscribed_payload,
             )
+            return (1, 0, 1, 1 if value_changed else 0)
 
-        total_objects = self._count_object_payloads(payload)
-        if total_objects > processed:
-            ignored = max(ignored, total_objects - processed)
+        return (processed, ignored, seen, changed)
 
-        return (processed, ignored)
+    def _iter_object_payloads(
+        self,
+        payload: dict[str, Any],
+    ):
+        """Yield object payloads from a nested device snapshot.
+
+        Expected snapshot format:
+        {
+            "device:1": {
+                "analogInput:17": {...},
+                "analogInput:25": {...},
+            }
+        }
+        """
+        for device_key, device_payload in payload.items():
+            if not isinstance(device_payload, dict):
+                continue
+            if not str(device_key).startswith("device:"):
+                continue
+
+            device_id = str(device_key).split(":", 1)[1]
+
+            for object_key, object_payload in device_payload.items():
+                if ":" not in str(object_key) or not isinstance(object_payload, dict):
+                    continue
+                yield device_id, str(object_key), object_payload
 
 
     def _count_object_payloads(self, payload: dict[str, Any]) -> int:
@@ -848,17 +993,78 @@ class BepacomWebSocketManager:
 
         return {"presentValue": payload}
 
+
+    @staticmethod
+    def _comparable_value(value: Any) -> Any:
+        """Return a stable comparable representation for push prefiltering."""
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return round(float(value), 10)
+        text = str(value).strip()
+        if text == "":
+            return ""
+        try:
+            return round(float(text), 10)
+        except (TypeError, ValueError):
+            return text
+
+    def _payload_present_value(self, payload: dict[str, Any]) -> Any:
+        """Extract the logical present value from a normalized object payload."""
+        for key in (
+            "presentValue",
+            "present_value",
+            "value",
+            "newValue",
+            "new_value",
+            "currentValue",
+            "current_value",
+            "propertyValue",
+            "property_value",
+            "property-value",
+        ):
+            if key in payload:
+                return payload[key]
+        return None
+
+    def _should_dispatch_value(self, device_id: str, object_id: str, payload: dict[str, Any]) -> bool:
+        """Return true if a payload should be forwarded to the coordinator.
+
+        Snapshot mode can deliver every subscribed value on every push.  Forwarding
+        all values creates unnecessary callbacks and HA/explorer work.  Keep one
+        central last-value cache here and only dispatch when the logical value
+        changed. The first value for a point is always dispatched so runtime state
+        is initialized.
+        """
+        key = (device_id, object_id)
+        value = self._comparable_value(self._payload_present_value(payload))
+
+        if key not in self._last_dispatched_values:
+            self._last_dispatched_values[key] = value
+            return True
+
+        if self._last_dispatched_values[key] == value:
+            self._websocket_prefiltered_no_change_objects += 1
+            return False
+
+        self._last_dispatched_values[key] = value
+        return True
+
     async def _invoke_update_callback(
         self,
         device_id: str,
         object_id: str,
         payload: dict[str, Any],
-    ) -> None:
-        """Invoke the update callback."""
+    ) -> bool:
+        """Invoke the update callback and return whether it changed a point value."""
         result = self._on_update(device_id, object_id, payload)
 
         if asyncio.iscoroutine(result):
-            await result
+            result = await result
+
+        return bool(result)
 
     async def _invoke_failure_callback(
         self,

@@ -34,7 +34,7 @@ async def async_setup_entry(
     # Create binary sensors for BACnet binary input/output objects
     entities: list[BinarySensorEntity] = []
 
-    for obj in coordinator.discovery.objects.values():
+    for obj in coordinator.point_registry.all():
         entity_type = BacnetObjectTypeMapper.get_entity_type(obj)
 
         if entity_type == EntityType.BINARY_SENSOR:
@@ -58,6 +58,8 @@ class BepacomBinarySensor(CoordinatorEntity[BepacomCoordinator], BinarySensorEnt
 
         self._obj = obj
         self._attr_unique_id = obj.unique_id
+        self._attr_entity_id = f"binary_sensor.{obj.entity_id}"
+        self._attr_suggested_object_id = obj.entity_id
         display_name, has_entity_name = BacnetObjectTypeMapper.get_display_name(obj)
         self._attr_name = display_name
         self._attr_has_entity_name = has_entity_name
@@ -69,6 +71,9 @@ class BepacomBinarySensor(CoordinatorEntity[BepacomCoordinator], BinarySensorEnt
             "object_type": obj.object_type,
             "description": obj.description,
         }
+        self._attr_extra_state_attributes.update(
+            coordinator.point_registry.inspector_attributes(obj)
+        )
 
     def _build_device_info(self) -> DeviceInfo:
         """Build Home Assistant device info for this BACnet device."""

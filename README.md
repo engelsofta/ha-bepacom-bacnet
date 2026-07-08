@@ -1,4 +1,4 @@
-<img width="256" height="256" alt="icon" src="https://github.com/user-attachments/assets/da03bbf1-2c39-4058-b9d3-5611fc3c4903" />
+<img width="256" height="256" alt="icon" src="https://github.com/user-attachments/assets/ef5dc955-48b4-469d-b26e-e53ad22c782c" />
 
 
 # Bepacom BACnet/IP for Home Assistant

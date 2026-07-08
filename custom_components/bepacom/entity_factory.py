@@ -618,15 +618,19 @@ class BacnetObjectTypeMapper:
         obj: BacnetObject,
         device: BacnetDevice | None,
     ) -> DeviceInfo:
-        """Build grouped Home Assistant device info for a BACnet object."""
-        group_key = BacnetObjectTypeMapper.get_device_group_key(obj)
-        group_name = BacnetObjectTypeMapper.get_device_group_name(obj)
-        grouped_identifier = (domain, f"device_{obj.device_id}_{group_key}")
+        """Build Home Assistant device info for the BACnet device.
+
+        One physical/logical BACnet device is represented as one Home Assistant
+        device.  Older versions grouped objects by object type (for example
+        "Device 1 - AnalogInput").  With Home Assistant's entity-name handling
+        this produced duplicated entity IDs like
+        ``sensor.device_1_analoginput_analoginput_1249``.
+        """
         base_name = device.name if device is not None else f"Device {obj.device_id}"
 
         device_info = DeviceInfo(
-            identifiers={grouped_identifier},
-            name=f"{base_name} - {group_name}",
+            identifiers={(domain, f"device_{obj.device_id}")},
+            name=base_name,
         )
 
         if device is not None:

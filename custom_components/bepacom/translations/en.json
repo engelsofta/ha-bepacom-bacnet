@@ -21,16 +21,26 @@
   "options": {
     "step": {
       "init": {
-        "title": "Subscription settings",
-        "description": "Default: cyclic full polling is enabled. You can disable it and update selected objects via Subscribe/WebSocket only.",
+        "title": "Bepacom options",
+        "description": "General base settings. Object management, overrides, subscribe/polling, explorer and bulk edit are handled in the sidebar “BACnet Explorer”.",
+        "menu_options": {
+          "general": "General settings"
+        }
+      },
+      "general": {
+        "title": "General settings",
+        "description": "Only global base options remain here. BACnet objects, subscribe/polling and overrides are managed exclusively in the sidebar “BACnet Explorer”.",
         "data": {
           "enable_polling": "Enable cyclic data updates",
-          "subscribed_objects": "Objects with subscription enabled",
-          "snapshot_websocket_mode": "Enable snapshot WebSocket mode",
-          "push_value_logging": "Log WebSocket push values",
-          "heartbeat_timeout": "WebSocket heartbeat timeout in seconds"
+          "snapshot_websocket_mode": "Snapshot WebSocket mode",
+          "push_value_logging": "Log push values",
+          "heartbeat_timeout": "Heartbeat timeout"
         }
       }
+    },
+    "error": {},
+    "abort": {
+      "no_objects": "No BACnet objects have been found yet. Restart Home Assistant or wait until discovery has completed."
     }
   }
 }

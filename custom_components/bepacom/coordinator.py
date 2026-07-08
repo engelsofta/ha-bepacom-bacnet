@@ -29,6 +29,8 @@ from .const import (
 )
 from .discovery import DiscoveryEngine
 from .exceptions import InvalidResponse
+from .override_manager import BepacomOverrideManager
+from .point_registry import BepacomPointRegistry
 from .websocket_manager import BepacomWebSocketManager
 
 _LOGGER = logging.getLogger(__name__)
@@ -74,6 +76,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         self.client = client
         self._entry = entry
+        self._overrides = BepacomOverrideManager(entry.options)
 
         if self._polling_enabled:
             _LOGGER.info(
@@ -91,6 +94,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
 
         self.discovery = DiscoveryEngine()
+        self.point_registry = BepacomPointRegistry(entry.options)
 
         self._discovery_completed = False
 
@@ -163,6 +167,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 )
 
                 self._last_inventory_summary = inventory_summary
+                self.point_registry.load_discovery(self.discovery.devices, self.discovery.objects)
                 self._discovery_completed = True
 
             self.data = raw
@@ -174,6 +179,9 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 and not self._subscriptions_initialized
             ):
                 await self._async_initialize_subscriptions()
+
+            if self._discovery_completed:
+                self.point_registry.load_discovery(self.discovery.devices, self.discovery.objects)
 
             return raw
 
@@ -230,17 +238,27 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
 
         targets = self._iter_subscription_targets()
+        polling_targets = self._iter_polling_targets()
+        self._set_configured_polling_targets(polling_targets)
 
         if not targets:
-            _LOGGER.debug(
-                "No Bepacom subscription targets configured; using coordinator polling only."
-            )
+            if polling_targets:
+                _LOGGER.info(
+                    "No Bepacom subscription targets configured; starting per-object polling for %s objects.",
+                    len(polling_targets),
+                )
+                self._ensure_fallback_polling()
+            else:
+                _LOGGER.debug(
+                    "No Bepacom subscription or per-object polling targets configured."
+                )
             self._subscriptions_initialized = True
             self._last_subscription_summary = (0, 0)
             return
 
         if self._snapshot_websocket_mode:
-            self._websocket_manager.set_snapshot_targets(targets)
+            initial_values = self._snapshot_initial_values(targets)
+            self._websocket_manager.set_snapshot_targets(targets, initial_values)
             gateway_targets = targets[:1]
 
             _LOGGER.info(
@@ -272,6 +290,21 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 successful,
                 len(targets),
             )
+
+    def _snapshot_initial_values(
+        self,
+        targets: list[tuple[str, str]],
+    ) -> dict[tuple[str, str], Any]:
+        """Return current registry values for snapshot prefilter seeding."""
+        initial_values: dict[tuple[str, str], Any] = {}
+
+        for device_id, object_id in targets:
+            point = self.point_registry.get_by_path(device_id, object_id)
+            if point is None:
+                continue
+            initial_values[(device_id, object_id)] = point.present_value
+
+        return initial_values
 
     async def _async_subscribe_discovered_objects(
         self,
@@ -328,6 +361,8 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
                     if subscribed:
                         self._fallback_objects.discard((device_id, object_id))
+                        self.point_registry.mark_subscription(device_id, object_id, True)
+                        self.point_registry.mark_fallback_polling(device_id, object_id, False)
                         self._fallback_invalid_responses.pop((device_id, object_id), None)
 
                         async with successful_lock:
@@ -376,14 +411,36 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         return successful
 
+
+    def _iter_polling_targets(self) -> list[tuple[str, str]]:
+        """Return all object paths configured for per-object polling."""
+        targets: list[tuple[str, str]] = []
+        for obj in self.point_registry.all(include_disabled=True):
+            if not self._overrides.is_enabled(obj):
+                continue
+            if self._overrides.use_polling(obj):
+                targets.append((str(obj.device_id), f"{obj.object_type}:{obj.object_id}"))
+        return targets
+
+    def _set_configured_polling_targets(self, targets: list[tuple[str, str]]) -> None:
+        """Synchronize configured per-object polling targets with runtime state."""
+        target_set = set(targets)
+        # Remove no-longer configured polling targets that are not subscription fallbacks.
+        for device_id, object_id in tuple(self._fallback_objects):
+            if (device_id, object_id) not in target_set:
+                obj = self.point_registry.get_by_path(device_id, object_id)
+                if obj is not None and self._overrides.use_polling(obj):
+                    continue
+                self._fallback_objects.discard((device_id, object_id))
+                self.point_registry.mark_fallback_polling(device_id, object_id, False)
+
+        for device_id, object_id in target_set:
+            self._fallback_objects.add((device_id, object_id))
+            self.point_registry.mark_fallback_polling(device_id, object_id, True)
+
     def _iter_subscription_targets(self) -> list[tuple[str, str]]:
         """Return all object paths that can be subscribed."""
         targets: list[tuple[str, str]] = []
-        enabled_keys = self._enabled_subscription_keys()
-
-        if not enabled_keys:
-            return targets
-
         for device_key, device_data in self.data.items():
             if not device_key.startswith("device:") or not isinstance(device_data, dict):
                 continue
@@ -399,9 +456,17 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 if object_type in {"device", "file"}:
                     continue
 
-                option_key = self._subscription_option_key(device_id, object_key)
+                obj = self.point_registry.get_by_path(device_id, object_key)
+                if obj is not None and not self._overrides.is_enabled(obj):
+                    continue
 
-                if option_key not in enabled_keys:
+                subscribe_override = (
+                    self._overrides.use_subscribe(obj) if obj is not None else None
+                )
+
+                # Subscribe/Polling is now configured only per object in the
+                # sidebar explorer. The old global subscription list is ignored.
+                if subscribe_override is not True:
                     continue
 
                 targets.append((device_id, object_key))
@@ -410,45 +475,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     def subscription_option_map(self) -> dict[str, str]:
         """Return selectable subscriptions for the options flow."""
-        options_with_order: list[tuple[tuple[str, int, str, str], str, str]] = []
-
-        for device_key, device_data in self.data.items():
-            if not device_key.startswith("device:") or not isinstance(device_data, dict):
-                continue
-
-            device_id = device_key.split(":", 1)[1]
-
-            for object_key, object_data in device_data.items():
-                if ":" not in object_key or not isinstance(object_data, dict):
-                    continue
-
-                object_type = object_key.split(":", 1)[0].lower()
-
-                if object_type in {"device", "file"}:
-                    continue
-
-                object_name = object_data.get("objectName")
-                object_instance = self._object_instance(object_key)
-                object_display_name = (
-                    object_name.strip()
-                    if isinstance(object_name, str) and object_name.strip()
-                    else "-"
-                )
-
-                # Prefix the label with object type to make long lists easier to scan.
-                label = (
-                    f"[{object_type}] {device_id}/{object_key}"
-                    f" | Name: {object_display_name}"
-                )
-
-                sort_key = (object_type, object_instance, object_display_name.lower(), device_id)
-                option_key = self._subscription_option_key(device_id, object_key)
-                options_with_order.append((sort_key, option_key, label))
-
-        return {
-            option_key: label
-            for _, option_key, label in sorted(options_with_order, key=lambda item: item[0])
-        }
+        return self.point_registry.option_map()
 
     def _object_instance(self, object_id: str) -> int:
         """Return BACnet object instance for sorting, if available."""
@@ -480,10 +507,12 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         device_id: str,
         object_id: str,
         payload: dict[str, Any],
-    ) -> None:
-        """Apply one pushed object update."""
-        if self._apply_object_update(device_id, object_id, payload):
+    ) -> bool:
+        """Apply one pushed object update and return whether the value changed."""
+        changed = self._apply_object_update(device_id, object_id, payload)
+        if changed:
             self._schedule_push_update()
+        return changed
 
     async def _async_handle_subscription_failure(
         self,
@@ -521,7 +550,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         device_data[object_id] = merged_data
         self._update_discovery_object(device_id, object_id, merged_data)
-        return True
+        return self.point_registry.update_point(device_id, object_id, merged_data, source="push")
 
     def _normalize_object_payload(
         self,
@@ -554,11 +583,20 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
 
         object_type, bacnet_object_id = object_id.split(":", 1)
-        unique_id = f"{device_id}_{object_type}_{bacnet_object_id}"
-        obj = self.discovery.objects.get(unique_id)
+        obj = self.point_registry.get_by_path(device_id, object_id)
 
         if obj is not None:
             obj.update(payload)
+            self.point_registry.apply_overrides(obj)
+
+    def _discovered_object(self, device_id: str, object_id: str):
+        """Return a discovered BACnet object by device/object path."""
+        if ":" not in object_id:
+            return None
+
+        object_type, bacnet_object_id = object_id.split(":", 1)
+        unique_id = f"bepacom_{device_id}_{object_type.lower()}_{bacnet_object_id}"
+        return self.point_registry.get_by_unique_id(unique_id)
 
     def _ensure_fallback_polling(self) -> None:
         """Start the fallback polling task when needed."""

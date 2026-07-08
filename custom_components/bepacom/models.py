@@ -27,6 +27,16 @@ class BacnetObject:
 
     writable: bool = False
 
+    # Home Assistant override metadata. These values are optional and are usually
+    # supplied from config_entry.options by override_manager.py. They are kept on
+    # the model so future UI code can work with one common point representation.
+    override_unit: str | None = None
+    override_device_class: str | None = None
+    override_state_class: str | None = None
+    subscribe: bool | None = None
+    scan_interval: int | None = None
+    enabled: bool = True
+
     raw: dict[str, Any] = field(default_factory=dict)
 
 
@@ -42,21 +52,14 @@ class BacnetObject:
 
     @property
     def entity_id(self) -> str:
-        """Return a suggested entity id."""
-        name = self.object_name or f"{self.object_type}_{self.object_id}"
+        """Return a stable suggested entity id suffix.
 
-        name = (
-            name.lower()
-            .replace(" ", "_")
-            .replace("-", "_")
-            .replace("/", "_")
-            .replace(".", "_")
-        )
-
-        while "__" in name:
-            name = name.replace("__", "_")
-
-        return name
+        Entity IDs should not be derived from the BACnet object name because
+        object names can change and often contain generic prefixes.  The stable
+        BACnet identifier is easier to search and does not produce duplicated
+        names such as ``analoginput_analoginput_1249``.
+        """
+        return self.unique_id
 
     def update(self, data: dict[str, Any]) -> None:
         """Update the object from raw BACnet data."""
