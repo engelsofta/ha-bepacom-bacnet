@@ -1,3 +1,6 @@
+<img width="256" height="256" alt="icon" src="https://github.com/user-attachments/assets/ef5dc955-48b4-469d-b26e-e53ad22c782c" />
+
+
 # Bepacom BACnet/IP for Home Assistant
 
 Custom Home Assistant integration for reading, managing and writing BACnet/IP datapoints exposed by the Bepacom BACnet gateway.
