@@ -1,52 +1,32 @@
-
-<p align="center">
-  
-  <img width="128" height="128" alt="logo" src="https://github.com/user-attachments/assets/e1b6618b-8a63-4b7b-947b-086aaed87992" />  
-
-</p>
-
 # Bepacom BACnet/IP for Home Assistant
 
-Custom Home Assistant integration for Bepacom BACnet/IP gateways.
+Custom Home Assistant integration for reading, managing and writing BACnet/IP datapoints exposed by the Bepacom BACnet gateway.
 
-## Features
+> **Beta release:** This version is intended for testing. Create a Home Assistant backup before installing or updating.
 
-- Local BACnet/IP gateway communication
-- Automatic BACnet discovery
-- WebSocket subscriptions with live push updates
-- One shared WebSocket connection for subscribed objects
-- Parallel subscription initialization
-- Optional cyclic `/apiv1/json` polling
-- Heartbeat monitoring with automatic reconnect
-- Automatic subscription renewal after reconnect
-- WebSocket diagnostic sensor
-- Optional push-value logging for troubleshooting
-- BACnet metadata support:
-  - `units`
-  - `resolution`
-  - `statusFlags`
-  - `reliability`
-  - `covIncrement`
-  - `outOfService`
+## Highlights in 0.3.8 beta
 
-## Recommended configuration
+- Sidebar BACnet Explorer with search, filters, grouping and details panel.
+- Per-entity configuration directly in the Explorer.
+- Stable entity IDs like `sensor.bepacom_1_analoginput_1249`.
+- Update mode per point: disabled, push/subscribe or polling.
+- Unit, device class and state class overrides with explicit `Automatic` / `None` / custom handling.
+- Live monitor / value history and value-change highlighting.
+- Push performance diagnostics and optimized snapshot dispatch.
+- BACnet Write UI for discovered writable points.
+- Export options for BACnet objects.
 
-For the currently tested Bepacom gateway behavior:
+## Installation via HACS custom repository
 
-| Option | Recommended |
-|---|---|
-| Cyclic data update | Disabled |
-| Snapshot WebSocket mode | Disabled |
-| Push-value logging | Disabled during normal use |
-| Subscribed objects | Select all live values that should update by push |
+1. Add this repository as a custom repository in HACS with category **Integration**.
+2. Install **Bepacom BACnet/IP**.
+3. Restart Home Assistant.
+4. Add the integration from **Settings → Devices & services → Add integration**.
+5. Open the **BACnet Explorer** from the Home Assistant sidebar.
 
-The tested gateway appears to require an explicit subscription for every object whose value should update reliably. Even with many subscriptions, the integration uses one shared WebSocket connection.
+## Manual installation
 
-## Installation
-
-### Manual installation
-
-Copy this folder:
+Copy the folder:
 
 ```text
 custom_components/bepacom
@@ -58,57 +38,14 @@ to:
 /config/custom_components/bepacom
 ```
 
-Restart Home Assistant, then add the integration:
+Then restart Home Assistant.
 
-```text
-Settings → Devices & services → Add integration → Bepacom BACnet/IP
-```
+## Notes
 
-### HACS custom repository
+- BACnet object metadata can be unreliable. This integration therefore supports manual overrides for unit, device class, state class, update mode and entity naming.
+- The BACnet Explorer is the preferred place for per-object configuration.
+- The integration is currently beta software and may still change.
 
-1. Open HACS.
-2. Go to **Integrations**.
-3. Open the three-dot menu.
-4. Select **Custom repositories**.
-5. Add this repository URL.
-6. Select category **Integration**.
-7. Install and restart Home Assistant.
+## Support
 
-## Options
-
-The integration options include:
-
-- **Cyclic data update**  
-  Enables or disables recurring `/apiv1/json` polling.
-
-- **Snapshot WebSocket mode**  
-  Experimental. Uses one gateway subscription and processes configured objects from snapshot payloads. Keep disabled if your gateway requires one subscription per object.
-
-- **WebSocket push-value logging**  
-  Logs push payload values for troubleshooting. Keep disabled during normal operation.
-
-- **WebSocket heartbeat timeout**  
-  Time in seconds before the WebSocket is considered stale and reconnected.
-
-- **Subscribed objects**  
-  BACnet objects that should be updated through WebSocket push.
-
-## Diagnostics
-
-The integration creates a diagnostic WebSocket sensor with attributes such as:
-
-- connection state
-- number of subscriptions
-- push count
-- reconnect count
-- last push age
-- heartbeat timeout
-- polling mode
-
-## Branding
-
-The `brands/bepacom` folder is prepared for a future Home Assistant Brands pull request.
-
-## License
-
-MIT
+Please open issues here: https://github.com/engelsofta/ha-bepacom-bacnet/issues
