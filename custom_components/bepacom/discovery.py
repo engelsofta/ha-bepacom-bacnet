@@ -1,24 +1,116 @@
-"""Constants for the Bepacom integration."""
+"""Discovery engine for Bepacom BACnet objects."""
 
-from datetime import timedelta
+from __future__ import annotations
 
-DOMAIN = "bepacom"
-VERSION = "0.5.14"
-CONF_SUBSCRIBED_OBJECTS = "subscribed_objects"
-CONF_ENTITY_OVERRIDES = "entity_overrides"
-CONF_VIRTUAL_ENTITIES = "virtual_entities"
-CONF_ENTITY_OVERRIDES_JSON = "entity_overrides_json"
-CONF_ENABLE_POLLING = "enable_polling"
-CONF_SNAPSHOT_WEBSOCKET_MODE = "snapshot_websocket_mode"
-CONF_PUSH_VALUE_LOGGING = "push_value_logging"
-CONF_HEARTBEAT_TIMEOUT = "heartbeat_timeout"
+import logging
 
-DEFAULT_PORT = 8099
+from .models import BacnetDevice, BacnetObject
 
-DEFAULT_SCAN_INTERVAL = timedelta(seconds=5)
-DEFAULT_ENABLE_POLLING = False
-DEFAULT_SNAPSHOT_WEBSOCKET_MODE = False
-DEFAULT_PUSH_VALUE_LOGGING = False
-DEFAULT_HEARTBEAT_TIMEOUT = 60
-DEFAULT_SUBSCRIPTION_LIFETIME = 3600
-FALLBACK_POLL_INTERVAL = timedelta(seconds=30)
+_LOGGER = logging.getLogger(__name__)
+
+
+
+class DiscoveryEngine:
+    """Discovers BACnet devices and objects from the raw API."""
+
+    def __init__(self) -> None:
+        """Initialize discovery."""
+        self.devices: dict[str, BacnetDevice] = {}
+        self.objects: dict[str, BacnetObject] = {}
+        self._last_summary_signature: tuple[int, int, tuple[tuple[str, int], ...]] | None = None
+
+    def clear(self) -> None:
+        """Clear current discovery cache."""
+        self.devices.clear()
+        self.objects.clear()
+
+    def parse(self, data: dict) -> None:
+        """Parse the complete Bepacom JSON."""
+
+        self.clear()
+
+        if not isinstance(data, dict):
+            _LOGGER.warning("Discovery received invalid data.")
+            return
+
+        for device_key, device_data in data.items():
+
+            if not device_key.startswith("device:"):
+                continue
+
+            device_id = device_key.split(":")[1]
+
+            device = BacnetDevice(
+                device_id=device_id,
+                name=device_data.get("objectName", f"Device {device_id}"),
+                vendor=device_data.get("vendorName"),
+                model=device_data.get("modelName"),
+                firmware=device_data.get("firmwareRevision"),
+            )
+
+            self.devices[device_id] = device
+
+            self._parse_device(device, device_data)
+
+        self._print_summary()
+
+    def _parse_device(
+        self,
+        device: BacnetDevice,
+        device_data: dict,
+    ) -> None:
+        """Parse one BACnet device."""
+
+        for key, value in device_data.items():
+
+            if ":" not in key:
+                continue
+
+            object_type, object_id = key.split(":", 1)
+
+            if not isinstance(value, dict):
+                continue
+
+            obj = BacnetObject(
+                device_id=device.device_id,
+                object_id=object_id,
+                object_type=object_type,
+            )
+
+            obj.update(value)
+
+            device.add_object(obj)
+
+            self.objects[obj.unique_id] = obj
+
+    def _print_summary(self) -> None:
+        """Write discovery summary to the log."""
+
+        counter: dict[str, int] = {}
+
+        for obj in self.objects.values():
+            counter[obj.object_type] = counter.get(obj.object_type, 0) + 1
+
+        summary_signature = (
+            len(self.devices),
+            len(self.objects),
+            tuple(sorted(counter.items())),
+        )
+
+        if summary_signature == self._last_summary_signature:
+            return
+
+        self._last_summary_signature = summary_signature
+
+        _LOGGER.info("========== Bepacom Discovery ==========")
+        _LOGGER.info("Devices found : %s", len(self.devices))
+        _LOGGER.info("Objects found : %s", len(self.objects))
+
+        for object_type in sorted(counter):
+            _LOGGER.info(
+                "%-20s %5d",
+                object_type,
+                counter[object_type],
+            )
+
+        _LOGGER.info("=======================================")

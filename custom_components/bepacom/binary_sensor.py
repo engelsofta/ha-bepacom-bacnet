@@ -1,368 +1,423 @@
-"""The Bepacom integration."""
+"""Binary sensor platform for the Bepacom integration."""
 
 from __future__ import annotations
 
+import ast
 import logging
+import operator
 from typing import Any
 
-import voluptuous as vol
-
+from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import entity_registry as er
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.util import slugify
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .api import BepacomClient
 from .const import DOMAIN
-from .const import CONF_ENTITY_OVERRIDES
 from .coordinator import BepacomCoordinator
 from .entity_factory import BacnetObjectTypeMapper, EntityType
-from .panel import async_register_explorer_panel, async_unregister_explorer_panel_if_unused
+from .models import BacnetObject
 
 _LOGGER = logging.getLogger(__name__)
-
-PLATFORMS: list[str] = ["sensor", "binary_sensor", "switch", "number"]
-
-SERVICE_RELEASE_ANALOG_VALUE_PRIORITY = "release_analog_value_priority"
-SERVICE_RELEASE_MULTISTATE_OUTPUT_PRIORITY = "release_multistate_output_priority"
-SERVICE_RELEASE_BINARY_VALUE_PRIORITY = "release_binary_value_priority"
-
-_RELEASE_SERVICE_OBJECT_TYPES = {
-    SERVICE_RELEASE_ANALOG_VALUE_PRIORITY: "analogValue",
-    SERVICE_RELEASE_MULTISTATE_OUTPUT_PRIORITY: "multiStateOutput",
-    SERVICE_RELEASE_BINARY_VALUE_PRIORITY: "binaryValue",
-}
-
-_RELEASE_PRIORITY_SCHEMA = vol.Schema(
-    {
-        vol.Optional("config_entry_id"): str,
-        vol.Optional("device_id", default=1): vol.All(vol.Coerce(int), vol.Range(min=0)),
-        vol.Required("object_id"): vol.All(vol.Coerce(int), vol.Range(min=0)),
-        vol.Optional("priority", default=8): vol.All(vol.Coerce(int), vol.Range(min=1, max=16)),
-    }
-)
-
-
-def _loaded_entry_data(hass: HomeAssistant, config_entry_id: str | None) -> dict[str, Any]:
-    """Return one loaded Bepacom entry for a service call."""
-    domain_data = hass.data.get(DOMAIN, {})
-
-    if config_entry_id:
-        entry_data = domain_data.get(config_entry_id)
-        if not isinstance(entry_data, dict) or "client" not in entry_data:
-            raise HomeAssistantError(
-                f"Bepacom config entry {config_entry_id!r} is not loaded"
-            )
-        return entry_data
-
-    loaded_entries = [
-        value
-        for value in domain_data.values()
-        if isinstance(value, dict) and "client" in value
-    ]
-    if not loaded_entries:
-        raise HomeAssistantError("No Bepacom config entry is loaded")
-    if len(loaded_entries) > 1:
-        raise HomeAssistantError(
-            "Multiple Bepacom config entries are loaded; config_entry_id is required"
-        )
-    return loaded_entries[0]
-
-
-async def _async_release_priority_service(
-    hass: HomeAssistant,
-    call: ServiceCall,
-) -> None:
-    """Release a BACnet command priority through gateway API v2."""
-    object_type = _RELEASE_SERVICE_OBJECT_TYPES[call.service]
-    entry_data = _loaded_entry_data(hass, call.data.get("config_entry_id"))
-    client: BepacomClient = entry_data["client"]
-
-    await client.async_release_present_value(
-        device_id=str(call.data["device_id"]),
-        object_type=object_type,
-        object_id=str(call.data["object_id"]),
-        priority=call.data["priority"],
-    )
-
-
-def _async_register_services(hass: HomeAssistant) -> None:
-    """Register Bepacom services once."""
-    async def async_handle_release_priority(call: ServiceCall) -> None:
-        await _async_release_priority_service(hass, call)
-
-    for service in _RELEASE_SERVICE_OBJECT_TYPES:
-        if hass.services.has_service(DOMAIN, service):
-            continue
-        hass.services.async_register(
-            DOMAIN,
-            service,
-            async_handle_release_priority,
-            schema=_RELEASE_PRIORITY_SCHEMA,
-        )
-
-
-def _expected_entity_id(entity_entry: er.RegistryEntry) -> str | None:
-    """Return the stable Bepacom entity_id for a registry entry."""
-    unique_id = str(entity_entry.unique_id or "").strip()
-    if not unique_id.startswith("bepacom_"):
-        return None
-
-    domain = entity_entry.entity_id.split(".", 1)[0]
-    if not domain:
-        return None
-
-    return f"{domain}.{unique_id}"
-
-
-async def _async_migrate_legacy_entity_ids(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-) -> None:
-    """Rename old generated entity_ids to the stable BACnet based schema.
-
-    Older versions let Home Assistant build entity IDs from the device name and
-    object label, which could produce IDs like
-    ``sensor.device_1_analoginput_analoginput_17``.  Home Assistant keeps those
-    IDs in the entity registry even after the integration is removed and added
-    again if the unique_id is unchanged.
-
-    This migration keeps the unique_id stable, but renames the registry entry to
-    ``sensor.bepacom_1_analoginput_17`` when the target ID is free.
-    """
-    registry = er.async_get(hass)
-    migrated = 0
-    skipped = 0
-
-    registry_entries = [
-        entity_entry
-        for entity_entry in registry.entities.values()
-        if getattr(entity_entry, "platform", None) == DOMAIN
-    ]
-
-    for entity_entry in registry_entries:
-        expected_entity_id = _expected_entity_id(entity_entry)
-        if not expected_entity_id or entity_entry.entity_id == expected_entity_id:
-            continue
-
-        if registry.async_get(expected_entity_id) is not None:
-            skipped += 1
-            _LOGGER.warning(
-                "Cannot migrate Bepacom entity_id %s to %s because target already exists",
-                entity_entry.entity_id,
-                expected_entity_id,
-            )
-            continue
-
-        try:
-            registry.async_update_entity(
-                entity_entry.entity_id,
-                new_entity_id=expected_entity_id,
-            )
-        except ValueError as err:
-            skipped += 1
-            _LOGGER.warning(
-                "Cannot migrate Bepacom entity_id %s to %s: %s",
-                entity_entry.entity_id,
-                expected_entity_id,
-                err,
-            )
-            continue
-
-        migrated += 1
-
-    if migrated or skipped:
-        _LOGGER.info(
-            "Bepacom entity_id migration finished: %s migrated, %s skipped",
-            migrated,
-            skipped,
-        )
-
-
-async def _async_remove_inactive_entity_entries(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    coordinator: BepacomCoordinator,
-) -> None:
-    """Remove raw entities for disabled or unsupported BACnet points."""
-    registry = er.async_get(hass)
-    objects_by_unique_id = {
-        obj.unique_id: obj for obj in coordinator.point_registry.all(include_disabled=True)
-    }
-    removed = 0
-
-    for entity_entry in list(er.async_entries_for_config_entry(registry, entry.entry_id)):
-        if getattr(entity_entry, "platform", None) != DOMAIN:
-            continue
-
-        unique_id = str(entity_entry.unique_id or "")
-        obj = objects_by_unique_id.get(unique_id)
-        if obj is None:
-            continue
-        entity_type = BacnetObjectTypeMapper.get_entity_type(obj)
-        if entity_type != EntityType.NONE and coordinator.point_registry.overrides.is_enabled(obj):
-            continue
-
-        registry.async_remove(entity_entry.entity_id)
-        removed += 1
-
-    if removed:
-        _LOGGER.info("Removed %s inactive Bepacom entity registry entries", removed)
-
-
-async def _async_apply_deferred_entity_registry_overrides(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    coordinator: BepacomCoordinator,
-) -> None:
-    """Apply Explorer name/ID edits saved before an entity entry existed."""
-    raw_overrides = entry.options.get(CONF_ENTITY_OVERRIDES, {})
-    if not isinstance(raw_overrides, dict):
-        return
-
-    registry = er.async_get(hass)
-    entries_by_unique_id = {
-        str(entity_entry.unique_id): entity_entry
-        for entity_entry in er.async_entries_for_config_entry(registry, entry.entry_id)
-        if getattr(entity_entry, "platform", None) == DOMAIN
-    }
-
-    for obj in coordinator.point_registry.all():
-        override = coordinator.point_registry.overrides.get_override(obj)
-        if not isinstance(override, dict):
-            continue
-
-        entity_entry = entries_by_unique_id.get(obj.unique_id)
-        if entity_entry is None:
-            continue
-
-        kwargs: dict[str, Any] = {}
-        stored_name = override.get("entity_name")
-        if stored_name is not None and str(stored_name).strip():
-            desired_name = str(stored_name).strip()
-            if entity_entry.name != desired_name:
-                kwargs["name"] = desired_name
-
-        stored_entity_id = override.get("entity_id")
-        if stored_entity_id is not None and str(stored_entity_id).strip():
-            desired_entity_id = str(stored_entity_id).strip()
-            if entity_entry.entity_id != desired_entity_id:
-                kwargs["new_entity_id"] = desired_entity_id
-
-        if not kwargs:
-            continue
-
-        try:
-            registry.async_update_entity(entity_entry.entity_id, **kwargs)
-        except ValueError as err:
-            _LOGGER.warning(
-                "Cannot apply deferred entity registry override for %s: %s",
-                obj.unique_id,
-                err,
-            )
-
-
-async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Set up the Bepacom integration."""
-    hass.data.setdefault(DOMAIN, {})
-    _async_register_services(hass)
-    return True
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
-) -> bool:
-    """Set up Bepacom from a config entry."""
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up binary sensor entities from a config entry."""
 
-    _LOGGER.info("Starting Bepacom integration")
+    coordinator: BepacomCoordinator = hass.data[DOMAIN][entry.entry_id][
+        "coordinator"
+    ]
 
-    client = BepacomClient(
-        host=entry.data["host"],
-        port=entry.data["port"],
-    )
+    # Create binary sensors for BACnet binary input/output objects
+    entities: list[BinarySensorEntity] = []
 
-    coordinator = BepacomCoordinator(
-        hass=hass,
-        client=client,
-        entry=entry,
-    )
+    for obj in coordinator.point_registry.all():
+        entity_type = BacnetObjectTypeMapper.get_entity_type(obj)
 
-    # Only create platforms after a complete initial BACnet inventory is
-    # available. A failed first refresh is retried by Home Assistant with
-    # backoff instead of creating entities from a temporary startup snapshot.
-    try:
-        await coordinator.async_config_entry_first_refresh()
-    except Exception:
-        # This attempt is not stored in hass.data yet, so the normal unload hook
-        # cannot close its HTTP session.
-        await client.async_close()
-        raise
+        if entity_type == EntityType.BINARY_SENSOR:
+            entities.append(BepacomBinarySensor(coordinator, obj))
 
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = {
-        "client": client,
-        "coordinator": coordinator,
-    }
-    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    # Additional virtual binary sensors keep the original BACnet raw entity intact.
+    # They map a source point's raw presentValue to on/off according to the
+    # user configuration in the BACnet Explorer sidebar.
+    for obj in coordinator.point_registry.all(include_disabled=True):
+        for config in coordinator.point_registry.overrides.get_virtual_entities(obj):
+            if config.get("entity_type") == "binary_sensor":
+                entities.append(BepacomVirtualBinarySensor(coordinator, obj, config))
 
-    await _async_migrate_legacy_entity_ids(hass, entry)
-    await _async_remove_inactive_entity_entries(hass, entry, coordinator)
+    if entities:
+        async_add_entities(entities)
+        _LOGGER.info("Added %d binary sensor entities", len(entities))
 
-    if PLATFORMS:
-        await hass.config_entries.async_forward_entry_setups(
-            entry,
-            PLATFORMS,
+
+class BepacomBinarySensor(CoordinatorEntity[BepacomCoordinator], BinarySensorEntity):
+    """Represents a Bepacom BACnet binary sensor entity."""
+
+    def __init__(
+        self,
+        coordinator: BepacomCoordinator,
+        obj: BacnetObject,
+    ) -> None:
+        """Initialize the binary sensor."""
+        super().__init__(coordinator)
+
+        self._obj = obj
+        self._attr_unique_id = obj.unique_id
+        self._attr_entity_id = f"binary_sensor.{obj.entity_id}"
+        self._attr_suggested_object_id = obj.entity_id
+        display_name, has_entity_name = BacnetObjectTypeMapper.get_display_name(obj)
+        self._attr_name = display_name
+        self._attr_has_entity_name = has_entity_name
+        self._attr_device_class = BacnetObjectTypeMapper.get_device_class(obj)
+        self._attr_device_info = self._build_device_info()
+        self._attr_extra_state_attributes = {
+            "device_id": obj.device_id,
+            "object_id": obj.object_id,
+            "object_type": obj.object_type,
+            "description": obj.description,
+        }
+        self._attr_extra_state_attributes.update(
+            coordinator.point_registry.inspector_attributes(obj)
         )
 
-    await _async_apply_deferred_entity_registry_overrides(hass, entry, coordinator)
+    def _build_device_info(self) -> DeviceInfo:
+        """Build Home Assistant device info for this BACnet device."""
+        device = self.coordinator.discovery.devices.get(self._obj.device_id)
+        return BacnetObjectTypeMapper.build_device_info(
+            domain=DOMAIN,
+            obj=self._obj,
+            device=device,
+        )
 
-    await coordinator.async_start()
+    @property
+    def is_on(self) -> bool | None:
+        """Return True if the binary sensor is on."""
+        # Update the object from latest data
+        if self.coordinator.data:
+            device_key = f"device:{self._obj.device_id}"
 
-    await async_register_explorer_panel(hass, entry)
+            if device_key in self.coordinator.data:
+                device_data = self.coordinator.data[device_key]
 
-    _LOGGER.info("Bepacom integration started successfully")
+                obj_key = f"{self._obj.object_type}:{self._obj.object_id}"
 
-    return True
+                if obj_key in device_data:
+                    obj_data = device_data[obj_key]
+
+                    if isinstance(obj_data, dict):
+                        self._obj.update(obj_data)
+                        display_name, has_entity_name = (
+                            BacnetObjectTypeMapper.get_display_name(self._obj)
+                        )
+                        self._attr_name = display_name
+                        self._attr_has_entity_name = has_entity_name
+                        self._attr_device_class = BacnetObjectTypeMapper.get_device_class(
+                            self._obj
+                        )
+
+        # Convert present_value to boolean
+        value = self._obj.present_value
+
+        if value is None:
+            return None
+
+        # Handle common boolean representations
+        if isinstance(value, bool):
+            return value
+        elif isinstance(value, (int, float)):
+            return value != 0
+        elif isinstance(value, str):
+            return value.lower() in ("true", "yes", "on", "1")
+
+        return bool(value)
+
+    @property
+    def available(self) -> bool:
+        """Return whether the entity is available."""
+        return self.coordinator.last_update_success
 
 
-async def async_unload_entry(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-) -> bool:
-    """Unload a config entry."""
+class BepacomVirtualBinarySensor(CoordinatorEntity[BepacomCoordinator], BinarySensorEntity):
+    """Virtual binary sensor derived from a BACnet source point."""
 
-    data = hass.data[DOMAIN][entry.entry_id]
-    coordinator: BepacomCoordinator = data["coordinator"]
-    client: BepacomClient = data["client"]
+    def __init__(
+        self,
+        coordinator: BepacomCoordinator,
+        source_obj: BacnetObject,
+        config: dict[str, Any],
+    ) -> None:
+        """Initialize the virtual binary sensor."""
+        super().__init__(coordinator)
+        self._source_obj = source_obj
+        self._config = config
 
-    unload_ok = await hass.config_entries.async_unload_platforms(
-        entry,
-        PLATFORMS,
-    )
+        unique_id = str(config.get("unique_id") or f"{source_obj.unique_id}_virtual_binary").strip()
+        name = str(config.get("name") or f"{source_obj.object_name or source_obj.unique_id} Binary").strip()
 
-    if not unload_ok:
-        return False
+        self._attr_unique_id = unique_id
+        self._attr_entity_id = f"binary_sensor.{slugify(unique_id)}"
+        self._attr_suggested_object_id = slugify(unique_id)
+        self._attr_name = name
+        self._attr_has_entity_name = False
+        self._attr_device_class = config.get("device_class") or None
+        self._attr_device_info = self._build_device_info()
+        self._attr_extra_state_attributes = {
+            "virtual_entity": True,
+            "source_unique_id": source_obj.unique_id,
+            "source_object": f"device:{source_obj.device_id}/{source_obj.object_type}:{source_obj.object_id}",
+            "on_condition": config.get("on_value"),
+            "off_condition": config.get("off_value"),
+            "else_state": config.get("else_state", "unavailable"),
+        }
 
-    await coordinator.async_shutdown()
-    await client.async_close()
-    hass.data[DOMAIN].pop(entry.entry_id, None)
-    await async_unregister_explorer_panel_if_unused(hass, entry)
+    def _build_device_info(self) -> DeviceInfo:
+        """Build Home Assistant device info for this BACnet device."""
+        device = self.coordinator.discovery.devices.get(self._source_obj.device_id)
+        return BacnetObjectTypeMapper.build_device_info(
+            domain=DOMAIN,
+            obj=self._source_obj,
+            device=device,
+        )
 
-    return unload_ok
+    def _source_value(self) -> Any:
+        """Return the current source point value from coordinator data."""
+        if self.coordinator.data:
+            device_key = f"device:{self._source_obj.device_id}"
+            device_data = self.coordinator.data.get(device_key)
+            if isinstance(device_data, dict):
+                obj_key = f"{self._source_obj.object_type}:{self._source_obj.object_id}"
+                obj_data = device_data.get(obj_key)
+                if isinstance(obj_data, dict):
+                    self._source_obj.update(obj_data)
+        return self._source_obj.present_value
 
+    @staticmethod
+    def _as_float(value: Any) -> float | None:
+        """Return value as float when possible."""
+        try:
+            return float(str(value).strip().strip('\"\'').replace(",", "."))
+        except (TypeError, ValueError):
+            return None
 
-async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Handle options update by reloading the config entry.
+    @staticmethod
+    def _normalize_text(value: Any) -> str:
+        """Normalize BACnet text values for user condition matching."""
+        return str(value).strip().strip('\"\'').lower()
 
-    Sidebar Explorer saves are intentionally applied to the runtime registry without
-    immediately reloading the integration. The user can reload explicitly after
-    finishing multiple edits.
-    """
-    suppress = hass.data.get(DOMAIN, {}).get("_suppress_reload_entries")
-    if isinstance(suppress, set) and entry.entry_id in suppress:
-        suppress.discard(entry.entry_id)
-        _LOGGER.debug("Bepacom options saved from sidebar without automatic reload")
-        return
+    @classmethod
+    def _equal(cls, left: Any, right: Any) -> bool:
+        """Compare BACnet values in a type-tolerant way."""
+        if left is None or right is None:
+            return left is right
+        left_num = cls._as_float(left)
+        right_num = cls._as_float(right)
+        if left_num is not None and right_num is not None:
+            return left_num == right_num
+        return cls._normalize_text(left) == cls._normalize_text(right)
 
-    await hass.config_entries.async_reload(entry.entry_id)
+    @classmethod
+    def _safe_eval_expression(cls, value: Any, expression: str) -> bool | None:
+        """Safely evaluate an advanced condition expression.
+
+        Supported examples:
+        - value > 10 && value < 20
+        - value == 2 || value == 5
+        - (value & 4096) != 0
+        - ((value - 1) & 4) != 0
+
+        This deliberately does not use eval(). Only a small AST subset with the
+        variable ``value`` and numeric/string constants is accepted.
+        """
+        source_value_num = cls._as_float(value)
+        source_value = source_value_num if source_value_num is not None else cls._normalize_text(value)
+        expr = expression.replace("&&", " and ").replace("||", " or ")
+
+        try:
+            tree = ast.parse(expr, mode="eval")
+        except SyntaxError:
+            return None
+
+        binary_ops = {
+            ast.Add: operator.add,
+            ast.Sub: operator.sub,
+            ast.Mult: operator.mul,
+            ast.Div: operator.truediv,
+            ast.Mod: operator.mod,
+            ast.BitAnd: lambda a, b: int(a) & int(b),
+            ast.BitOr: lambda a, b: int(a) | int(b),
+            ast.BitXor: lambda a, b: int(a) ^ int(b),
+        }
+        compare_ops = {
+            ast.Eq: operator.eq,
+            ast.NotEq: operator.ne,
+            ast.Gt: operator.gt,
+            ast.GtE: operator.ge,
+            ast.Lt: operator.lt,
+            ast.LtE: operator.le,
+        }
+
+        def resolve(node: ast.AST) -> Any:
+            if isinstance(node, ast.Expression):
+                return resolve(node.body)
+            if isinstance(node, ast.Name):
+                if node.id != "value":
+                    raise ValueError("only 'value' is allowed")
+                return source_value
+            if isinstance(node, ast.Constant):
+                if isinstance(node.value, (int, float, str, bool)) or node.value is None:
+                    return node.value
+                raise ValueError("unsupported constant")
+            if isinstance(node, ast.UnaryOp):
+                operand = resolve(node.operand)
+                if isinstance(node.op, ast.USub):
+                    return -float(operand)
+                if isinstance(node.op, ast.UAdd):
+                    return +float(operand)
+                if isinstance(node.op, ast.Not):
+                    return not bool(operand)
+                if isinstance(node.op, ast.Invert):
+                    return ~int(operand)
+                raise ValueError("unsupported unary operator")
+            if isinstance(node, ast.BoolOp):
+                values = [bool(resolve(v)) for v in node.values]
+                if isinstance(node.op, ast.And):
+                    return all(values)
+                if isinstance(node.op, ast.Or):
+                    return any(values)
+                raise ValueError("unsupported boolean operator")
+            if isinstance(node, ast.BinOp):
+                op_func = binary_ops.get(type(node.op))
+                if op_func is None:
+                    raise ValueError("unsupported binary operator")
+                return op_func(resolve(node.left), resolve(node.right))
+            if isinstance(node, ast.Compare):
+                left = resolve(node.left)
+                for op, comparator in zip(node.ops, node.comparators, strict=True):
+                    right = resolve(comparator)
+                    op_func = compare_ops.get(type(op))
+                    if op_func is None:
+                        raise ValueError("unsupported comparison operator")
+                    if not op_func(left, right):
+                        return False
+                    left = right
+                return True
+            raise ValueError("unsupported expression")
+
+        try:
+            return bool(resolve(tree))
+        except Exception:
+            return None
+
+    @classmethod
+    def _matches_condition(cls, value: Any, condition: Any) -> bool:
+        """Evaluate a simple user-defined ON/OFF condition.
+
+        Supported examples:
+        - 2: value equals 2
+        - >1, >=2, <5, <=10, !=0
+        - 1,2,5 or active,alarm: value equals one of the listed values
+        - 2-5: numeric range, inclusive
+        - active / inactive: text matching, quotes are ignored
+        """
+        if condition in (None, ""):
+            return False
+
+        expr = str(condition).strip()
+        if not expr:
+            return False
+
+        # Advanced expression mode. Use only when the user explicitly references
+        # the variable name or boolean/bit operators; simple rules remain fast and
+        # easy to read.
+        if "value" in expr or "&&" in expr or "||" in expr:
+            advanced = cls._safe_eval_expression(value, expr)
+            if advanced is not None:
+                return advanced
+
+        # OR-list: 1,2,5 / >1,<=5 / active,alarm
+        if "," in expr:
+            return any(cls._matches_condition(value, part.strip()) for part in expr.split(",") if part.strip())
+
+        value_num = cls._as_float(value)
+        expr_num = cls._as_float(expr)
+
+        for op in (">=", "<=", "!=", "==", ">", "<"):
+            if expr.startswith(op):
+                rhs = expr[len(op):].strip()
+                rhs_num = cls._as_float(rhs)
+                if value_num is not None and rhs_num is not None:
+                    if op == ">=":
+                        return value_num >= rhs_num
+                    if op == "<=":
+                        return value_num <= rhs_num
+                    if op == "!=":
+                        return value_num != rhs_num
+                    if op == "==":
+                        return value_num == rhs_num
+                    if op == ">":
+                        return value_num > rhs_num
+                    if op == "<":
+                        return value_num < rhs_num
+                if op == "!=":
+                    return not cls._equal(value, rhs)
+                if op == "==":
+                    return cls._equal(value, rhs)
+                return False
+
+        # Inclusive numeric range: 2-5. Negative single numbers like -1 still work as equality.
+        if "-" in expr[1:]:
+            left, right = expr.split("-", 1)
+            left_num = cls._as_float(left.strip())
+            right_num = cls._as_float(right.strip())
+            if value_num is not None and left_num is not None and right_num is not None:
+                low, high = sorted((left_num, right_num))
+                return low <= value_num <= high
+
+        # Plain value means equality.
+        if value_num is not None and expr_num is not None:
+            return value_num == expr_num
+        return cls._equal(value, expr)
+
+    def _rule_result(self) -> bool | None:
+        """Return rule result for the current source value."""
+        value = self._source_value()
+        if value is None:
+            return None
+
+        on_value = self._config.get("on_value")
+        off_value = self._config.get("off_value")
+        else_state = str(self._config.get("else_state") or "unavailable").strip().lower()
+
+        if on_value not in (None, "") and self._matches_condition(value, on_value):
+            return True
+        if off_value not in (None, "") and self._matches_condition(value, off_value):
+            return False
+
+        # Backward-compatible behavior: old configs with only ON condition default to OFF.
+        if off_value in (None, "") and "else_state" not in self._config and on_value not in (None, ""):
+            return False
+
+        if else_state in {"off", "aus", "false", "0"}:
+            return False
+        return None
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return True if the virtual binary sensor is on."""
+        return self._rule_result()
+
+    @property
+    def available(self) -> bool:
+        """Return whether the entity is available."""
+        if not self.coordinator.last_update_success:
+            return False
+        else_state = str(self._config.get("else_state") or "unavailable").strip().lower()
+        if else_state in {"unavailable", "nicht verfügbar", "nicht_verfügbar"}:
+            return self._rule_result() is not None
+        return True
