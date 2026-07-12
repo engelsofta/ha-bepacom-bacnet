@@ -5,7 +5,8 @@
     "@engelsofta"
   ],
   "config_flow": true,
-  "documentation": "https://github.com/engelsofta/bepacom",
+  "documentation": "https://github.com/engelsofta/ha-bepacom-bacnet",
+  "issue_tracker": "https://github.com/engelsofta/ha-bepacom-bacnet/issues",
   "requirements": [],
   "version": "0.5.14",
   "integration_type": "hub",
