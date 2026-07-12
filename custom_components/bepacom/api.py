@@ -580,3 +580,115 @@ class BepacomClient:
         except Exception as err:
             _LOGGER.exception("Unexpected error during write operation")
             raise WriteError(str(err)) from err
+
+    async def async_write_analog_value(
+        self,
+        device_id: str,
+        object_id: str,
+        value: float,
+        priority: int = 8,
+    ) -> bool:
+        """Write an Analog Value presentValue through the gateway API v2."""
+        device_path_id = self._normalize_device_path_id(str(device_id))
+        object_path_id = f"analogValue:{object_id}"
+
+        try:
+            await self._post(
+                f"/apiv2/{device_path_id}/{object_path_id}/presentValue",
+                params={"value": value, "priority": priority},
+            )
+        except (CannotConnect, InvalidResponse) as err:
+            raise WriteError(str(err)) from err
+
+        _LOGGER.info(
+            "Successfully wrote %s to %s on %s at priority %s",
+            value,
+            object_path_id,
+            device_path_id,
+            priority,
+        )
+        return True
+
+    async def async_write_multistate_output(
+        self,
+        device_id: str,
+        object_id: str,
+        value: float,
+        priority: int = 8,
+    ) -> bool:
+        """Write a Multi-state Output presentValue through gateway API v2."""
+        device_path_id = self._normalize_device_path_id(str(device_id))
+        object_path_id = f"multiStateOutput:{object_id}"
+        write_value: int | float = int(value) if float(value).is_integer() else value
+
+        try:
+            await self._post(
+                f"/apiv2/{device_path_id}/{object_path_id}/presentValue",
+                params={"value": write_value, "priority": priority},
+            )
+        except (CannotConnect, InvalidResponse) as err:
+            raise WriteError(str(err)) from err
+
+        _LOGGER.info(
+            "Successfully wrote %s to %s on %s at priority %s",
+            value,
+            object_path_id,
+            device_path_id,
+            priority,
+        )
+        return True
+
+    async def async_write_binary_value(
+        self,
+        device_id: str,
+        object_id: str,
+        value: bool,
+        priority: int = 8,
+    ) -> bool:
+        """Write a Binary Value presentValue through gateway API v2."""
+        device_path_id = self._normalize_device_path_id(str(device_id))
+        object_path_id = f"binaryValue:{object_id}"
+
+        try:
+            await self._post(
+                f"/apiv2/{device_path_id}/{object_path_id}/presentValue",
+                params={"value": int(value), "priority": priority},
+            )
+        except (CannotConnect, InvalidResponse) as err:
+            raise WriteError(str(err)) from err
+
+        _LOGGER.info(
+            "Successfully wrote %s to %s on %s at priority %s",
+            value,
+            object_path_id,
+            device_path_id,
+            priority,
+        )
+        return True
+
+    async def async_release_present_value(
+        self,
+        device_id: str,
+        object_type: str,
+        object_id: str,
+        priority: int = 8,
+    ) -> bool:
+        """Release one command priority slot through gateway API v2."""
+        device_path_id = self._normalize_device_path_id(str(device_id))
+        object_path_id = f"{object_type}:{object_id}"
+
+        try:
+            await self._post(
+                f"/apiv2/{device_path_id}/{object_path_id}/presentValue",
+                params={"priority": priority},
+            )
+        except (CannotConnect, InvalidResponse) as err:
+            raise WriteError(str(err)) from err
+
+        _LOGGER.info(
+            "Released %s on %s at priority %s",
+            object_path_id,
+            device_path_id,
+            priority,
+        )
+        return True

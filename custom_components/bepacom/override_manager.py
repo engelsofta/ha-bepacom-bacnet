@@ -7,7 +7,7 @@ from typing import Any
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.const import UnitOfTemperature
 
-from .const import CONF_ENTITY_OVERRIDES
+from .const import CONF_ENTITY_OVERRIDES, CONF_VIRTUAL_ENTITIES
 from .entity_factory import BacnetObjectTypeMapper
 from .models import BacnetObject
 
@@ -104,6 +104,75 @@ class BepacomOverrideManager:
                 return value
 
         return {}
+
+    def get_number_setting(self, obj: BacnetObject, key: str, default: float) -> float:
+        """Return a finite numeric entity setting or its default."""
+        value = self.get_override(obj).get(key)
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return default
+        return parsed if parsed == parsed and abs(parsed) != float("inf") else default
+
+    def get_write_priority(self, obj: BacnetObject, default: int = 8) -> int:
+        """Return the configured BACnet write priority (1-16)."""
+        value = self.get_override(obj).get("write_priority", default)
+        try:
+            return max(1, min(int(value), 16))
+        except (TypeError, ValueError):
+            return default
+
+    def get_write_profile(self, obj: BacnetObject) -> str:
+        """Return the configured Analog Value write profile."""
+        value = str(self.get_override(obj).get("write_profile", "direct")).strip().lower()
+        return "glt_set_as" if value == "glt_set_as" else "direct"
+
+    def get_write_delay_ms(
+        self,
+        obj: BacnetObject,
+        key: str,
+        default: int,
+    ) -> int:
+        """Return a bounded write-profile delay in milliseconds."""
+        value = self.get_override(obj).get(key, default)
+        try:
+            return max(0, min(int(value), 60_000))
+        except (TypeError, ValueError):
+            return default
+
+    def should_release_write_priority(self, obj: BacnetObject) -> bool:
+        """Return whether both profile priority slots should be released."""
+        return bool(self.get_override(obj).get("release_priority", True))
+
+
+    def get_virtual_entities(self, obj: BacnetObject | None = None) -> list[dict[str, Any]]:
+        """Return configured virtual entities, optionally filtered by source object."""
+        raw = self._options.get(CONF_VIRTUAL_ENTITIES, [])
+        if isinstance(raw, dict):
+            items = list(raw.values())
+        elif isinstance(raw, list):
+            items = raw
+        else:
+            items = []
+
+        result: list[dict[str, Any]] = []
+        source_unique_id = obj.unique_id if obj is not None else None
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            if not item.get("enabled", True):
+                continue
+            if source_unique_id is not None and item.get("source_unique_id") != source_unique_id:
+                continue
+            result.append(dict(item))
+        return result
+
+    def get_virtual_binary(self, obj: BacnetObject) -> dict[str, Any] | None:
+        """Return the first virtual binary entity configured for a source object."""
+        for item in self.get_virtual_entities(obj):
+            if item.get("entity_type") == "binary_sensor":
+                return item
+        return None
 
     def get_unit_of_measurement(self, obj: BacnetObject) -> str | None:
         """Return the Home Assistant unit after applying tri-state overrides."""
@@ -222,7 +291,7 @@ class BepacomOverrideManager:
         """Return whether this object should use per-object polling."""
         return self.get_update_mode(obj, "polling" if default else "disabled") == "polling"
 
-    def is_enabled(self, obj: BacnetObject, default: bool = True) -> bool:
+    def is_enabled(self, obj: BacnetObject, default: bool = False) -> bool:
         """Return whether a point should be created/updated."""
         return self.get_update_mode(obj, "subscribe" if default else "disabled") != "disabled"
 

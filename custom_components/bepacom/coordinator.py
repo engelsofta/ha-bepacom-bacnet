@@ -153,7 +153,37 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if not self._discovery_completed:
                 _LOGGER.info("Running initial BACnet discovery...")
 
-                self.discovery.parse(raw)
+                # The gateway can answer HTTP requests before its BACnet
+                # inventory is ready after a full host reboot. Do not commit a
+                # temporary empty/incomplete snapshot: platform setup only runs
+                # once and virtual entities whose source is absent would
+                # otherwise not be created until the integration is reloaded.
+                discovery = DiscoveryEngine()
+                discovery.parse(raw)
+
+                if not discovery.devices or not discovery.objects:
+                    raise UpdateFailed(
+                        "BACnet inventory is not ready yet "
+                        f"({len(discovery.devices)} devices / "
+                        f"{len(discovery.objects)} objects)"
+                    )
+
+                configured_virtual_sources = {
+                    str(item.get("source_unique_id") or "").strip()
+                    for item in self._overrides.get_virtual_entities()
+                    if item.get("source_unique_id")
+                }
+                missing_virtual_sources = configured_virtual_sources.difference(
+                    discovery.objects
+                )
+                if missing_virtual_sources:
+                    raise UpdateFailed(
+                        "BACnet inventory is still incomplete; waiting for "
+                        f"{len(missing_virtual_sources)} configured virtual-entity "
+                        "source point(s)"
+                    )
+
+                self.discovery = discovery
 
                 inventory_summary = (
                     len(self.discovery.devices),
@@ -186,7 +216,11 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return raw
 
         except Exception as err:
-            _LOGGER.exception("Coordinator update failed")
+            if self._discovery_completed:
+                _LOGGER.exception("Coordinator update failed")
+            else:
+                # Home Assistant retries a failed first refresh with backoff.
+                _LOGGER.warning("Bepacom is not ready yet: %s", err)
 
             raise UpdateFailed(str(err)) from err
 

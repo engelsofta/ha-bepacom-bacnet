@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -20,6 +21,10 @@ from .models import BacnetObject
 from .override_manager import BepacomOverrideManager
 
 _LOGGER = logging.getLogger(__name__)
+
+DEFAULT_ANALOG_VALUE_MIN = -1_000_000.0
+DEFAULT_ANALOG_VALUE_MAX = 1_000_000.0
+DEFAULT_ANALOG_VALUE_STEP = 0.01
 
 
 async def async_setup_entry(
@@ -64,6 +69,7 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
 
         self._obj = obj
         self._overrides = BepacomOverrideManager(coordinator._entry.options)
+        self._write_lock = asyncio.Lock()
         self._attr_unique_id = obj.unique_id
         self._attr_entity_id = f"number.{obj.entity_id}"
         self._attr_suggested_object_id = obj.entity_id
@@ -75,6 +81,15 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
         )
         self._attr_device_class = self._overrides.get_device_class(obj)
         self._attr_mode = NumberMode.BOX
+        self._attr_native_min_value = self._overrides.get_number_setting(
+            obj, "number_min", DEFAULT_ANALOG_VALUE_MIN
+        )
+        self._attr_native_max_value = self._overrides.get_number_setting(
+            obj, "number_max", DEFAULT_ANALOG_VALUE_MAX
+        )
+        self._attr_native_step = self._overrides.get_number_setting(
+            obj, "number_step", DEFAULT_ANALOG_VALUE_STEP
+        )
         self._attr_device_info = self._build_device_info()
         self._attr_extra_state_attributes = self._build_extra_state_attributes()
 
@@ -146,7 +161,14 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         """Set new value."""
-        if not self._obj.writable:
+        object_type = BacnetObjectTypeMapper._normalize_object_type(
+            self._obj.object_type
+        )
+        is_analog_value = object_type == "analog_value"
+        is_multistate_output = object_type == "multi_state_output"
+        uses_api_v2_write = is_analog_value or is_multistate_output
+
+        if not self._obj.writable and not uses_api_v2_write:
             _LOGGER.error(
                 "Cannot write to non-writable object %s",
                 self._obj.unique_id,
@@ -155,12 +177,30 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
 
         try:
             client = self.coordinator.client
-            await client.async_write_property(
-                device_id=self._obj.device_id,
-                object_type=self._obj.object_type,
-                object_id=self._obj.object_id,
-                value=value,
-            )
+            if is_analog_value:
+                if self._overrides.get_write_profile(self._obj) == "glt_set_as":
+                    await self._async_write_glt_set_as(value)
+                else:
+                    await client.async_write_analog_value(
+                        device_id=self._obj.device_id,
+                        object_id=self._obj.object_id,
+                        value=value,
+                        priority=self._overrides.get_write_priority(self._obj),
+                    )
+            elif is_multistate_output:
+                await client.async_write_multistate_output(
+                    device_id=self._obj.device_id,
+                    object_id=self._obj.object_id,
+                    value=value,
+                    priority=self._overrides.get_write_priority(self._obj),
+                )
+            else:
+                await client.async_write_property(
+                    device_id=self._obj.device_id,
+                    object_type=self._obj.object_type,
+                    object_id=self._obj.object_id,
+                    value=value,
+                )
             
             # Force coordinator update to reflect new state
             await self.coordinator.async_request_refresh()
@@ -176,6 +216,87 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
                 "Unexpected error setting value for %s",
                 self._obj.unique_id,
             )
+
+    async def _async_write_glt_set_as(self, value: float) -> None:
+        """Run the configured GLT -> set value -> AS write profile."""
+        async with self._write_lock:
+            client = self.coordinator.client
+            device_id = self._obj.device_id
+            object_id = self._obj.object_id
+            priority = 8
+            operation_error: Exception | None = None
+            cleanup_error: Exception | None = None
+            glt_switch_attempted = False
+
+            try:
+                glt_switch_attempted = True
+                await client.async_write_binary_value(
+                    device_id=device_id,
+                    object_id=object_id,
+                    value=True,
+                    priority=priority,
+                )
+                await asyncio.sleep(
+                    self._overrides.get_write_delay_ms(
+                        self._obj, "glt_delay_ms", 1200
+                    ) / 1000
+                )
+                await client.async_write_analog_value(
+                    device_id=device_id,
+                    object_id=object_id,
+                    value=value,
+                    priority=priority,
+                )
+                await asyncio.sleep(
+                    self._overrides.get_write_delay_ms(
+                        self._obj, "as_delay_ms", 1200
+                    ) / 1000
+                )
+            except Exception as err:  # cleanup must still return control to AS
+                operation_error = err
+            finally:
+                if glt_switch_attempted:
+                    try:
+                        await client.async_write_binary_value(
+                            device_id=device_id,
+                            object_id=object_id,
+                            value=False,
+                            priority=priority,
+                        )
+                    except Exception as err:
+                        cleanup_error = err
+                        _LOGGER.exception(
+                            "Failed to return %s to AS control",
+                            self._obj.unique_id,
+                        )
+
+                    await asyncio.sleep(
+                        self._overrides.get_write_delay_ms(
+                            self._obj, "release_delay_ms", 200
+                        ) / 1000
+                    )
+
+                    if self._overrides.should_release_write_priority(self._obj):
+                        for release_type in ("binaryValue", "analogValue"):
+                            try:
+                                await client.async_release_present_value(
+                                    device_id=device_id,
+                                    object_type=release_type,
+                                    object_id=object_id,
+                                    priority=priority,
+                                )
+                            except Exception as err:
+                                cleanup_error = cleanup_error or err
+                                _LOGGER.exception(
+                                    "Failed to release %s priority for %s",
+                                    release_type,
+                                    self._obj.unique_id,
+                                )
+
+            if operation_error is not None:
+                raise operation_error
+            if cleanup_error is not None:
+                raise cleanup_error
 
     @property
     def available(self) -> bool:

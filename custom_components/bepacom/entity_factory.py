@@ -99,6 +99,7 @@ class EntityType(Enum):
     BINARY_SENSOR = "binary_sensor"
     SWITCH = "switch"
     NUMBER = "number"
+    NONE = "none"
     CLIMATE = "climate"
 
 
@@ -307,7 +308,8 @@ class BacnetObjectTypeMapper:
     @staticmethod
     def _normalize_object_type(object_type: str) -> str:
         """Normalize BACnet object type formatting."""
-        return object_type.lower().replace("-", "_")
+        value = re.sub(r"(?<!^)(?=[A-Z])", "_", str(object_type).strip())
+        return value.lower().replace("-", "_")
 
     @staticmethod
     def _is_raw_object_identifier_name(obj: BacnetObject, object_name: str) -> bool:
@@ -325,6 +327,13 @@ class BacnetObjectTypeMapper:
         """Determine the best Home Assistant entity type for a BACnet object."""
         obj_type_lower = BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
 
+        # BACnet Analog Value objects represent setpoints/parameters rather than
+        # physical inputs.  The gateway firmware does not always advertise the
+        # writable property metadata, although presentValue is writable through
+        # its API v2 endpoint.
+        if obj_type_lower == "analog_value":
+            return EntityType.NUMBER
+
         if obj_type_lower in BacnetObjectTypeMapper.OBJECT_TYPE_MAP:
             entity_type = BacnetObjectTypeMapper.OBJECT_TYPE_MAP[obj_type_lower]
             if obj.writable and entity_type == EntityType.SENSOR:
@@ -339,7 +348,9 @@ class BacnetObjectTypeMapper:
             return EntityType.SWITCH
         if "setpoint" in obj_type_lower or "command" in obj_type_lower:
             return EntityType.NUMBER
-        return EntityType.SENSOR
+        # Unknown/internal gateway objects (for example file objects and
+        # proprietary system data) must not become arbitrary HA sensors.
+        return EntityType.NONE
 
     @staticmethod
     def get_device_class(obj: BacnetObject) -> SensorDeviceClass | str | None:

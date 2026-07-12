@@ -17,6 +17,7 @@ from .coordinator import BepacomCoordinator
 from .entity_factory import BacnetObjectTypeMapper, EntityType
 from .exceptions import WriteError
 from .models import BacnetObject
+from .override_manager import BepacomOverrideManager
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
         super().__init__(coordinator)
 
         self._obj = obj
+        self._overrides = BepacomOverrideManager(coordinator._entry.options)
         self._attr_unique_id = obj.unique_id
         self._attr_entity_id = f"switch.{obj.entity_id}"
         self._attr_suggested_object_id = obj.entity_id
@@ -119,13 +121,23 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
         elif isinstance(value, (int, float)):
             return value != 0
         elif isinstance(value, str):
-            return value.lower() in ("true", "yes", "on", "1")
+            normalized = value.strip().strip('"\'').lower()
+            if normalized in ("true", "yes", "on", "1", "active"):
+                return True
+            if normalized in ("false", "no", "off", "0", "inactive"):
+                return False
+            return False
 
         return bool(value)
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
-        if not self._obj.writable:
+        object_type = BacnetObjectTypeMapper._normalize_object_type(
+            self._obj.object_type
+        )
+        is_binary_value = object_type == "binary_value"
+
+        if not self._obj.writable and not is_binary_value:
             _LOGGER.error(
                 "Cannot write to non-writable switch %s",
                 self._obj.unique_id,
@@ -134,12 +146,20 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
 
         try:
             client = self.coordinator.client
-            await client.async_write_property(
-                device_id=self._obj.device_id,
-                object_type=self._obj.object_type,
-                object_id=self._obj.object_id,
-                value=True,
-            )
+            if is_binary_value:
+                await client.async_write_binary_value(
+                    device_id=self._obj.device_id,
+                    object_id=self._obj.object_id,
+                    value=True,
+                    priority=self._overrides.get_write_priority(self._obj),
+                )
+            else:
+                await client.async_write_property(
+                    device_id=self._obj.device_id,
+                    object_type=self._obj.object_type,
+                    object_id=self._obj.object_id,
+                    value=True,
+                )
             
             # Force coordinator update to reflect new state
             await self.coordinator.async_request_refresh()
@@ -158,7 +178,12 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the switch off."""
-        if not self._obj.writable:
+        object_type = BacnetObjectTypeMapper._normalize_object_type(
+            self._obj.object_type
+        )
+        is_binary_value = object_type == "binary_value"
+
+        if not self._obj.writable and not is_binary_value:
             _LOGGER.error(
                 "Cannot write to non-writable switch %s",
                 self._obj.unique_id,
@@ -167,12 +192,20 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
 
         try:
             client = self.coordinator.client
-            await client.async_write_property(
-                device_id=self._obj.device_id,
-                object_type=self._obj.object_type,
-                object_id=self._obj.object_id,
-                value=False,
-            )
+            if is_binary_value:
+                await client.async_write_binary_value(
+                    device_id=self._obj.device_id,
+                    object_id=self._obj.object_id,
+                    value=False,
+                    priority=self._overrides.get_write_priority(self._obj),
+                )
+            else:
+                await client.async_write_property(
+                    device_id=self._obj.device_id,
+                    object_type=self._obj.object_type,
+                    object_id=self._obj.object_id,
+                    value=False,
+                )
             
             # Force coordinator update to reflect new state
             await self.coordinator.async_request_refresh()

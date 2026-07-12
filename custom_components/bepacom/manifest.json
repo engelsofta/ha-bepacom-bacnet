@@ -6,8 +6,9 @@
   ],
   "config_flow": true,
   "documentation": "https://github.com/engelsofta/ha-bepacom-bacnet",
+  "issue_tracker": "https://github.com/engelsofta/ha-bepacom-bacnet/issues",
   "requirements": [],
-  "version": "0.3.8-beta.1",
+  "version": "0.5.14",
   "integration_type": "hub",
   "iot_class": "local_push",
   "platforms": [
@@ -18,6 +19,5 @@
   ],
   "loggers": [
     "custom_components.bepacom"
-  ],
-  "issue_tracker": "https://github.com/engelsofta/ha-bepacom-bacnet/issues"
+  ]
 }

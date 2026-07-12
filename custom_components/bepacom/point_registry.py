@@ -282,6 +282,7 @@ class BepacomPointRegistry:
         """Return a compact BACnet Point Inspector attribute set."""
         runtime = self.runtime(obj)
         override = self._overrides.get_override(obj)
+        public_override = self._public_override(override)
         ha_unit = self._overrides.get_unit_of_measurement(obj)
         ha_device_class = self._overrides.get_device_class(obj)
         ha_state_class = self._overrides.get_state_class(obj)
@@ -299,7 +300,7 @@ class BepacomPointRegistry:
             "ha_device_class": str(ha_device_class) if ha_device_class is not None else None,
             "ha_state_class": str(ha_state_class) if ha_state_class is not None else None,
             "override_active": bool(override),
-            "override": override or None,
+            "override": public_override or None,
             "enabled": self._overrides.is_enabled(obj),
             "subscribe_override": obj.subscribe,
             "subscribed": runtime.subscribed,
@@ -321,6 +322,22 @@ class BepacomPointRegistry:
         }
 
         return {key: value for key, value in attrs.items() if value is not None}
+
+    @staticmethod
+    def _public_override(override: dict[str, Any]) -> dict[str, Any]:
+        """Return override diagnostics without leaking internal tri-state markers."""
+        public: dict[str, Any] = {}
+        for key, value in override.items():
+            if isinstance(value, str):
+                normalized = value.strip().lower()
+                if normalized == "__none__":
+                    public[key] = "none"
+                    continue
+                if normalized == "__auto__":
+                    public[key] = "auto"
+                    continue
+            public[key] = value
+        return public
 
     def option_map(self) -> dict[str, str]:
         """Return selectable BACnet object labels for options flows."""
