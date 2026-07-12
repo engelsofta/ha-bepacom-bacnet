@@ -7,7 +7,7 @@ Custom Home Assistant integration for reading, managing and writing BACnet/IP da
 
 > **Beta release:** This version is intended for testing. Create a Home Assistant backup before installing or updating.
 
-## Highlights in 0.3.8 beta
+## Highlights
 
 - Sidebar BACnet Explorer with search, filters, grouping and details panel.
 - Per-entity configuration directly in the Explorer.
