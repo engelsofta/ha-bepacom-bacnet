@@ -1,368 +1,374 @@
-"""Central BACnet point registry for the Bepacom integration."""
+"""Entity override handling for the Bepacom integration."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import UTC, datetime
-from collections import deque
-from typing import Any, Iterable
+from typing import Any
 
+from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
+from homeassistant.const import UnitOfTemperature
+
+from .const import CONF_ENTITY_OVERRIDES, CONF_VIRTUAL_ENTITIES
 from .entity_factory import BacnetObjectTypeMapper
-from .models import BacnetDevice, BacnetObject
-from .override_manager import BepacomOverrideManager
+from .models import BacnetObject
+
+AUTO_OVERRIDE = "__auto__"
+NONE_OVERRIDE = "__none__"
+
+_AUTO_SENTINELS = {AUTO_OVERRIDE, "auto", "automatic", "automatisch"}
+_NONE_SENTINELS = {NONE_OVERRIDE, "none", "null", "keine", "no", "false"}
 
 
-@dataclass(slots=True)
-class PointRuntimeState:
-    """Runtime metadata for one BACnet point."""
+def _override_value(override: dict[str, Any], *keys: str) -> tuple[bool, Any]:
+    """Return whether an override key exists and its raw value.
 
-    last_update: datetime | None = None
-    last_update_source: str | None = None
-    subscribed: bool | None = None
-    fallback_polling: bool = False
-    history: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=300))
-    push_updates: int = 0
-    polling_updates: int = 0
-    value_changes: int = 0
-    suppressed_updates: int = 0
-    has_value: bool = False
-    last_value: Any = None
-
-
-
-
-def _comparable_value(value: Any) -> Any:
-    """Return a stable comparable representation for BACnet values.
-
-    BACnet notifications may deliver the same logical value as int, float or
-    string depending on the source path.  The live history must not treat
-    "58", 58 and 58.0 as different value changes.
+    A missing key always means automatic behaviour.  Older versions sometimes
+    wrote JSON null; callers decide whether that legacy null means automatic or
+    explicit none.
     """
+    for key in keys:
+        if key in override:
+            return True, override.get(key)
+    return False, None
+
+
+def _is_auto(value: Any) -> bool:
+    """Return True when a value explicitly requests automatic behaviour."""
+    return isinstance(value, str) and value.strip().lower() in _AUTO_SENTINELS
+
+
+def _is_none(value: Any, *, legacy_null_is_none: bool = True) -> bool:
+    """Return True when a value explicitly requests no HA value."""
     if value is None:
-        return None
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, (int, float)):
-        return round(float(value), 10)
-    text = str(value).strip()
-    if text == "":
-        return ""
-    try:
-        return round(float(text), 10)
-    except (TypeError, ValueError):
-        return text
+        return legacy_null_is_none
+    return isinstance(value, str) and value.strip().lower() in _NONE_SENTINELS
 
 
-def _values_equal(left: Any, right: Any) -> bool:
-    """Compare BACnet values by logical value instead of transport type."""
-    return _comparable_value(left) == _comparable_value(right)
+class OverrideResolver:
+    """Resolve tri-state overrides consistently.
 
-
-class BepacomPointRegistry:
-    """Single source of truth for discovered BACnet points.
-
-    Discovery still owns the raw inventory, but all platforms and future UI code
-    should read points through this registry.  It combines BACnet metadata,
-    user overrides and runtime state in one place.
+    Tri-state values:
+    - missing / __auto__ -> original value
+    - __none__          -> None
+    - custom value      -> normalized custom value
     """
 
-    def __init__(self, options: dict[str, Any] | None = None) -> None:
+    @staticmethod
+    def resolve(
+        override: dict[str, Any],
+        original: Any,
+        *keys: str,
+        normalizer=None,
+        legacy_null_is_none: bool = True,
+    ) -> Any:
+        has_override, value = _override_value(override, *keys)
+
+        if not has_override or _is_auto(value):
+            return original
+
+        if _is_none(value, legacy_null_is_none=legacy_null_is_none):
+            return None
+
+        if normalizer is not None:
+            return normalizer(value)
+
+        return value
+
+class BepacomOverrideManager:
+    """Apply user configured entity overrides.
+
+    Overrides are stored in config_entry.options[CONF_ENTITY_OVERRIDES].  A point can
+    be addressed by one of these keys:
+
+    - obj.unique_id, for example: bepacom_1_analoginput_545
+    - device/object key, for example: 1|analogInput:545
+    - object key only, for example: analogInput:545
+    """
+
+    def __init__(self, options: dict[str, Any] | None) -> None:
         self._options = options or {}
-        self._overrides = BepacomOverrideManager(self._options)
-        self.devices: dict[str, BacnetDevice] = {}
-        self.objects: dict[str, BacnetObject] = {}
-        self._by_path: dict[tuple[str, str], BacnetObject] = {}
-        self._runtime: dict[str, PointRuntimeState] = {}
+        overrides = self._options.get(CONF_ENTITY_OVERRIDES, {})
+        self._overrides: dict[str, Any] = overrides if isinstance(overrides, dict) else {}
 
-    def refresh_options(self, options: dict[str, Any] | None) -> None:
-        """Refresh option backed helpers after options changed."""
-        self._options = options or {}
-        self._overrides = BepacomOverrideManager(self._options)
+    def get_override(self, obj: BacnetObject) -> dict[str, Any]:
+        """Return the override dictionary for a BACnet object."""
+        object_key = f"{obj.object_type}:{obj.object_id}"
+        keys = (
+            obj.unique_id,
+            f"{obj.device_id}|{object_key}",
+            object_key,
+        )
 
-    @property
-    def overrides(self) -> BepacomOverrideManager:
-        """Return the active override manager."""
-        return self._overrides
+        for key in keys:
+            value = self._overrides.get(key)
+            if isinstance(value, dict):
+                return value
 
-    def load_discovery(
-        self,
-        devices: dict[str, BacnetDevice],
-        objects: dict[str, BacnetObject],
-    ) -> None:
-        """Load the latest discovery result into the registry."""
-        self.devices = devices
-        self.objects = objects
-        self._by_path = {}
+        return {}
 
-        for obj in objects.values():
-            object_key = self.object_key(obj)
-            self._by_path[(str(obj.device_id), object_key)] = obj
-            runtime = self._runtime.setdefault(obj.unique_id, PointRuntimeState())
-            self.apply_overrides(obj)
-
-            now = datetime.now(UTC)
-
-            # Discovery/full database refresh provides the initial/current value,
-            # but it is not counted as per-object polling unless an explicit
-            # polling update path calls update_point(..., source="poll").
-            value_changed = (not runtime.has_value) or not _values_equal(runtime.last_value, obj.present_value)
-            if runtime.has_value and not value_changed:
-                runtime.suppressed_updates += 1
-            if value_changed:
-                runtime.last_update = now
-                runtime.last_update_source = "poll"
-                if runtime.has_value:
-                    runtime.value_changes += 1
-                newest = runtime.history[-1] if runtime.history else None
-                if newest is None or not _values_equal(newest.get("value"), obj.present_value):
-                    runtime.history.append(
-                        {
-                            "ts": now.isoformat(),
-                            "value": obj.present_value,
-                            "source": "poll",
-                        }
-                    )
-                runtime.has_value = True
-                runtime.last_value = obj.present_value
-
-    def all(self, *, include_disabled: bool = False) -> Iterable[BacnetObject]:
-        """Iterate over all points, optionally including disabled ones."""
-        for obj in self.objects.values():
-            if include_disabled or self._overrides.is_enabled(obj):
-                yield obj
-
-    def get_by_unique_id(self, unique_id: str) -> BacnetObject | None:
-        """Return a point by unique id."""
-        return self.objects.get(unique_id)
-
-    def get_by_path(self, device_id: str, object_key: str) -> BacnetObject | None:
-        """Return a point by device id and BACnet object key."""
-        return self._by_path.get((str(device_id), object_key))
-
-    def apply_overrides(self, obj: BacnetObject) -> BacnetObject:
-        """Copy user override values onto the point model for UI/debugging."""
-        override = self._overrides.get_override(obj)
-
-        obj.override_unit = override.get("unit", override.get("unit_of_measurement"))
-        obj.override_device_class = override.get("device_class")
-        obj.override_state_class = override.get("state_class")
-        obj.subscribe = self._overrides.use_subscribe(obj)
-        obj.enabled = self._overrides.is_enabled(obj)
-
-        scan_interval = override.get("scan_interval")
+    def get_number_setting(self, obj: BacnetObject, key: str, default: float) -> float:
+        """Return a finite numeric entity setting or its default."""
+        value = self.get_override(obj).get(key)
         try:
-            obj.scan_interval = int(scan_interval) if scan_interval not in (None, "") else None
+            parsed = float(value)
         except (TypeError, ValueError):
-            obj.scan_interval = None
+            return default
+        return parsed if parsed == parsed and abs(parsed) != float("inf") else default
 
-        return obj
-
-    def update_point(
-        self,
-        device_id: str,
-        object_key: str,
-        payload: dict[str, Any],
-        *,
-        source: str = "unknown",
-    ) -> bool:
-        """Update one point and runtime metadata."""
-        obj = self.get_by_path(device_id, object_key)
-        if obj is None:
-            return False
-
-        obj.update(payload)
-        self.apply_overrides(obj)
-        runtime = self._runtime.setdefault(obj.unique_id, PointRuntimeState())
-        previous_value = runtime.last_value if runtime.has_value else obj.present_value
-        now = datetime.now(UTC)
-        runtime.last_update = now
-        runtime.last_update_source = source
-
-        normalized_source = (source or "unknown").lower()
-        if normalized_source == "push":
-            runtime.push_updates += 1
-        elif normalized_source in {"poll", "polling"}:
-            runtime.polling_updates += 1
-
-        value_changed = (not runtime.has_value) or not _values_equal(obj.present_value, previous_value)
-        if value_changed:
-            # As a final safety net, compare against the newest persisted
-            # history entry as well. This prevents duplicate visible history
-            # rows if a backend reload or mixed push/poll source already stored
-            # the same logical value.
-            newest = runtime.history[-1] if runtime.history else None
-            if newest is None or not _values_equal(newest.get("value"), obj.present_value):
-                if runtime.has_value:
-                    runtime.value_changes += 1
-                runtime.history.append(
-                    {
-                        "ts": now.isoformat(),
-                        "value": obj.present_value,
-                        "source": source,
-                    }
-                )
-            runtime.has_value = True
-            runtime.last_value = obj.present_value
-        else:
-            runtime.suppressed_updates += 1
-            # Keep the canonical last value aligned after the first ever update,
-            # even if the payload represents the same logical value.
-            if not runtime.has_value:
-                runtime.has_value = True
-                runtime.last_value = obj.present_value
-        return value_changed
-
-    def mark_subscription(
-        self,
-        device_id: str,
-        object_key: str,
-        subscribed: bool,
-    ) -> None:
-        """Record whether a point has an active gateway subscription."""
-        obj = self.get_by_path(device_id, object_key)
-        if obj is None:
-            return
-        self._runtime.setdefault(obj.unique_id, PointRuntimeState()).subscribed = subscribed
-
-    def mark_fallback_polling(
-        self,
-        device_id: str,
-        object_key: str,
-        enabled: bool,
-    ) -> None:
-        """Record fallback polling state for a point."""
-        obj = self.get_by_path(device_id, object_key)
-        if obj is None:
-            return
-        self._runtime.setdefault(obj.unique_id, PointRuntimeState()).fallback_polling = enabled
-
-    def runtime(self, obj: BacnetObject) -> PointRuntimeState:
-        """Return runtime state for a point."""
-        return self._runtime.setdefault(obj.unique_id, PointRuntimeState())
-
-    def history(self, obj: BacnetObject, *, limit: int = 120) -> list[dict[str, Any]]:
-        """Return recent value history for a point."""
-        runtime = self.runtime(obj)
-        items = list(runtime.history)
-        if limit > 0:
-            items = items[-limit:]
-        return items
-
-    def performance_summary(self) -> dict[str, Any]:
-        """Return basic registry performance and status counters."""
-        objects = list(self.objects.values())
-        runtimes = [self.runtime(obj) for obj in objects]
-        update_modes = {obj.unique_id: self._overrides.get_update_mode(obj) for obj in objects}
-        configured_push = sum(1 for mode in update_modes.values() if mode == "subscribe")
-        configured_polling = sum(1 for mode in update_modes.values() if mode == "polling")
-        configured_disabled = sum(1 for mode in update_modes.values() if mode == "disabled")
-        return {
-            # Configured values from the user's BACnet Explorer settings.
-            "objects": len(objects),
-            "enabled": sum(1 for obj in objects if self._overrides.is_enabled(obj)),
-            "disabled": sum(1 for obj in objects if not self._overrides.is_enabled(obj)),
-            "configured_push": configured_push,
-            "configured_polling": configured_polling,
-            "configured_disabled": configured_disabled,
-            "overrides": sum(1 for obj in objects if self._overrides.get_override(obj)),
-            "subscribe_overrides": sum(1 for obj in objects if self._overrides.get_override(obj).get("subscribe") is not None),
-            # Runtime/system values measured while the integration is running.
-            "subscribed": sum(1 for state in runtimes if state.subscribed is True),
-            "fallback_polling": sum(1 for state in runtimes if state.fallback_polling),
-            "updated_points": sum(1 for state in runtimes if state.last_update is not None),
-            "push_updates": sum(state.push_updates for state in runtimes),
-            "processed_push_updates": sum(state.push_updates for state in runtimes),
-            "polling_updates": sum(state.polling_updates for state in runtimes),
-            "processed_polling_updates": sum(state.polling_updates for state in runtimes),
-            "value_changes": sum(state.value_changes for state in runtimes),
-            "suppressed_updates": sum(state.suppressed_updates for state in runtimes),
-        }
-
-    def inspector_attributes(self, obj: BacnetObject) -> dict[str, Any]:
-        """Return a compact BACnet Point Inspector attribute set."""
-        runtime = self.runtime(obj)
-        override = self._overrides.get_override(obj)
-        ha_unit = self._overrides.get_unit_of_measurement(obj)
-        ha_device_class = self._overrides.get_device_class(obj)
-        ha_state_class = self._overrides.get_state_class(obj)
-
-        attrs: dict[str, Any] = {
-            "bacnet_device_id": obj.device_id,
-            "bacnet_object_key": self.object_key(obj),
-            "bacnet_object_type": obj.object_type,
-            "bacnet_object_instance": obj.object_id,
-            "bacnet_object_name": obj.object_name,
-            "bacnet_description": obj.description,
-            "bacnet_present_value": obj.present_value,
-            "bacnet_unit": obj.units,
-            "ha_unit": ha_unit,
-            "ha_device_class": str(ha_device_class) if ha_device_class is not None else None,
-            "ha_state_class": str(ha_state_class) if ha_state_class is not None else None,
-            "override_active": bool(override),
-            "override": override or None,
-            "enabled": self._overrides.is_enabled(obj),
-            "subscribe_override": obj.subscribe,
-            "subscribed": runtime.subscribed,
-            "fallback_polling": runtime.fallback_polling,
-            "writable": obj.writable,
-            "resolution": obj.resolution,
-            "reliability": obj.reliability,
-            "status_flags": obj.status_flags,
-            "out_of_service": obj.out_of_service,
-            "cov_increment": obj.cov_increment,
-            "last_update_source": runtime.last_update_source,
-            "last_update": runtime.last_update.isoformat() if runtime.last_update else None,
-            "raw": obj.raw or None,
-            "history_count": len(runtime.history),
-            "push_updates": runtime.push_updates,
-            "polling_updates": runtime.polling_updates,
-            "value_changes": runtime.value_changes,
-            "suppressed_updates": runtime.suppressed_updates,
-        }
-
-        return {key: value for key, value in attrs.items() if value is not None}
-
-    def option_map(self) -> dict[str, str]:
-        """Return selectable BACnet object labels for options flows."""
-        options_with_order: list[tuple[tuple[str, int, str, str], str, str]] = []
-
-        for obj in self.objects.values():
-            object_key = self.object_key(obj)
-            object_type = obj.object_type.lower()
-            object_name = obj.object_name.strip() if obj.object_name else "-"
-            object_instance = self._object_instance(object_key)
-            override_marker = " *" if self._overrides.get_override(obj) else ""
-
-            label = (
-                f"[{object_type}] {obj.device_id}/{object_key}"
-                f" | Name: {object_name}{override_marker}"
-            )
-            option_key = self.subscription_option_key(obj.device_id, object_key)
-            sort_key = (object_type, object_instance, object_name.lower(), str(obj.device_id))
-            options_with_order.append((sort_key, option_key, label))
-
-        return {
-            option_key: label
-            for _, option_key, label in sorted(options_with_order, key=lambda item: item[0])
-        }
-
-    @staticmethod
-    def object_key(obj: BacnetObject) -> str:
-        """Return BACnet object key, for example analogInput:545."""
-        return f"{obj.object_type}:{obj.object_id}"
-
-    @staticmethod
-    def subscription_option_key(device_id: str, object_key: str) -> str:
-        """Build a stable options key for one BACnet object."""
-        return f"{device_id}|{object_key}"
-
-    @staticmethod
-    def _object_instance(object_key: str) -> int:
-        """Return numeric BACnet object instance for sorting."""
-        if ":" not in object_key:
-            return 999999999
-        _, instance = object_key.split(":", 1)
+    def get_write_priority(self, obj: BacnetObject, default: int = 8) -> int:
+        """Return the configured BACnet write priority (1-16)."""
+        value = self.get_override(obj).get("write_priority", default)
         try:
-            return int(instance)
-        except ValueError:
-            return 999999999
+            return max(1, min(int(value), 16))
+        except (TypeError, ValueError):
+            return default
+
+    def get_write_profile(self, obj: BacnetObject) -> str:
+        """Return the configured Analog Value write profile."""
+        value = str(self.get_override(obj).get("write_profile", "direct")).strip().lower()
+        return "glt_set_as" if value == "glt_set_as" else "direct"
+
+    def get_write_delay_ms(
+        self,
+        obj: BacnetObject,
+        key: str,
+        default: int,
+    ) -> int:
+        """Return a bounded write-profile delay in milliseconds."""
+        value = self.get_override(obj).get(key, default)
+        try:
+            return max(0, min(int(value), 60_000))
+        except (TypeError, ValueError):
+            return default
+
+    def should_release_write_priority(self, obj: BacnetObject) -> bool:
+        """Return whether both profile priority slots should be released."""
+        return bool(self.get_override(obj).get("release_priority", True))
+
+
+    def get_virtual_entities(self, obj: BacnetObject | None = None) -> list[dict[str, Any]]:
+        """Return configured virtual entities, optionally filtered by source object."""
+        raw = self._options.get(CONF_VIRTUAL_ENTITIES, [])
+        if isinstance(raw, dict):
+            items = list(raw.values())
+        elif isinstance(raw, list):
+            items = raw
+        else:
+            items = []
+
+        result: list[dict[str, Any]] = []
+        source_unique_id = obj.unique_id if obj is not None else None
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            if not item.get("enabled", True):
+                continue
+            if source_unique_id is not None and item.get("source_unique_id") != source_unique_id:
+                continue
+            result.append(dict(item))
+        return result
+
+    def get_virtual_binary(self, obj: BacnetObject) -> dict[str, Any] | None:
+        """Return the first virtual binary entity configured for a source object."""
+        for item in self.get_virtual_entities(obj):
+            if item.get("entity_type") == "binary_sensor":
+                return item
+        return None
+
+    def get_unit_of_measurement(self, obj: BacnetObject) -> str | None:
+        """Return the Home Assistant unit after applying tri-state overrides."""
+        override = self.get_override(obj)
+        original = BacnetObjectTypeMapper.get_unit_of_measurement(obj)
+
+        def normalize_unit(value: Any) -> str | None:
+            normalized = BacnetObjectTypeMapper._normalize_unit_value(value)
+            return normalized if normalized is not None else str(value).strip()
+
+        return OverrideResolver.resolve(
+            override,
+            original,
+            "unit",
+            "unit_of_measurement",
+            normalizer=normalize_unit,
+            legacy_null_is_none=True,
+        )
+
+    def get_device_class(self, obj: BacnetObject) -> SensorDeviceClass | str | None:
+        """Return the Home Assistant device class after applying tri-state overrides."""
+        override = self.get_override(obj)
+
+        # Do not blindly convert a BACnet unit of °C into a temperature device
+        # class. Some BACnet gateways report °C for every analog value. Only use
+        # temperature automatically when the object type/name makes that plausible.
+        unit = BacnetObjectTypeMapper.get_unit_of_measurement(obj)
+        original: SensorDeviceClass | str | None
+        if unit in {
+            UnitOfTemperature.CELSIUS,
+            UnitOfTemperature.FAHRENHEIT,
+            UnitOfTemperature.KELVIN,
+        } and not self._looks_like_temperature(obj):
+            original = None
+        else:
+            original = BacnetObjectTypeMapper.get_device_class(obj)
+
+        return OverrideResolver.resolve(
+            override,
+            original,
+            "device_class",
+            normalizer=self._normalize_device_class,
+            legacy_null_is_none=True,
+        )
+
+    def get_state_class(self, obj: BacnetObject) -> SensorStateClass | str | None:
+        """Return the Home Assistant state class after applying tri-state overrides."""
+        override = self.get_override(obj)
+        original = BacnetObjectTypeMapper.get_state_class(obj)
+
+        # Important: older sidebar versions sometimes stored JSON null for
+        # state_class when no explicit override was intended.  Treat legacy null
+        # as automatic here to avoid unintentionally removing long-term
+        # statistics.  A deliberate "Keine" selection is stored as __none__.
+        return OverrideResolver.resolve(
+            override,
+            original,
+            "state_class",
+            normalizer=self._normalize_state_class,
+            legacy_null_is_none=False,
+        )
+
+    def get_update_mode(self, obj: BacnetObject, default: str = "disabled") -> str:
+        """Return the configured per-object update mode.
+
+        New installations store a single ``update_mode`` value:
+
+        - ``disabled``: entity is disabled/not updated
+        - ``subscribe``: COV/Push subscription
+        - ``polling``: per-object fallback polling
+
+        Older overrides with separate ``enabled`` and ``subscribe`` keys are still
+        accepted and migrated logically at runtime.
+        """
+        override = self.get_override(obj)
+        value = override.get("update_mode")
+
+        if isinstance(value, str):
+            normalized = value.strip().lower().replace("-", "_").replace(" ", "_")
+            if normalized in {"disabled", "disable", "off", "aus", "inactive", "deaktiviert"}:
+                return "disabled"
+            if normalized in {"subscribe", "subscribed", "push", "cov", "subscription"}:
+                return "subscribe"
+            if normalized in {"polling", "poll", "zyklisch"}:
+                return "polling"
+
+        # Legacy compatibility: enabled=false wins.
+        enabled = override.get("enabled")
+        if isinstance(enabled, bool) and enabled is False:
+            return "disabled"
+        if isinstance(enabled, str) and enabled.strip().lower() in {"0", "false", "no", "nein", "off", "aus"}:
+            return "disabled"
+
+        subscribe = override.get("subscribe")
+        if isinstance(subscribe, bool):
+            return "subscribe" if subscribe else "polling"
+        if isinstance(subscribe, str):
+            normalized = subscribe.strip().lower()
+            if normalized in {"1", "true", "yes", "ja", "on", "subscribe", "push", "cov"}:
+                return "subscribe"
+            if normalized in {"0", "false", "no", "nein", "off", "polling", "poll"}:
+                return "polling"
+
+        return default
+
+    def use_subscribe(self, obj: BacnetObject, default: bool | None = None) -> bool | None:
+        """Return whether this object should use Subscribe/Push."""
+        mode = self.get_update_mode(obj, "disabled" if default is None else ("subscribe" if default else "polling"))
+        if mode == "subscribe":
+            return True
+        if mode in {"polling", "disabled"}:
+            return False
+        return default
+
+    def use_polling(self, obj: BacnetObject, default: bool = False) -> bool:
+        """Return whether this object should use per-object polling."""
+        return self.get_update_mode(obj, "polling" if default else "disabled") == "polling"
+
+    def is_enabled(self, obj: BacnetObject, default: bool = False) -> bool:
+        """Return whether a point should be created/updated."""
+        return self.get_update_mode(obj, "subscribe" if default else "disabled") != "disabled"
+
+    @staticmethod
+    def _looks_like_temperature(obj: BacnetObject) -> bool:
+        """Return True when object metadata makes temperature plausible."""
+        text = f"{obj.object_type} {obj.object_name} {obj.description}".lower()
+        return any(
+            token in text
+            for token in (
+                "temperature",
+                "temperatur",
+                "temp",
+                "raumregelung",
+                "heizung",
+                "sollwert",
+                "setpoint",
+            )
+        )
+
+    @staticmethod
+    def _normalize_device_class(value: Any) -> SensorDeviceClass | str | None:
+        """Normalize device class strings to HA constants when possible."""
+        if value is None:
+            return None
+
+        normalized = str(value).strip().lower().replace(" ", "_").replace("-", "_")
+        if normalized in _NONE_SENTINELS:
+            return None
+
+        aliases = {
+            "temperature": "TEMPERATURE",
+            "temperatur": "TEMPERATURE",
+            "humidity": "HUMIDITY",
+            "feuchte": "HUMIDITY",
+            "pressure": "PRESSURE",
+            "druck": "PRESSURE",
+            "power": "POWER",
+            "leistung": "POWER",
+            "energy": "ENERGY",
+            "energie": "ENERGY",
+            "voltage": "VOLTAGE",
+            "spannung": "VOLTAGE",
+            "current": "CURRENT",
+            "strom": "CURRENT",
+            "frequency": "FREQUENCY",
+            "frequenz": "FREQUENCY",
+            "duration": "DURATION",
+            "dauer": "DURATION",
+            "illuminance": "ILLUMINANCE",
+            "beleuchtungsstaerke": "ILLUMINANCE",
+            "co2": "CO2",
+            "pm25": "PM25",
+            "pm2_5": "PM25",
+            "pm10": "PM10",
+        }
+        attr = aliases.get(normalized, normalized.upper())
+        return getattr(SensorDeviceClass, attr, normalized)
+
+    @staticmethod
+    def _normalize_state_class(value: Any) -> SensorStateClass | str | None:
+        """Normalize state class strings to HA constants when possible."""
+        if value is None:
+            return None
+
+        normalized = str(value).strip().lower().replace(" ", "_").replace("-", "_")
+        if normalized in _NONE_SENTINELS:
+            return None
+
+        aliases = {
+            "measurement": "MEASUREMENT",
+            "messwert": "MEASUREMENT",
+            "total": "TOTAL",
+            "gesamt": "TOTAL",
+            "total_increasing": "TOTAL_INCREASING",
+            "zaehler": "TOTAL_INCREASING",
+            "zähler": "TOTAL_INCREASING",
+        }
+        attr = aliases.get(normalized, normalized.upper())
+        return getattr(SensorStateClass, attr, normalized)

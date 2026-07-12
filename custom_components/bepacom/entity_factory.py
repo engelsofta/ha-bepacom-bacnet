@@ -1,641 +1,723 @@
-"""Entity factory for creating Home Assistant entities from BACnet objects."""
+"""DataUpdateCoordinator for the Bepacom integration."""
 
 from __future__ import annotations
 
+import asyncio
 import logging
-import re
-from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
-from homeassistant.const import (
-    PERCENTAGE,
-    UnitOfEnergy,
-    UnitOfPower,
-    UnitOfPressure,
-    UnitOfTemperature,
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.update_coordinator import (
+    DataUpdateCoordinator,
+    UpdateFailed,
 )
-from homeassistant.helpers.device_registry import DeviceInfo
 
-try:
-    from homeassistant.const import UnitOfElectricCurrent
-except ImportError:  # compatibility with older HA versions
-    UnitOfElectricCurrent = None  # type: ignore[assignment]
-
-try:
-    from homeassistant.const import UnitOfElectricPotential
-except ImportError:
-    UnitOfElectricPotential = None  # type: ignore[assignment]
-
-try:
-    from homeassistant.const import UnitOfFrequency
-except ImportError:
-    UnitOfFrequency = None  # type: ignore[assignment]
-
-try:
-    from homeassistant.const import UnitOfVolumeFlowRate
-except ImportError:
-    UnitOfVolumeFlowRate = None  # type: ignore[assignment]
-
-try:
-    from homeassistant.const import UnitOfSpeed
-except ImportError:
-    UnitOfSpeed = None  # type: ignore[assignment]
-
-try:
-    from homeassistant.const import UnitOfLength
-except ImportError:
-    UnitOfLength = None  # type: ignore[assignment]
-
-try:
-    from homeassistant.const import UnitOfTime
-except ImportError:
-    UnitOfTime = None  # type: ignore[assignment]
-
-if TYPE_CHECKING:
-    from .models import BacnetDevice, BacnetObject
+from .api import BepacomClient
+from .const import (
+    CONF_ENABLE_POLLING,
+    CONF_HEARTBEAT_TIMEOUT,
+    CONF_PUSH_VALUE_LOGGING,
+    CONF_SNAPSHOT_WEBSOCKET_MODE,
+    CONF_SUBSCRIBED_OBJECTS,
+    DEFAULT_ENABLE_POLLING,
+    DEFAULT_HEARTBEAT_TIMEOUT,
+    DEFAULT_PUSH_VALUE_LOGGING,
+    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_SNAPSHOT_WEBSOCKET_MODE,
+    DOMAIN,
+    FALLBACK_POLL_INTERVAL,
+)
+from .discovery import DiscoveryEngine
+from .exceptions import InvalidResponse
+from .override_manager import BepacomOverrideManager
+from .point_registry import BepacomPointRegistry
+from .websocket_manager import BepacomWebSocketManager
 
 _LOGGER = logging.getLogger(__name__)
+_MAX_INVALID_FALLBACK_RESPONSES = 3
+_PUSH_UPDATE_DEBOUNCE_SECONDS = 0.5
+_SUBSCRIBE_CONCURRENCY = 5
 
 
-def _const_value(container: Any, attr: str, fallback: str) -> str:
-    """Return a Home Assistant unit constant with a safe fallback."""
-    if container is None:
-        return fallback
-    return getattr(container, attr, fallback)
+class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
+    """Coordinator responsible for fetching and analysing BACnet data."""
 
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        client: BepacomClient,
+        entry,
+    ) -> None:
+        """Initialize coordinator."""
 
-UNIT_VOLT = _const_value(UnitOfElectricPotential, "VOLT", "V")
-UNIT_MILLIVOLT = _const_value(UnitOfElectricPotential, "MILLIVOLT", "mV")
-UNIT_AMPERE = _const_value(UnitOfElectricCurrent, "AMPERE", "A")
-UNIT_MILLIAMPERE = _const_value(UnitOfElectricCurrent, "MILLIAMPERE", "mA")
-UNIT_HERTZ = _const_value(UnitOfFrequency, "HERTZ", "Hz")
-UNIT_KILOHERTZ = _const_value(UnitOfFrequency, "KILOHERTZ", "kHz")
-UNIT_CUBIC_METERS_PER_HOUR = _const_value(UnitOfVolumeFlowRate, "CUBIC_METERS_PER_HOUR", "m³/h")
-UNIT_LITERS_PER_SECOND = _const_value(UnitOfVolumeFlowRate, "LITERS_PER_SECOND", "L/s")
-UNIT_METERS_PER_SECOND = _const_value(UnitOfSpeed, "METERS_PER_SECOND", "m/s")
-UNIT_KILOMETERS_PER_HOUR = _const_value(UnitOfSpeed, "KILOMETERS_PER_HOUR", "km/h")
-UNIT_METER = _const_value(UnitOfLength, "METERS", "m")
-UNIT_SECOND = _const_value(UnitOfTime, "SECONDS", "s")
-UNIT_MINUTE = _const_value(UnitOfTime, "MINUTES", "min")
-UNIT_HOUR = _const_value(UnitOfTime, "HOURS", "h")
+        self._polling_enabled = entry.options.get(
+            CONF_ENABLE_POLLING,
+            DEFAULT_ENABLE_POLLING,
+        )
+        self._snapshot_websocket_mode = entry.options.get(
+            CONF_SNAPSHOT_WEBSOCKET_MODE,
+            DEFAULT_SNAPSHOT_WEBSOCKET_MODE,
+        )
+        self._push_value_logging = entry.options.get(
+            CONF_PUSH_VALUE_LOGGING,
+            DEFAULT_PUSH_VALUE_LOGGING,
+        )
+        self._heartbeat_timeout = entry.options.get(
+            CONF_HEARTBEAT_TIMEOUT,
+            DEFAULT_HEARTBEAT_TIMEOUT,
+        )
 
-UNIT_LUX = "lx"
-UNIT_PPM = "ppm"
-UNIT_PPB = "ppb"
-UNIT_BAR = "bar"
-UNIT_KILOPASCAL = "kPa"
-UNIT_VOLT_AMPERE = "VA"
-UNIT_REACTIVE_POWER = "var"
-UNIT_LITER_PER_MINUTE = "L/min"
-UNIT_CUBIC_METER = "m³"
-UNIT_LITER = "L"
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=DOMAIN,
+            update_interval=DEFAULT_SCAN_INTERVAL if self._polling_enabled else None,
+        )
 
+        self.client = client
+        self._entry = entry
+        self._overrides = BepacomOverrideManager(entry.options)
 
-class EntityType(Enum):
-    """Supported Home Assistant entity types."""
-
-    SENSOR = "sensor"
-    BINARY_SENSOR = "binary_sensor"
-    SWITCH = "switch"
-    NUMBER = "number"
-    CLIMATE = "climate"
-
-
-class BacnetObjectTypeMapper:
-    """Maps BACnet object types to Home Assistant entity types."""
-
-    OBJECT_TYPE_MAP = {
-        "analog_input": EntityType.SENSOR,
-        "analog_value": EntityType.SENSOR,
-        "analog_output": EntityType.NUMBER,
-        "binary_input": EntityType.BINARY_SENSOR,
-        "binary_value": EntityType.SWITCH,
-        "binary_output": EntityType.SWITCH,
-        "multi_state_input": EntityType.SENSOR,
-        "multi_state_output": EntityType.NUMBER,
-        "temperature_sensor": EntityType.SENSOR,
-        "humidity_sensor": EntityType.SENSOR,
-        "pressure_sensor": EntityType.SENSOR,
-        "loop": EntityType.SENSOR,
-    }
-
-    UNIT_NORMALIZATION_MAP = {
-        # Temperature
-        "c": UnitOfTemperature.CELSIUS,
-        "celsius": UnitOfTemperature.CELSIUS,
-        "degreecelsius": UnitOfTemperature.CELSIUS,
-        "degreescelsius": UnitOfTemperature.CELSIUS,
-        "degreescentigrade": UnitOfTemperature.CELSIUS,
-        "centigrade": UnitOfTemperature.CELSIUS,
-        "°c": UnitOfTemperature.CELSIUS,
-        "f": UnitOfTemperature.FAHRENHEIT,
-        "fahrenheit": UnitOfTemperature.FAHRENHEIT,
-        "degreefahrenheit": UnitOfTemperature.FAHRENHEIT,
-        "degreesfahrenheit": UnitOfTemperature.FAHRENHEIT,
-        "°f": UnitOfTemperature.FAHRENHEIT,
-        "k": UnitOfTemperature.KELVIN,
-        "kelvin": UnitOfTemperature.KELVIN,
-        "degreekelvin": UnitOfTemperature.KELVIN,
-        "degreeskelvin": UnitOfTemperature.KELVIN,
-
-        # Percentage / humidity
-        "%": PERCENTAGE,
-        "percent": PERCENTAGE,
-        "percentage": PERCENTAGE,
-        "percentrelativehumidity": PERCENTAGE,
-        "relativehumidity": PERCENTAGE,
-
-        # Pressure
-        "pa": UnitOfPressure.PA,
-        "pascal": UnitOfPressure.PA,
-        "pascals": UnitOfPressure.PA,
-        "kpa": UNIT_KILOPASCAL,
-        "kilopascal": UNIT_KILOPASCAL,
-        "kilopascals": UNIT_KILOPASCAL,
-        "bar": UNIT_BAR,
-        "millibar": "mbar",
-        "mbar": "mbar",
-
-        # Power
-        "w": UnitOfPower.WATT,
-        "watt": UnitOfPower.WATT,
-        "watts": UnitOfPower.WATT,
-        "kw": UnitOfPower.KILO_WATT,
-        "kilowatt": UnitOfPower.KILO_WATT,
-        "kilowatts": UnitOfPower.KILO_WATT,
-        "mw": "MW",
-        "megawatt": "MW",
-        "megawatts": "MW",
-        "va": UNIT_VOLT_AMPERE,
-        "voltampere": UNIT_VOLT_AMPERE,
-        "voltamperes": UNIT_VOLT_AMPERE,
-        "kva": "kVA",
-        "kilovoltampere": "kVA",
-        "kilovoltamperes": "kVA",
-        "var": UNIT_REACTIVE_POWER,
-        "vars": UNIT_REACTIVE_POWER,
-        "kilovar": "kvar",
-        "kilovars": "kvar",
-
-        # Energy
-        "wh": UnitOfEnergy.WATT_HOUR,
-        "watthour": UnitOfEnergy.WATT_HOUR,
-        "watthours": UnitOfEnergy.WATT_HOUR,
-        "kwh": UnitOfEnergy.KILO_WATT_HOUR,
-        "kilowatthour": UnitOfEnergy.KILO_WATT_HOUR,
-        "kilowatthours": UnitOfEnergy.KILO_WATT_HOUR,
-        "mwh": "MWh",
-        "megawatthour": "MWh",
-        "megawatthours": "MWh",
-
-        # Voltage / current
-        "v": UNIT_VOLT,
-        "volt": UNIT_VOLT,
-        "volts": UNIT_VOLT,
-        "mv": UNIT_MILLIVOLT,
-        "millivolt": UNIT_MILLIVOLT,
-        "millivolts": UNIT_MILLIVOLT,
-        "kv": "kV",
-        "kilovolt": "kV",
-        "kilovolts": "kV",
-        "a": UNIT_AMPERE,
-        "ampere": UNIT_AMPERE,
-        "amperes": UNIT_AMPERE,
-        "amp": UNIT_AMPERE,
-        "amps": UNIT_AMPERE,
-        "ma": UNIT_MILLIAMPERE,
-        "milliampere": UNIT_MILLIAMPERE,
-        "milliamperes": UNIT_MILLIAMPERE,
-
-        # Frequency
-        "hz": UNIT_HERTZ,
-        "hertz": UNIT_HERTZ,
-        "khz": UNIT_KILOHERTZ,
-        "kilohertz": UNIT_KILOHERTZ,
-
-        # Light
-        "lux": UNIT_LUX,
-        "lx": UNIT_LUX,
-        "lumens": "lm",
-        "lumen": "lm",
-
-        # Air quality / concentration
-        "ppm": UNIT_PPM,
-        "partspermillion": UNIT_PPM,
-        "ppb": UNIT_PPB,
-        "partsperbillion": UNIT_PPB,
-
-        # Flow
-        "cubicmetersperhour": UNIT_CUBIC_METERS_PER_HOUR,
-        "cubicmeterperhour": UNIT_CUBIC_METERS_PER_HOUR,
-        "m3h": UNIT_CUBIC_METERS_PER_HOUR,
-        "m³h": UNIT_CUBIC_METERS_PER_HOUR,
-        "literspersecond": UNIT_LITERS_PER_SECOND,
-        "literpersecond": UNIT_LITERS_PER_SECOND,
-        "lps": UNIT_LITERS_PER_SECOND,
-        "ls": UNIT_LITERS_PER_SECOND,
-        "litersperminute": UNIT_LITER_PER_MINUTE,
-        "literperminute": UNIT_LITER_PER_MINUTE,
-        "lpm": UNIT_LITER_PER_MINUTE,
-        "lmin": UNIT_LITER_PER_MINUTE,
-
-        # Speed / velocity
-        "meterspersecond": UNIT_METERS_PER_SECOND,
-        "meterpersecond": UNIT_METERS_PER_SECOND,
-        "mps": UNIT_METERS_PER_SECOND,
-        "ms": UNIT_METERS_PER_SECOND,
-        "kilometersperhour": UNIT_KILOMETERS_PER_HOUR,
-        "kilometerperhour": UNIT_KILOMETERS_PER_HOUR,
-        "kmh": UNIT_KILOMETERS_PER_HOUR,
-
-        # Length / volume / time
-        "m": UNIT_METER,
-        "meter": UNIT_METER,
-        "meters": UNIT_METER,
-        "cubicmeter": UNIT_CUBIC_METER,
-        "cubicmeters": UNIT_CUBIC_METER,
-        "m3": UNIT_CUBIC_METER,
-        "m³": UNIT_CUBIC_METER,
-        "liter": UNIT_LITER,
-        "liters": UNIT_LITER,
-        "l": UNIT_LITER,
-        "second": UNIT_SECOND,
-        "seconds": UNIT_SECOND,
-        "s": UNIT_SECOND,
-        "minute": UNIT_MINUTE,
-        "minutes": UNIT_MINUTE,
-        "min": UNIT_MINUTE,
-        "hour": UNIT_HOUR,
-        "hours": UNIT_HOUR,
-        "h": UNIT_HOUR,
-
-        # Common BACnet engineering-unit aliases
-        "nounits": None,
-        "none": None,
-        "unknown": None,
-    }
-
-    UNIT_KEYWORD_MAP = {
-        "temperature": UnitOfTemperature.CELSIUS,
-        "temperatur": UnitOfTemperature.CELSIUS,
-        "temp": UnitOfTemperature.CELSIUS,
-        "humidity": PERCENTAGE,
-        "feuchte": PERCENTAGE,
-        "pressure": UnitOfPressure.PA,
-        "druck": UnitOfPressure.PA,
-        "power": UnitOfPower.WATT,
-        "leistung": UnitOfPower.WATT,
-        "watt": UnitOfPower.WATT,
-        "energy": UnitOfEnergy.KILO_WATT_HOUR,
-        "energie": UnitOfEnergy.KILO_WATT_HOUR,
-        "kwh": UnitOfEnergy.KILO_WATT_HOUR,
-        "voltage": UNIT_VOLT,
-        "spannung": UNIT_VOLT,
-        "current": UNIT_AMPERE,
-        "strom": UNIT_AMPERE,
-        "frequency": UNIT_HERTZ,
-        "frequenz": UNIT_HERTZ,
-        "lux": UNIT_LUX,
-        "illuminance": UNIT_LUX,
-        "durchfluss": UNIT_CUBIC_METERS_PER_HOUR,
-        "flow": UNIT_CUBIC_METERS_PER_HOUR,
-        "volume": UNIT_CUBIC_METER,
-        "volumen": UNIT_CUBIC_METER,
-    }
-
-    @staticmethod
-    def _normalize_object_type(object_type: str) -> str:
-        """Normalize BACnet object type formatting."""
-        return object_type.lower().replace("-", "_")
-
-    @staticmethod
-    def _is_raw_object_identifier_name(obj: BacnetObject, object_name: str) -> bool:
-        """Check if object_name is just a BACnet object identifier representation."""
-        normalized_name = object_name.lower().replace(" ", "")
-        normalized_type = obj.object_type.lower().replace("_", "-")
-        normalized_id = str(obj.object_id).lower().replace(" ", "")
-        return normalized_name in {
-            f"({normalized_type},{normalized_id})",
-            f"{normalized_type}:{normalized_id}",
-        }
-
-    @staticmethod
-    def get_entity_type(obj: BacnetObject) -> EntityType:
-        """Determine the best Home Assistant entity type for a BACnet object."""
-        obj_type_lower = BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
-
-        if obj_type_lower in BacnetObjectTypeMapper.OBJECT_TYPE_MAP:
-            entity_type = BacnetObjectTypeMapper.OBJECT_TYPE_MAP[obj_type_lower]
-            if obj.writable and entity_type == EntityType.SENSOR:
-                return EntityType.NUMBER
-            return entity_type
-
-        if "input" in obj_type_lower:
-            return EntityType.BINARY_SENSOR if "binary" in obj_type_lower else EntityType.SENSOR
-        if "output" in obj_type_lower:
-            return EntityType.SWITCH if "binary" in obj_type_lower else EntityType.NUMBER
-        if "switch" in obj_type_lower:
-            return EntityType.SWITCH
-        if "setpoint" in obj_type_lower or "command" in obj_type_lower:
-            return EntityType.NUMBER
-        return EntityType.SENSOR
-
-    @staticmethod
-    def get_device_class(obj: BacnetObject) -> SensorDeviceClass | str | None:
-        """Determine the Home Assistant device class for a BACnet object."""
-        normalized_unit = BacnetObjectTypeMapper.get_unit_of_measurement(obj)
-        obj_type_lower = BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
-        obj_name_lower = obj.object_name.lower() if obj.object_name else ""
-
-        if normalized_unit in {
-            UnitOfTemperature.CELSIUS,
-            UnitOfTemperature.FAHRENHEIT,
-            UnitOfTemperature.KELVIN,
-        }:
-            return SensorDeviceClass.TEMPERATURE
-
-        if normalized_unit == PERCENTAGE:
-            if "humidity" in obj_type_lower or "humidity" in obj_name_lower or "feuchte" in obj_name_lower:
-                return SensorDeviceClass.HUMIDITY
-            return None
-
-        device_class_by_unit = {
-            UnitOfPressure.PA: SensorDeviceClass.PRESSURE,
-            UNIT_KILOPASCAL: SensorDeviceClass.PRESSURE,
-            UNIT_BAR: SensorDeviceClass.PRESSURE,
-            UnitOfPower.WATT: SensorDeviceClass.POWER,
-            UnitOfPower.KILO_WATT: SensorDeviceClass.POWER,
-            "MW": SensorDeviceClass.POWER,
-            UnitOfEnergy.WATT_HOUR: SensorDeviceClass.ENERGY,
-            UnitOfEnergy.KILO_WATT_HOUR: SensorDeviceClass.ENERGY,
-            "MWh": SensorDeviceClass.ENERGY,
-            UNIT_VOLT: getattr(SensorDeviceClass, "VOLTAGE", None),
-            UNIT_MILLIVOLT: getattr(SensorDeviceClass, "VOLTAGE", None),
-            "kV": getattr(SensorDeviceClass, "VOLTAGE", None),
-            UNIT_AMPERE: getattr(SensorDeviceClass, "CURRENT", None),
-            UNIT_MILLIAMPERE: getattr(SensorDeviceClass, "CURRENT", None),
-            UNIT_HERTZ: getattr(SensorDeviceClass, "FREQUENCY", None),
-            UNIT_KILOHERTZ: getattr(SensorDeviceClass, "FREQUENCY", None),
-            UNIT_LUX: getattr(SensorDeviceClass, "ILLUMINANCE", None),
-            UNIT_PPM: getattr(SensorDeviceClass, "CO2", None) if "co2" in obj_name_lower else None,
-        }
-
-        device_class = device_class_by_unit.get(normalized_unit)
-        if device_class is not None:
-            return device_class
-
-        # Fallback for objects without a BACnet unit.
-        if "temperature" in obj_type_lower or "temp" in obj_name_lower or "temperatur" in obj_name_lower:
-            return SensorDeviceClass.TEMPERATURE
-        if "humidity" in obj_type_lower or "humidity" in obj_name_lower or "feuchte" in obj_name_lower:
-            return SensorDeviceClass.HUMIDITY
-        if "pressure" in obj_type_lower or "pressure" in obj_name_lower or "druck" in obj_name_lower:
-            return SensorDeviceClass.PRESSURE
-        if "power" in obj_name_lower or "watt" in obj_name_lower or "leistung" in obj_name_lower:
-            return SensorDeviceClass.POWER
-        if "energy" in obj_name_lower or "kwh" in obj_name_lower or "energie" in obj_name_lower:
-            return SensorDeviceClass.ENERGY
-        if "co2" in obj_name_lower:
-            return SensorDeviceClass.CO2
-        if "pm2.5" in obj_name_lower or "pm25" in obj_name_lower:
-            return SensorDeviceClass.PM25
-        if "pm10" in obj_name_lower:
-            return SensorDeviceClass.PM10
-
-        return None
-
-    @staticmethod
-    def get_unit_of_measurement(obj: BacnetObject) -> str | None:
-        """Get the unit of measurement for a BACnet object."""
-        normalized_unit = BacnetObjectTypeMapper._normalize_unit_value(obj.units)
-        if normalized_unit:
-            return normalized_unit
-
-        obj_name_lower = obj.object_name.lower() if obj.object_name else ""
-        obj_type_lower = BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
-        combined = f"{obj_type_lower} {obj_name_lower}"
-
-        for keyword, mapped_unit in BacnetObjectTypeMapper.UNIT_KEYWORD_MAP.items():
-            if keyword in combined:
-                return mapped_unit
-
-        return None
-
-    @staticmethod
-    def is_writable(obj: BacnetObject) -> bool:
-        """Check if a BACnet object is writable."""
-        return obj.writable
-
-    @staticmethod
-    def get_state_class(obj: BacnetObject) -> SensorStateClass | None:
-        """Determine the Home Assistant state class for a BACnet object."""
-        normalized_unit = BacnetObjectTypeMapper.get_unit_of_measurement(obj)
-        obj_name_lower = obj.object_name.lower() if obj.object_name else ""
-        obj_type_lower = BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
-
-        if any(token in obj_name_lower for token in ["counter", "total", "cumulative", "zaehler", "zähler"]):
-            return SensorStateClass.TOTAL_INCREASING
-
-        if normalized_unit in {
-            UnitOfEnergy.WATT_HOUR,
-            UnitOfEnergy.KILO_WATT_HOUR,
-            "MWh",
-        }:
-            return SensorStateClass.TOTAL_INCREASING
-
-        if normalized_unit is not None:
-            return SensorStateClass.MEASUREMENT
-
-        device_class = BacnetObjectTypeMapper.get_device_class(obj)
-
-        if (
-            "analog" in obj_type_lower
-            or any(
-                token in obj_type_lower
-                for token in ["input", "sensor", "temperature", "humidity", "pressure"]
+        if self._polling_enabled:
+            _LOGGER.info(
+                "Bepacom cyclic polling enabled: interval=%s",
+                DEFAULT_SCAN_INTERVAL,
             )
-            or device_class
-            in {
-                SensorDeviceClass.TEMPERATURE,
-                SensorDeviceClass.HUMIDITY,
-                SensorDeviceClass.PRESSURE,
-                SensorDeviceClass.POWER,
-                SensorDeviceClass.ENERGY,
-                SensorDeviceClass.CO2,
-                SensorDeviceClass.PM25,
-                SensorDeviceClass.PM10,
+        else:
+            _LOGGER.info(
+                "Bepacom cyclic polling disabled; using initial discovery and WebSocket/subscription updates only",
+            )
+
+        if self._snapshot_websocket_mode:
+            _LOGGER.info(
+                "Bepacom snapshot WebSocket mode enabled; only one gateway subscription will be created and configured objects will be processed from each snapshot",
+            )
+
+        self.discovery = DiscoveryEngine()
+        self.point_registry = BepacomPointRegistry(entry.options)
+
+        self._discovery_completed = False
+
+        self.data: dict[str, Any] = {}
+        self._websocket_manager = BepacomWebSocketManager(
+            client=client,
+            on_update=self._async_handle_subscription_update,
+            on_subscription_failure=self._async_handle_subscription_failure,
+            heartbeat_timeout=self._heartbeat_timeout,
+            push_value_logging=self._push_value_logging,
+        )
+        self._fallback_objects: set[tuple[str, str]] = set()
+        self._fallback_invalid_responses: dict[tuple[str, str], int] = {}
+        self._fallback_task = None
+        self._subscriptions_started = False
+        self._subscriptions_initialized = False
+        self._last_subscription_summary: tuple[int, int] | None = None
+        self._last_inventory_summary: tuple[int, int] | None = None
+        self._pending_push_update_task: asyncio.Task[None] | None = None
+
+    @property
+    def websocket_diagnostics(self) -> dict[str, Any]:
+        """Return WebSocket diagnostics for diagnostic entities."""
+        diagnostics = dict(self._websocket_manager.diagnostics)
+        diagnostics.update(
+            {
+                "polling_enabled": self._polling_enabled,
+                "snapshot_websocket_mode": self._snapshot_websocket_mode,
+                "subscriptions_started": self._subscriptions_started,
+                "subscriptions_initialized": self._subscriptions_initialized,
+                "last_subscription_summary": self._last_subscription_summary,
+                "fallback_objects": len(self._fallback_objects),
             }
-        ):
-            return SensorStateClass.MEASUREMENT
-
-        return None
-
-    @staticmethod
-    def should_native_value_be_float(obj: BacnetObject) -> bool:
-        """Return True if the object should expose a float native value."""
-        obj_type_lower = BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
-        if obj_type_lower.startswith("analog_"):
-            return True
-
-        return BacnetObjectTypeMapper.get_state_class(obj) in {
-            SensorStateClass.MEASUREMENT,
-            SensorStateClass.TOTAL_INCREASING,
-        }
-
-    @staticmethod
-    def get_display_name(obj: BacnetObject) -> tuple[str, bool]:
-        """Return entity name and whether has_entity_name should be enabled."""
-        object_name = obj.object_name.strip() if obj.object_name else ""
-        if (
-            object_name
-            and BacnetObjectTypeMapper._is_human_friendly_name(object_name, obj)
-            and not BacnetObjectTypeMapper._is_generic_measurement_name(object_name)
-        ):
-            return object_name, False
-
-        return BacnetObjectTypeMapper.get_measurement_label(obj), True
-
-
-    @staticmethod
-    def get_measurement_label(obj: BacnetObject) -> str:
-        """Return the object id as entity name suffix.
-
-        With has_entity_name=True, Home Assistant builds:
-        sensor.device_1_analoginput_545
-        instead of:
-        sensor.device_1_analoginput_analoginput_545
-        """
-        return str(obj.object_id)
-
-
-
-    @staticmethod
-    def _is_generic_measurement_name(name: str) -> bool:
-        """Return True for generic labels that should not become entity names."""
-        normalized = re.sub(r"[\s_\-]+", "", name).lower()
-        generic_names = {
-            "temperature",
-            "temperatur",
-            "humidity",
-            "luftfeuchte",
-            "pressure",
-            "druck",
-            "power",
-            "leistung",
-            "energy",
-            "energie",
-            "co2",
-            "pm25",
-            "pm2.5",
-            "pm10",
-            "percent",
-            "prozent",
-        }
-        return normalized in generic_names
-
-    @staticmethod
-    def _normalize_unit_value(unit: str | None) -> str | None:
-        """Normalize BACnet units to Home Assistant units."""
-        if unit is None:
-            return None
-
-        unit_str = str(unit).strip()
-        if not unit_str:
-            return None
-
-        direct = BacnetObjectTypeMapper.UNIT_NORMALIZATION_MAP.get(unit_str)
-        if direct is not None or unit_str.lower() in {"no-units", "no units", "none", "unknown"}:
-            return direct
-
-        normalized_key = BacnetObjectTypeMapper._unit_key(unit_str)
-        return BacnetObjectTypeMapper.UNIT_NORMALIZATION_MAP.get(normalized_key)
-
-    @staticmethod
-    def _unit_key(unit: str) -> str:
-        """Normalize different BACnet unit spellings to one lookup key."""
-        value = str(unit).strip()
-        value = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", value)
-        value = value.lower()
-        value = value.replace("µ", "u")
-        value = value.replace("³", "3")
-        value = value.replace("²", "2")
-        return re.sub(r"[\s_\-\/().]+", "", value)
-
-    @staticmethod
-    def _is_human_friendly_name(name: str, obj: BacnetObject) -> bool:
-        """Return True if BACnet object name is readable for end users."""
-        stripped = name.strip()
-        lowered = stripped.lower()
-
-        if BacnetObjectTypeMapper._is_raw_object_identifier_name(obj, stripped):
-            return False
-
-        technical_patterns = (
-            f"{str(obj.object_type).lower()} {str(obj.object_id).lower()}",
-            f"{str(obj.object_type).lower()}:{str(obj.object_id).lower()}",
         )
-        if lowered in technical_patterns:
-            return False
+        return diagnostics
 
-        if re.match(r"^\(.*\)$", stripped) and "[" in stripped and "]" in stripped:
-            return False
+    async def _async_update_data(self) -> dict[str, Any]:
+        """Fetch data from the Bepacom gateway."""
 
-        if any(
-            token in lowered
-            for token in (
-                "analog-input",
-                "analog_input",
-                "analog-output",
-                "analog_output",
-                "binary-input",
-                "binary_input",
-                "binary-output",
-                "binary_output",
-                "multi-state",
-                "multi_state",
+        _LOGGER.debug("Requesting BACnet database...")
+
+        try:
+            raw = await self.client.async_get_database()
+
+            if raw is None:
+                raise UpdateFailed("Gateway returned no data.")
+
+            if not isinstance(raw, dict):
+                raise UpdateFailed(
+                    f"Unexpected response type: {type(raw)}"
+                )
+
+
+
+
+            if not self._discovery_completed:
+                _LOGGER.info("Running initial BACnet discovery...")
+
+                # The gateway can answer HTTP requests before its BACnet
+                # inventory is ready after a full host reboot. Do not commit a
+                # temporary empty/incomplete snapshot: platform setup only runs
+                # once and virtual entities whose source is absent would
+                # otherwise not be created until the integration is reloaded.
+                discovery = DiscoveryEngine()
+                discovery.parse(raw)
+
+                if not discovery.devices or not discovery.objects:
+                    raise UpdateFailed(
+                        "BACnet inventory is not ready yet "
+                        f"({len(discovery.devices)} devices / "
+                        f"{len(discovery.objects)} objects)"
+                    )
+
+                configured_virtual_sources = {
+                    str(item.get("source_unique_id") or "").strip()
+                    for item in self._overrides.get_virtual_entities()
+                    if item.get("source_unique_id")
+                }
+                missing_virtual_sources = configured_virtual_sources.difference(
+                    discovery.objects
+                )
+                if missing_virtual_sources:
+                    raise UpdateFailed(
+                        "BACnet inventory is still incomplete; waiting for "
+                        f"{len(missing_virtual_sources)} configured virtual-entity "
+                        "source point(s)"
+                    )
+
+                self.discovery = discovery
+
+                inventory_summary = (
+                    len(self.discovery.devices),
+                    len(self.discovery.objects),
+                )
+
+                _LOGGER.info(
+                    "Discovery finished: %s devices / %s objects",
+                    inventory_summary[0],
+                    inventory_summary[1],
+                )
+
+                self._last_inventory_summary = inventory_summary
+                self.point_registry.load_discovery(self.discovery.devices, self.discovery.objects)
+                self._discovery_completed = True
+
+            self.data = raw
+
+
+            if (
+                self._subscriptions_started
+                and self._websocket_manager.subscriptions_enabled
+                and not self._subscriptions_initialized
+            ):
+                await self._async_initialize_subscriptions()
+
+            if self._discovery_completed:
+                self.point_registry.load_discovery(self.discovery.devices, self.discovery.objects)
+
+            return raw
+
+        except Exception as err:
+            if self._discovery_completed:
+                _LOGGER.exception("Coordinator update failed")
+            else:
+                # Home Assistant retries a failed first refresh with backoff.
+                _LOGGER.warning("Bepacom is not ready yet: %s", err)
+
+            raise UpdateFailed(str(err)) from err
+
+    async def async_start(self) -> None:
+        """Start object subscriptions after the initial refresh."""
+        if self._subscriptions_started:
+            return
+
+        self._subscriptions_started = True
+        await self._async_initialize_subscriptions()
+
+    async def async_shutdown(self) -> None:
+        """Stop subscriptions and fallback polling."""
+        self._subscriptions_started = False
+        self._subscriptions_initialized = False
+        self._last_subscription_summary = None
+
+        if self._fallback_task is not None:
+            self._fallback_task.cancel()
+
+            try:
+                await self._fallback_task
+            except asyncio.CancelledError:
+                pass
+
+            self._fallback_task = None
+        
+        if self._pending_push_update_task is not None:
+            self._pending_push_update_task.cancel()
+            
+            try:
+                await self._pending_push_update_task
+            except asyncio.CancelledError:
+                pass
+            
+            self._pending_push_update_task = None
+
+        self._fallback_objects.clear()
+        self._fallback_invalid_responses.clear()
+        await self._websocket_manager.async_unsubscribe_all()
+
+    async def _async_initialize_subscriptions(self) -> None:
+        """Initialize subscriptions once after discovery has completed."""
+        if self._subscriptions_initialized:
+            return
+
+        if not self._websocket_manager.subscriptions_enabled:
+            _LOGGER.debug("Skipping Bepacom subscriptions because subscriptions are disabled.")
+            return
+
+        targets = self._iter_subscription_targets()
+        polling_targets = self._iter_polling_targets()
+        self._set_configured_polling_targets(polling_targets)
+
+        if not targets:
+            if polling_targets:
+                _LOGGER.info(
+                    "No Bepacom subscription targets configured; starting per-object polling for %s objects.",
+                    len(polling_targets),
+                )
+                self._ensure_fallback_polling()
+            else:
+                _LOGGER.debug(
+                    "No Bepacom subscription or per-object polling targets configured."
+                )
+            self._subscriptions_initialized = True
+            self._last_subscription_summary = (0, 0)
+            return
+
+        if self._snapshot_websocket_mode:
+            initial_values = self._snapshot_initial_values(targets)
+            self._websocket_manager.set_snapshot_targets(targets, initial_values)
+            gateway_targets = targets[:1]
+
+            _LOGGER.info(
+                "Initializing Bepacom snapshot WebSocket subscription: trigger=%s/%s, processed_targets=%s",
+                gateway_targets[0][0],
+                gateway_targets[0][1],
+                len(targets),
             )
-        ) and any(char.isdigit() for char in lowered):
-            return False
+        else:
+            gateway_targets = targets
+            self._websocket_manager.clear_snapshot_targets()
 
-        return True
+            _LOGGER.info("Initializing Bepacom subscriptions for %s objects...", len(targets))
 
-    @staticmethod
-    def get_device_group_key(obj: BacnetObject) -> str:
-        """Return a stable device-group key for one BACnet object."""
-        return BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
+        successful = await self._async_subscribe_discovered_objects(gateway_targets)
 
-    @staticmethod
-    def get_device_group_name(obj: BacnetObject) -> str:
-        """Return a readable device-group label for one BACnet object."""
-        device_group_key = BacnetObjectTypeMapper.get_device_group_key(obj)
+        self._subscriptions_initialized = True
+        self._last_subscription_summary = (successful, len(targets))
 
-        return device_group_key.replace("_", " ").title()
+        if self._snapshot_websocket_mode:
+            _LOGGER.info(
+                "Bepacom snapshot WebSocket initialized: gateway_subscriptions=%s processed_targets=%s",
+                successful,
+                len(targets),
+            )
+        else:
+            _LOGGER.info(
+                "Bepacom subscriptions initialized: %s/%s active",
+                successful,
+                len(targets),
+            )
 
-    @staticmethod
-    def build_device_info(
-        domain: str,
-        obj: BacnetObject,
-        device: BacnetDevice | None,
-    ) -> DeviceInfo:
-        """Build Home Assistant device info for the BACnet device.
+    def _snapshot_initial_values(
+        self,
+        targets: list[tuple[str, str]],
+    ) -> dict[tuple[str, str], Any]:
+        """Return current registry values for snapshot prefilter seeding."""
+        initial_values: dict[tuple[str, str], Any] = {}
 
-        One physical/logical BACnet device is represented as one Home Assistant
-        device.  Older versions grouped objects by object type (for example
-        "Device 1 - AnalogInput").  With Home Assistant's entity-name handling
-        this produced duplicated entity IDs like
-        ``sensor.device_1_analoginput_analoginput_1249``.
+        for device_id, object_id in targets:
+            point = self.point_registry.get_by_path(device_id, object_id)
+            if point is None:
+                continue
+            initial_values[(device_id, object_id)] = point.present_value
+
+        return initial_values
+
+    async def _async_subscribe_discovered_objects(
+        self,
+        targets: list[tuple[str, str]] | None = None,
+    ) -> int:
+        """Subscribe to discovered objects and return the number of active subscriptions."""
+        if not self._websocket_manager.subscriptions_enabled:
+            return 0
+
+        subscription_targets = targets if targets is not None else self._iter_subscription_targets()
+
+        if not subscription_targets:
+            return 0
+
+        successful = await self._async_subscribe_targets(subscription_targets)
+
+        self._ensure_fallback_polling()
+        return successful
+
+    async def _async_subscribe_targets(
+        self,
+        targets: list[tuple[str, str]],
+    ) -> int:
+        """Subscribe targets with bounded concurrency.
+
+        This is the central subscription scheduler. It is used during startup and can later
+        also be reused for reconnect/resubscribe handling.
         """
-        base_name = device.name if device is not None else f"Device {obj.device_id}"
+        if not targets:
+            return 0
 
-        device_info = DeviceInfo(
-            identifiers={(domain, f"device_{obj.device_id}")},
-            name=base_name,
+        queue: asyncio.Queue[tuple[str, str]] = asyncio.Queue()
+
+        for target in targets:
+            queue.put_nowait(target)
+
+        successful = 0
+        successful_lock = asyncio.Lock()
+
+        async def worker(worker_id: int) -> None:
+            nonlocal successful
+
+            while True:
+                try:
+                    device_id, object_id = queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    return
+
+                try:
+                    subscribed = await self._websocket_manager.async_subscribe(
+                        device_id,
+                        object_id,
+                    )
+
+                    if subscribed:
+                        self._fallback_objects.discard((device_id, object_id))
+                        self.point_registry.mark_subscription(device_id, object_id, True)
+                        self.point_registry.mark_fallback_polling(device_id, object_id, False)
+                        self._fallback_invalid_responses.pop((device_id, object_id), None)
+
+                        async with successful_lock:
+                            successful += 1
+
+                except Exception:
+                    _LOGGER.exception(
+                        "Subscription worker %s failed for %s/%s",
+                        worker_id,
+                        device_id,
+                        object_id,
+                    )
+                finally:
+                    queue.task_done()
+
+        worker_count = min(_SUBSCRIBE_CONCURRENCY, len(targets))
+
+        _LOGGER.debug(
+            "Starting Bepacom subscription scheduler: targets=%s workers=%s",
+            len(targets),
+            worker_count,
         )
 
-        if device is not None:
-            device_info["manufacturer"] = device.vendor
-            device_info["model"] = device.model
-            device_info["sw_version"] = device.firmware
+        workers = [
+            self.hass.async_create_task(
+                worker(index + 1),
+                name=f"bepacom-subscribe-worker-{index + 1}",
+            )
+            for index in range(worker_count)
+        ]
 
-        return device_info
+        try:
+            await queue.join()
+        finally:
+            for task in workers:
+                if not task.done():
+                    task.cancel()
+
+            await asyncio.gather(*workers, return_exceptions=True)
+
+        _LOGGER.debug(
+            "Bepacom subscription scheduler finished: successful=%s targets=%s",
+            successful,
+            len(targets),
+        )
+
+        return successful
+
+
+    def _iter_polling_targets(self) -> list[tuple[str, str]]:
+        """Return all object paths configured for per-object polling."""
+        targets: list[tuple[str, str]] = []
+        for obj in self.point_registry.all(include_disabled=True):
+            if not self._overrides.is_enabled(obj):
+                continue
+            if self._overrides.use_polling(obj):
+                targets.append((str(obj.device_id), f"{obj.object_type}:{obj.object_id}"))
+        return targets
+
+    def _set_configured_polling_targets(self, targets: list[tuple[str, str]]) -> None:
+        """Synchronize configured per-object polling targets with runtime state."""
+        target_set = set(targets)
+        # Remove no-longer configured polling targets that are not subscription fallbacks.
+        for device_id, object_id in tuple(self._fallback_objects):
+            if (device_id, object_id) not in target_set:
+                obj = self.point_registry.get_by_path(device_id, object_id)
+                if obj is not None and self._overrides.use_polling(obj):
+                    continue
+                self._fallback_objects.discard((device_id, object_id))
+                self.point_registry.mark_fallback_polling(device_id, object_id, False)
+
+        for device_id, object_id in target_set:
+            self._fallback_objects.add((device_id, object_id))
+            self.point_registry.mark_fallback_polling(device_id, object_id, True)
+
+    def _iter_subscription_targets(self) -> list[tuple[str, str]]:
+        """Return all object paths that can be subscribed."""
+        targets: list[tuple[str, str]] = []
+        for device_key, device_data in self.data.items():
+            if not device_key.startswith("device:") or not isinstance(device_data, dict):
+                continue
+
+            device_id = device_key.split(":", 1)[1]
+
+            for object_key, object_data in device_data.items():
+                if ":" not in object_key or not isinstance(object_data, dict):
+                    continue
+
+                object_type = object_key.split(":", 1)[0].lower()
+
+                if object_type in {"device", "file"}:
+                    continue
+
+                obj = self.point_registry.get_by_path(device_id, object_key)
+                if obj is not None and not self._overrides.is_enabled(obj):
+                    continue
+
+                subscribe_override = (
+                    self._overrides.use_subscribe(obj) if obj is not None else None
+                )
+
+                # Subscribe/Polling is now configured only per object in the
+                # sidebar explorer. The old global subscription list is ignored.
+                if subscribe_override is not True:
+                    continue
+
+                targets.append((device_id, object_key))
+
+        return targets
+
+    def subscription_option_map(self) -> dict[str, str]:
+        """Return selectable subscriptions for the options flow."""
+        return self.point_registry.option_map()
+
+    def _object_instance(self, object_id: str) -> int:
+        """Return BACnet object instance for sorting, if available."""
+        if ":" not in object_id:
+            return 999999999
+
+        _, instance = object_id.split(":", 1)
+
+        try:
+            return int(instance)
+        except ValueError:
+            return 999999999
+
+    def _enabled_subscription_keys(self) -> set[str]:
+        """Return option keys for objects that should use subscribe."""
+        selected = self._entry.options.get(CONF_SUBSCRIBED_OBJECTS, [])
+
+        if not isinstance(selected, list):
+            return set()
+
+        return {str(item) for item in selected}
+
+    def _subscription_option_key(self, device_id: str, object_id: str) -> str:
+        """Build a stable key for per-object subscription options."""
+        return f"{device_id}|{object_id}"
+
+    async def _async_handle_subscription_update(
+        self,
+        device_id: str,
+        object_id: str,
+        payload: dict[str, Any],
+    ) -> bool:
+        """Apply one pushed object update and return whether the value changed."""
+        changed = self._apply_object_update(device_id, object_id, payload)
+        if changed:
+            self._schedule_push_update()
+        return changed
+
+    async def _async_handle_subscription_failure(
+        self,
+        device_id: str,
+        object_id: str,
+    ) -> None:
+        """Fall back to coordinator polling when subscriptions fail."""
+        _LOGGER.debug(
+            "Subscription unavailable for %s/%s, using periodic full-database polling",
+            device_id,
+            object_id,
+        )
+
+    def _apply_object_update(
+        self,
+        device_id: str,
+        object_id: str,
+        payload: dict[str, Any],
+    ) -> bool:
+        """Merge an object update into coordinator data."""
+        device_key = f"device:{device_id}"
+        device_data = self.data.get(device_key)
+
+        if not isinstance(device_data, dict):
+            return False
+
+        existing_data = device_data.get(object_id)
+        merged_data: dict[str, Any]
+
+        if isinstance(existing_data, dict):
+            merged_data = dict(existing_data)
+            merged_data.update(self._normalize_object_payload(payload, device_id, object_id))
+        else:
+            merged_data = self._normalize_object_payload(payload, device_id, object_id)
+
+        device_data[object_id] = merged_data
+        self._update_discovery_object(device_id, object_id, merged_data)
+        return self.point_registry.update_point(device_id, object_id, merged_data, source="push")
+
+    def _normalize_object_payload(
+        self,
+        payload: dict[str, Any],
+        device_id: str,
+        object_id: str,
+    ) -> dict[str, Any]:
+        """Normalize object payloads from REST or WebSocket updates."""
+        if object_id in payload and isinstance(payload[object_id], dict):
+            return payload[object_id]
+
+        device_key = f"device:{device_id}"
+
+        if device_key in payload and isinstance(payload[device_key], dict):
+            nested_object = payload[device_key].get(object_id)
+
+            if isinstance(nested_object, dict):
+                return nested_object
+
+        return payload
+
+    def _update_discovery_object(
+        self,
+        device_id: str,
+        object_id: str,
+        payload: dict[str, Any],
+    ) -> None:
+        """Keep the discovery cache aligned with latest object data."""
+        if ":" not in object_id:
+            return
+
+        object_type, bacnet_object_id = object_id.split(":", 1)
+        obj = self.point_registry.get_by_path(device_id, object_id)
+
+        if obj is not None:
+            obj.update(payload)
+            self.point_registry.apply_overrides(obj)
+
+    def _discovered_object(self, device_id: str, object_id: str):
+        """Return a discovered BACnet object by device/object path."""
+        if ":" not in object_id:
+            return None
+
+        object_type, bacnet_object_id = object_id.split(":", 1)
+        unique_id = f"bepacom_{device_id}_{object_type.lower()}_{bacnet_object_id}"
+        return self.point_registry.get_by_unique_id(unique_id)
+
+    def _ensure_fallback_polling(self) -> None:
+        """Start the fallback polling task when needed."""
+        if not self._fallback_objects or self._fallback_task is not None:
+            return
+
+        self._fallback_task = self.hass.async_create_task(
+            self._async_fallback_poll_loop(),
+            name="bepacom-fallback-polling",
+        )
+
+    async def _async_fallback_poll_loop(self) -> None:
+        """Poll objects whose subscriptions could not be created."""
+        try:
+            while self._fallback_objects:
+                for device_id, object_id in tuple(self._fallback_objects):
+                    try:
+                        payload = await self.client.async_get_object(device_id, object_id)
+                        self._fallback_invalid_responses.pop((device_id, object_id), None)
+                    except InvalidResponse:
+                        object_key = (device_id, object_id)
+                        attempts = self._fallback_invalid_responses.get(object_key, 0) + 1
+                        self._fallback_invalid_responses[object_key] = attempts
+
+                        if attempts >= _MAX_INVALID_FALLBACK_RESPONSES:
+                            _LOGGER.warning(
+                                "Disabling fallback polling for %s/%s after %s invalid gateway responses",
+                                device_id,
+                                object_id,
+                                attempts,
+                            )
+                            self._fallback_objects.discard(object_key)
+                            self._fallback_invalid_responses.pop(object_key, None)
+                        else:
+                            _LOGGER.debug(
+                                "Invalid fallback payload for %s/%s (%s/%s)",
+                                device_id,
+                                object_id,
+                                attempts,
+                                _MAX_INVALID_FALLBACK_RESPONSES,
+                            )
+                        continue
+                    except Exception:
+                        self._fallback_invalid_responses.pop((device_id, object_id), None)
+                        _LOGGER.exception(
+                            "Fallback polling failed for %s/%s",
+                            device_id,
+                            object_id,
+                        )
+                        continue
+
+                    if self._apply_object_update(device_id, object_id, payload):
+                        self._schedule_push_update()
+
+                await asyncio.sleep(FALLBACK_POLL_INTERVAL.total_seconds())
+        except asyncio.CancelledError:
+            raise
+        finally:
+            self._fallback_task = None
+
+    def _schedule_push_update(self) -> None:
+        """Batch frequent push updates into a single coordinator update."""
+        if self._pending_push_update_task is not None and not self._pending_push_update_task.done():
+            return
+
+        self._pending_push_update_task = self.hass.async_create_task(
+            self._async_flush_push_update(),
+            name="bepacom-push-update-flush",
+        )
+
+    async def _async_flush_push_update(self) -> None:
+        """Flush pending push updates after a short debounce window.
+
+        Important:
+        Do not use async_set_updated_data() here. Home Assistant's
+        DataUpdateCoordinator treats that as fresh coordinator data and resets
+        the normal polling timer. With frequent WebSocket pushes, that can delay
+        the scheduled full database poll indefinitely.
+
+        The WebSocket handler already merged the pushed payload into
+        self.data. Therefore we only need to notify listeners here and keep the
+        regular poll schedule independent from push updates.
+        """
+        try:
+            await asyncio.sleep(_PUSH_UPDATE_DEBOUNCE_SECONDS)
+            self.async_update_listeners()
+        except asyncio.CancelledError:
+            raise
+        finally:
+            self._pending_push_update_task = None
