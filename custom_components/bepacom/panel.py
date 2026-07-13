@@ -29,7 +29,7 @@ PANEL_URL = "bepacom_explorer"
 PANEL_NAME = "bepacom-explorer-panel"
 PANEL_STATIC_URL = "/bepacom_static"
 PANEL_EVENT = "bepacom_explorer_updated"
-PANEL_VERSION = "0587"
+PANEL_VERSION = "0586"
 
 _WS_REGISTERED = "websocket_registered"
 _PANEL_REGISTERED = "panel_registered"
@@ -359,19 +359,8 @@ def _serialize_point(
         "polling_updates": runtime.polling_updates,
         "value_changes": runtime.value_changes,
         "suppressed_updates": runtime.suppressed_updates,
-        # Keep first-time registry edits visible before the integration reload has
-        # created the entity registry entry.  The stored values are applied to the
-        # real entry during setup.
-        "entity_id": (
-            entity_entry.entity_id
-            if entity_entry
-            else override.get("entity_id")
-        ),
-        "entity_name": (
-            getattr(entity_entry, "name", None)
-            if entity_entry
-            else override.get("entity_name")
-        ),
+        "entity_id": entity_entry.entity_id if entity_entry else None,
+        "entity_name": getattr(entity_entry, "name", None) if entity_entry else None,
         "entity_original_name": getattr(entity_entry, "original_name", None) if entity_entry else None,
     }
 
@@ -736,17 +725,6 @@ def _clean_override(data: dict[str, Any]) -> dict[str, Any]:
     _store_tri_state("unit", "unit")
     _store_tri_state("device_class", "device_class")
     _store_tri_state("state_class", "state_class")
-
-    # An entity may not have a Home Assistant registry entry yet when a point is
-    # configured for the first time.  Persist non-empty registry customizations
-    # so setup can apply them as soon as the entity is created.
-    entity_name = _normalize_empty(data.get("entity_name"))
-    if entity_name is not None:
-        cleaned["entity_name"] = entity_name
-
-    entity_id = _normalize_empty(data.get("entity_id"))
-    if entity_id is not None:
-        cleaned["entity_id"] = entity_id
 
     for key in ("number_min", "number_max", "number_step"):
         value = data.get(key)

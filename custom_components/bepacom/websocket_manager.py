@@ -1039,21 +1039,7 @@ class BepacomWebSocketManager:
         is initialized.
         """
         key = (device_id, object_id)
-        raw_value = self._payload_present_value(payload)
-
-        # Some gateway builds send subscription acknowledgements or priority-
-        # release responses as ``data: []`` (or as an empty object).  These are
-        # transport responses, not BACnet presentValue updates.  Do not replace
-        # the last valid scalar state, such as ``inactive``, with an empty value.
-        if isinstance(raw_value, (list, dict)) and not raw_value:
-            _LOGGER.debug(
-                "Ignoring empty WebSocket value for %s/%s",
-                device_id,
-                object_id,
-            )
-            return False
-
-        value = self._comparable_value(raw_value)
+        value = self._comparable_value(self._payload_present_value(payload))
 
         if key not in self._last_dispatched_values:
             self._last_dispatched_values[key] = value
