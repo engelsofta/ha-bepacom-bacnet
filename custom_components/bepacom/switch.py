@@ -121,12 +121,7 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
         elif isinstance(value, (int, float)):
             return value != 0
         elif isinstance(value, str):
-            normalized = value.strip().strip('"\'').lower()
-            if normalized in ("true", "yes", "on", "1", "active"):
-                return True
-            if normalized in ("false", "no", "off", "0", "inactive"):
-                return False
-            return False
+            return value.lower() in ("true", "yes", "on", "1")
 
         return bool(value)
 

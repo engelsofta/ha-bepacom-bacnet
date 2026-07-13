@@ -14,7 +14,6 @@ from homeassistant.helpers import entity_registry as er
 
 from .api import BepacomClient
 from .const import DOMAIN
-from .const import CONF_ENTITY_OVERRIDES
 from .coordinator import BepacomCoordinator
 from .entity_factory import BacnetObjectTypeMapper, EntityType
 from .panel import async_register_explorer_panel, async_unregister_explorer_panel_if_unused
@@ -210,58 +209,6 @@ async def _async_remove_inactive_entity_entries(
         _LOGGER.info("Removed %s inactive Bepacom entity registry entries", removed)
 
 
-async def _async_apply_deferred_entity_registry_overrides(
-    hass: HomeAssistant,
-    entry: ConfigEntry,
-    coordinator: BepacomCoordinator,
-) -> None:
-    """Apply Explorer name/ID edits saved before an entity entry existed."""
-    raw_overrides = entry.options.get(CONF_ENTITY_OVERRIDES, {})
-    if not isinstance(raw_overrides, dict):
-        return
-
-    registry = er.async_get(hass)
-    entries_by_unique_id = {
-        str(entity_entry.unique_id): entity_entry
-        for entity_entry in er.async_entries_for_config_entry(registry, entry.entry_id)
-        if getattr(entity_entry, "platform", None) == DOMAIN
-    }
-
-    for obj in coordinator.point_registry.all():
-        override = coordinator.point_registry.overrides.get_override(obj)
-        if not isinstance(override, dict):
-            continue
-
-        entity_entry = entries_by_unique_id.get(obj.unique_id)
-        if entity_entry is None:
-            continue
-
-        kwargs: dict[str, Any] = {}
-        stored_name = override.get("entity_name")
-        if stored_name is not None and str(stored_name).strip():
-            desired_name = str(stored_name).strip()
-            if entity_entry.name != desired_name:
-                kwargs["name"] = desired_name
-
-        stored_entity_id = override.get("entity_id")
-        if stored_entity_id is not None and str(stored_entity_id).strip():
-            desired_entity_id = str(stored_entity_id).strip()
-            if entity_entry.entity_id != desired_entity_id:
-                kwargs["new_entity_id"] = desired_entity_id
-
-        if not kwargs:
-            continue
-
-        try:
-            registry.async_update_entity(entity_entry.entity_id, **kwargs)
-        except ValueError as err:
-            _LOGGER.warning(
-                "Cannot apply deferred entity registry override for %s: %s",
-                obj.unique_id,
-                err,
-            )
-
-
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the Bepacom integration."""
     hass.data.setdefault(DOMAIN, {})
@@ -314,8 +261,6 @@ async def async_setup_entry(
             entry,
             PLATFORMS,
         )
-
-    await _async_apply_deferred_entity_registry_overrides(hass, entry, coordinator)
 
     await coordinator.async_start()
 
