@@ -18,6 +18,7 @@ class BepacomExplorerPanel extends HTMLElement {
       only_subscribe: false,
       device_id: "all",
     };
+    this._virtualSearch = this._loadSetting("bepacom_virtual_search", "");
     this._refreshTimer = null;
     this._debounce = null;
     this._diagnostics = {};
@@ -34,7 +35,7 @@ class BepacomExplorerPanel extends HTMLElement {
     this._detailsVisible = this._loadSetting("bepacom_details_visible", "0") === "1";
     this._selectedIds = new Set();
     this._visibleStart = 0;
-    this._rowHeight = 52;
+    this._rowHeight = 74;
     this._overscan = 8;
     this._lastTableScrollTop = 0;
     this._recentValueChanges = new Map();
@@ -44,6 +45,17 @@ class BepacomExplorerPanel extends HTMLElement {
     this._editorDirty = false;
     this._manualReloadRunning = false;
     this._manualReloadUntil = 0;
+    this._refreshInFlight = false;
+    this._sideScrollPositions = new Map();
+    this._activeView = this._loadSetting("bepacom_active_view", "explorer");
+    this._sideTab = this._loadSetting("bepacom_side_tab", "inspector");
+  }
+
+  _versionLabel() {
+    const cfg = this.panel?.config || {};
+    const version = cfg.version || "0.5.11";
+    const build = cfg.frontend_build || "0586";
+    return `Version ${version} · Frontend-Build ${build}`;
   }
 
   connectedCallback() {
@@ -72,6 +84,8 @@ class BepacomExplorerPanel extends HTMLElement {
       this._hasHass = true;
       this._loadEntries();
       this._loadPoints(false);
+    } else {
+      this._updateListDom();
     }
   }
 
@@ -127,10 +141,24 @@ class BepacomExplorerPanel extends HTMLElement {
     }
   }
 
+  _isUserInteractingWithTable() {
+    const active = this.shadowRoot?.activeElement;
+    const tableWrap = this.shadowRoot?.getElementById("tableWrap");
+    if (!tableWrap) return false;
+    if (active && tableWrap.contains(active)) {
+      const tag = (active.tagName || "").toLowerCase();
+      if (["select", "input", "textarea", "button"].includes(tag)) return true;
+    }
+    // Beim Mouseover den Tabellen-DOM nicht ersetzen. Sonst verschwinden Tooltips/Infos
+    // und gerade geöffnete Controls klappen durch den Auto-Refresh wieder zu.
+    return tableWrap.matches(":hover");
+  }
 
 
   async _refreshPointsInPlace() {
     if (!this.hass || !this._entryId) return;
+    if (this._refreshInFlight) return;
+    this._refreshInFlight = true;
     // Während der Benutzer tippt oder rechts editiert, darf der Auto-Refresh
     // die DOM-Struktur nicht neu aufbauen. Sonst verlieren Eingabefelder den
     // Fokus und die Tabelle springt nach oben.
@@ -155,14 +183,17 @@ class BepacomExplorerPanel extends HTMLElement {
         const updated = this._points.find((p) => p.unique_id === this._selected.unique_id);
         if (updated) {
           this._selected = { ...this._selected, ...updated };
-          this._updateDetailDom();
         }
       }
-      this._updateListDom();
+      if (!this._isUserInteractingWithTable()) {
+        this._updateListDom();
+      }
       this._updateHeaderDom();
     } catch (err) {
       this._error = this._formatError(err);
       this._render();
+    } finally {
+      this._refreshInFlight = false;
     }
   }
 
@@ -177,8 +208,32 @@ class BepacomExplorerPanel extends HTMLElement {
       return;
     }
 
-    side.innerHTML = this._detailHtml(this._selected);
+    const sideScrollTop = this._rememberSideScroll();
+    side.innerHTML = this._sidePanelHtml(this._selected);
     this._bindEvents();
+    this._restoreSideScroll(sideScrollTop);
+  }
+
+  _sideScrollKey() {
+    const selectedId = this._selected?.unique_id || "none";
+    return `${selectedId}:${this._sideTab || "inspector"}`;
+  }
+
+  _rememberSideScroll() {
+    const body = this.shadowRoot?.querySelector(".side-body");
+    const scrollTop = body?.scrollTop ?? 0;
+    this._sideScrollPositions.set(this._sideScrollKey(), scrollTop);
+    return scrollTop;
+  }
+
+  _restoreSideScroll(fallback = null) {
+    const body = this.shadowRoot?.querySelector(".side-body");
+    if (!body) return;
+    const stored = this._sideScrollPositions.get(this._sideScrollKey());
+    const scrollTop = stored ?? fallback ?? 0;
+    window.requestAnimationFrame(() => {
+      body.scrollTop = scrollTop;
+    });
   }
 
   _updateHeaderDom() {
@@ -208,7 +263,7 @@ class BepacomExplorerPanel extends HTMLElement {
     }
 
     if (!body) {
-      wrap.innerHTML = `<table><thead><tr>${this._tableHeaderHtml()}</tr></thead><tbody id="pointsBody">${this._rowsHtml()}</tbody></table>`;
+      wrap.innerHTML = `<table>${this._tableColgroupHtml()}<thead><tr>${this._tableHeaderHtml()}</tr></thead><tbody id="pointsBody">${this._rowsHtml()}</tbody></table>`;
     } else {
       body.innerHTML = this._rowsHtml();
     }
@@ -268,6 +323,22 @@ class BepacomExplorerPanel extends HTMLElement {
     const updateMode = this.shadowRoot.getElementById("editUpdateMode")?.value || "disabled";
     const entityId = this.shadowRoot.getElementById("editEntityId")?.value || "";
     const entityName = this.shadowRoot.getElementById("editEntityName")?.value ?? "";
+    const numberMin = this.shadowRoot.getElementById("editNumberMin")?.value;
+    const numberMax = this.shadowRoot.getElementById("editNumberMax")?.value;
+    const numberStep = this.shadowRoot.getElementById("editNumberStep")?.value;
+    const writePriority = this.shadowRoot.getElementById("editWritePriority")?.value;
+    const writeProfile = this.shadowRoot.getElementById("editWriteProfile")?.value;
+    const gltDelayMs = this.shadowRoot.getElementById("editGltDelayMs")?.value;
+    const asDelayMs = this.shadowRoot.getElementById("editAsDelayMs")?.value;
+    const releaseDelayMs = this.shadowRoot.getElementById("editReleaseDelayMs")?.value;
+    const releasePriority = this.shadowRoot.getElementById("editReleasePriority")?.checked;
+    const virtualBinaryEnabled = this.shadowRoot.getElementById("virtualBinaryEnabled")?.checked || false;
+    const virtualBinaryName = this.shadowRoot.getElementById("virtualBinaryName")?.value || "";
+    const virtualBinaryUniqueId = this.shadowRoot.getElementById("virtualBinaryUniqueId")?.value || "";
+    const virtualBinaryDeviceClass = this.shadowRoot.getElementById("virtualBinaryDeviceClass")?.value || "";
+    const virtualBinaryOnValue = this.shadowRoot.getElementById("virtualBinaryOnValue")?.value || "";
+    const virtualBinaryOffValue = this.shadowRoot.getElementById("virtualBinaryOffValue")?.value || "";
+    const virtualBinaryElseState = this.shadowRoot.getElementById("virtualBinaryElseState")?.value || "unavailable";
 
     this._editorDirty = false;
     this._manualReloadRunning = false;
@@ -287,11 +358,108 @@ class BepacomExplorerPanel extends HTMLElement {
         update_mode: updateMode,
         entity_id: entityId,
         entity_name: entityName,
+        number_min: numberMin,
+        number_max: numberMax,
+        number_step: numberStep,
+        write_priority: writePriority,
+        write_profile: writeProfile,
+        glt_delay_ms: gltDelayMs,
+        as_delay_ms: asDelayMs,
+        release_delay_ms: releaseDelayMs,
+        release_priority: releasePriority,
+        virtual_binary_enabled: virtualBinaryEnabled,
+        virtual_binary_name: virtualBinaryName,
+        virtual_binary_unique_id: virtualBinaryUniqueId,
+        virtual_binary_device_class: virtualBinaryDeviceClass,
+        virtual_binary_on_value: virtualBinaryOnValue,
+        virtual_binary_off_value: virtualBinaryOffValue,
+        virtual_binary_else_state: virtualBinaryElseState,
       });
       this._selected = result.point;
       this._inspector = result.inspector || {};
       this._setHistoryForSelected(result.history || [], this._selected?.unique_id);
       this._message = "Gespeichert. Die Integration wird nicht automatisch neu geladen. Wenn du mit allen Änderungen fertig bist, nutze oben 'Integration neu laden'.";
+      await this._loadPoints(false);
+    } catch (err) {
+      this._error = this._formatError(err);
+    } finally {
+      this._saving = false;
+      this._render();
+    }
+  }
+
+
+  _findVirtualEntity(sourceUid, virtualUid) {
+    const source = (this._points || []).find((p) => p.unique_id === sourceUid);
+    const ent = source ? this._linkedEntities(source).find((e) => String(e.unique_id || "") === String(virtualUid || "")) : null;
+    return { source, ent };
+  }
+
+  _fillVirtualForm(ent, duplicate = false) {
+    if (!ent) return;
+    const suffix = duplicate ? " Kopie" : "";
+    const uidSuffix = duplicate ? "_copy" : "";
+    const setValue = (id, value) => {
+      const el = this.shadowRoot?.getElementById(id);
+      if (!el) return false;
+      if (el.type === "checkbox") el.checked = !!value;
+      else el.value = value ?? "";
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+      return true;
+    };
+    const ok = setValue("virtualBinaryEnabled", true);
+    if (!ok) return;
+    setValue("virtualBinaryName", `${ent.name || ent.friendly_name || ent.entity_name || "Virtuelle Entität"}${suffix}`);
+    setValue("virtualBinaryUniqueId", `${ent.unique_id || "virtual_binary"}${uidSuffix}`);
+    setValue("virtualBinaryDeviceClass", ent.device_class || "");
+    setValue("virtualBinaryOnValue", ent.on_value ?? "2");
+    setValue("virtualBinaryOffValue", ent.off_value ?? "1");
+    setValue("virtualBinaryElseState", ent.else_state || "unavailable");
+    this._editorDirty = true;
+    this._refreshVirtualRulePreview();
+    this._message = duplicate ? "Virtuelle Entität wurde als Kopie in den Editor übernommen. Zum Anlegen bitte Speichern klicken." : "Virtuelle Entität wurde in den Editor übernommen. Zum Anwenden bitte Speichern klicken.";
+    this._updateHeaderDom();
+  }
+
+  _editVirtualEntity(sourceUid, virtualUid, duplicate = false) {
+    const { source, ent } = this._findVirtualEntity(sourceUid, virtualUid);
+    if (!source || !ent) return;
+    this._activeView = "explorer";
+    this._sideTab = "inspector";
+    this._detailsVisible = true;
+    this._setSetting("bepacom_active_view", this._activeView);
+    this._setSetting("bepacom_side_tab", this._sideTab);
+    this._setSetting("bepacom_details_visible", "1");
+    this._selectPoint(source);
+    // Der Inspector wird ggf. asynchron nachgeladen; deshalb nach dem nächsten Render und noch einmal verzögert füllen.
+    setTimeout(() => this._fillVirtualForm(ent, duplicate), 0);
+    setTimeout(() => this._fillVirtualForm(ent, duplicate), 300);
+  }
+
+  async _deleteVirtualEntity(sourceUid, virtualUid, virtualName = "") {
+    if (!this.hass || !sourceUid || !virtualUid) return;
+    const label = virtualName || virtualUid;
+    const ok = window.confirm(`Virtuelle Entität löschen?\n\n${label}\n\nDiese Aktion entfernt die virtuelle Entität aus der Bepacom-Konfiguration und aus der Home-Assistant-Entity-Registry. Danach bitte die Integration neu laden.`);
+    if (!ok) return;
+
+    this._saving = true;
+    this._message = null;
+    this._error = null;
+    try {
+      const result = await this.hass.callWS({
+        type: "bepacom/explorer/delete_virtual_entity",
+        entry_id: this._entryId || undefined,
+        source_unique_id: sourceUid,
+        virtual_unique_id: virtualUid,
+      });
+      if (this._selected?.unique_id === sourceUid) {
+        this._selected = result.point;
+        this._inspector = result.inspector || {};
+        this._setHistoryForSelected(result.history || [], sourceUid);
+      }
+      this._message = result.removed_entity_id
+        ? `Virtuelle Entität gelöscht: ${result.removed_entity_id}. Bitte Integration neu laden.`
+        : "Virtuelle Entität gelöscht. Bitte Integration neu laden.";
       await this._loadPoints(false);
     } catch (err) {
       this._error = this._formatError(err);
@@ -839,6 +1007,7 @@ class BepacomExplorerPanel extends HTMLElement {
 
   _render() {
     if (!this.shadowRoot) return;
+    const sideScrollTop = this._rememberSideScroll();
     const active = this.shadowRoot.activeElement;
     const focusId = active?.id || null;
     const tableScrollTop = this.shadowRoot.getElementById("tableWrap")?.scrollTop ?? 0;
@@ -846,19 +1015,21 @@ class BepacomExplorerPanel extends HTMLElement {
     const selectionEnd = typeof active?.selectionEnd === "number" ? active.selectionEnd : null;
     const selected = this._selected;
     const styles = `
-      :host { display:block; color: var(--primary-text-color); background: var(--primary-background-color); min-height:100vh; }
-      .wrap { padding: 20px; max-width: 1900px; margin: 0 auto; }
-      .header { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:20px; }
+      :host { display:block; color: var(--primary-text-color); background: var(--primary-background-color); height:100vh; overflow:hidden; }
+      .wrap { height:100vh; box-sizing:border-box; padding: 12px 20px 16px; max-width: 1900px; margin: 0 auto; display:flex; flex-direction:column; overflow:hidden; }
+      .header { flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:12px; }
       h1 { margin:0; font-size:28px; font-weight:500; }
       h2 { margin:0 0 4px 0; font-size:20px; font-weight:500; }
       h3 { margin:18px 0 8px 0; font-size:15px; font-weight:600; }
       .subtitle { color: var(--secondary-text-color); margin-top:4px; }
-      .toolbar { display:grid; grid-template-columns: minmax(160px, 240px) 130px 155px 165px 135px 155px 82px; gap:8px; align-items:end; margin-bottom:12px; }
-      .toolbar .search-field input { max-width:240px; }
-      .toolbar > div { padding:8px 10px !important; }
-      .toolbar input, .toolbar select { padding:8px 10px; font-size:13px; }
-      .toolbar .check { height:36px; font-size:13px; }
-      .dashboard { margin-bottom:16px; }
+      .frontend-version { display:inline-flex; margin-top:6px; padding:2px 8px; border-radius:999px; border:1px solid var(--divider-color); color:var(--secondary-text-color); font-size:11px; background:var(--secondary-background-color); }
+      .toolbar { flex:0 0 auto; display:grid; grid-template-columns: minmax(170px, 250px) 118px 145px 150px 118px 132px 72px; gap:8px; align-items:end; margin-bottom:8px; }
+      .toolbar .search-field input { max-width:250px; }
+      .toolbar > div { padding:6px 8px !important; }
+      .toolbar label { margin-bottom:4px; font-size:10px; text-transform:uppercase; letter-spacing:.02em; }
+      .toolbar input, .toolbar select { padding:7px 9px; font-size:12px; min-height:32px; }
+      .toolbar .check { height:32px; font-size:12px; }
+      .dashboard { flex:0 0 auto; margin-bottom:10px; }
       .dashboard-shell { border-radius:12px; background: var(--card-background-color); border:1px solid var(--divider-color); box-shadow: var(--ha-card-box-shadow, 0 1px 3px rgba(0,0,0,.18)); overflow:hidden; }
       .dashboard-toggle { width:100%; display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:0; background: var(--card-background-color); color: var(--primary-text-color); text-align:left; border:0; }
       .dashboard-toggle-title { font-weight:700; white-space:nowrap; }
@@ -882,48 +1053,175 @@ class BepacomExplorerPanel extends HTMLElement {
       label { display:block; font-size:12px; color: var(--secondary-text-color); margin-bottom:6px; }
       button { border:0; border-radius:20px; background: var(--primary-color); color: var(--text-primary-color); padding:10px 16px; cursor:pointer; font-weight:500; }
       button.secondary { background: var(--secondary-background-color); color: var(--primary-text-color); border:1px solid var(--divider-color); }
-      button.danger { background: var(--error-color, #db4437); color: white; }
+      button.danger { color: var(--error-color, #db4437); }
       button:disabled { opacity:.55; cursor:default; }
+      .view-tabs { flex:0 0 auto; display:flex; flex-wrap:wrap; gap:8px; margin:0 0 10px 0; }
+      .view-tab { background:var(--secondary-background-color); color:var(--primary-text-color); border:1px solid var(--divider-color); border-radius:999px; padding:8px 14px; }
+      .view-tab.active { background: color-mix(in srgb, var(--primary-color) 18%, var(--secondary-background-color)); border-color: color-mix(in srgb, var(--primary-color) 45%, var(--divider-color)); color:var(--primary-text-color); }
+      .view-panel { flex:1 1 auto; min-height:0; margin-top:0; overflow:auto; }
+      .virtual-actions { display:flex; flex-wrap:wrap; gap:6px; }
+      .virtual-actions button { padding:6px 10px; font-size:12px; border-radius:14px; }
+      .virtual-icon-actions { display:flex; align-items:center; gap:6px; flex-wrap:nowrap; }
+      .icon-action { width:32px; height:32px; display:inline-flex; align-items:center; justify-content:center; padding:0; border-radius:50%; border:1px solid var(--divider-color); background:var(--secondary-background-color); color:var(--primary-text-color); cursor:pointer; font-size:14px; line-height:1; }
+      .icon-action:hover { border-color:var(--primary-color); background:rgba(33,150,243,.12); }
+      .icon-action.danger:hover { border-color:var(--error-color, #db4437); background:rgba(219,68,55,.14); color:var(--error-color, #db4437); }
+      .icon-action:disabled { opacity:.45; cursor:default; }
+      .compact-source { appearance:none; border:0; background:transparent; color:var(--primary-color); padding:0; font:inherit; font-weight:600; cursor:pointer; text-align:left; }
+      .compact-source:hover { text-decoration:underline; }
+      .virtual-type-badge { display:inline-flex; align-items:center; gap:4px; border:1px solid var(--divider-color); background:rgba(255,255,255,.04); border-radius:999px; padding:3px 8px; white-space:nowrap; font-weight:600; }
+      .virtual-state-badge { display:inline-flex; align-items:center; justify-content:center; min-width:44px; border-radius:999px; padding:3px 8px; font-size:11px; font-weight:700; border:1px solid var(--divider-color); }
+      .virtual-state-badge.on { color:#7ee787; background:rgba(46,160,67,.18); border-color:rgba(46,160,67,.45); }
+      .virtual-state-badge.off { color:var(--secondary-text-color); background:rgba(128,128,128,.16); border-color:rgba(128,128,128,.35); }
+      .virtual-state-badge.unavailable, .virtual-state-badge.unknown { color:#ffb86c; background:rgba(255,184,108,.15); border-color:rgba(255,184,108,.4); }
+      .virtual-badge { display:inline-flex; align-items:center; gap:4px; width:max-content; border-radius:999px; border:1px solid var(--divider-color); background:var(--secondary-background-color); color:var(--secondary-text-color); padding:1px 7px; font-size:11px; margin-top:3px; }
       .check { display:flex; gap:8px; align-items:center; height:44px; color: var(--primary-text-color); }
       .check input { width:auto; }
-      .content { display:grid; grid-template-columns: minmax(0, 1fr) 460px; gap:16px; }
+      #explorerView { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+      .content { flex:1 1 auto; min-height:0; display:grid; grid-template-columns: minmax(0, 3fr) minmax(560px, 2fr); gap:12px; overflow:hidden; }
       .content.details-hidden { grid-template-columns: minmax(0, 1fr); }
       .content.details-hidden .side { display:none; }
-      table { width:100%; min-width:1120px; border-collapse:collapse; table-layout:fixed; }
-      th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--divider-color); font-size:14px; vertical-align:middle; overflow:hidden; text-overflow:ellipsis; }
-      th { color: var(--secondary-text-color); font-weight:500; position:sticky; top:0; background: var(--card-background-color); z-index:20; overflow:hidden; box-shadow: 0 1px 0 var(--divider-color); }
+      .side { padding:0; height:100%; min-height:0; overflow:hidden; display:flex; flex-direction:column; }
+      .side-tabs { flex:0 0 auto; display:flex; gap:6px; padding:10px 12px 0 12px; border-bottom:1px solid var(--divider-color); background:var(--card-background-color); position:relative; z-index:30; box-shadow:0 1px 0 var(--divider-color); }
+      .side-tab { border:1px solid var(--divider-color); border-bottom:0; border-radius:10px 10px 0 0; background:var(--secondary-background-color); color:var(--primary-text-color); padding:8px 10px; font-size:12px; }
+      .side-tab.active { background:color-mix(in srgb, var(--primary-color) 18%, var(--card-background-color)); border-color:color-mix(in srgb, var(--primary-color) 45%, var(--divider-color)); }
+      .side-body { flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden; padding:14px 16px 16px 16px; position:relative; }
+      .side-section-head { background:var(--card-background-color); margin:-14px -16px 12px -16px; padding:14px 16px 10px 16px; border-bottom:1px solid var(--divider-color); }
+      .point-summary { display:grid; grid-template-columns:1fr auto; gap:10px; align-items:start; border:1px solid var(--divider-color); border-radius:10px; background:var(--secondary-background-color); padding:10px; margin:0 0 12px 0; }
+      .point-summary-title { font-size:16px; font-weight:700; line-height:1.2; overflow-wrap:anywhere; }
+      .point-summary-sub { color:var(--secondary-text-color); font-size:12px; margin-top:3px; overflow-wrap:anywhere; }
+      .point-summary-value { justify-self:end; display:flex; flex-direction:column; align-items:flex-end; gap:4px; min-width:74px; }
+      .point-summary-value strong { font-size:18px; line-height:1; }
+      .point-summary-unit { color:var(--secondary-text-color); font-size:12px; }
+      .point-summary-meta { grid-column:1 / -1; display:flex; flex-wrap:wrap; gap:6px; }
+      .side .virtual-overview { margin:0; border:0; box-shadow:none; background:transparent; padding:0; }
+      .side .virtual-table { min-width:0; table-layout:auto; }
+      .side .virtual-table th, .side .virtual-table td { font-size:11px; padding:6px; }
+      .side-virtual-cards { display:flex; flex-direction:column; gap:10px; }
+      .side-virtual-card { border:1px solid var(--divider-color); border-radius:12px; padding:10px; background:rgba(255,255,255,.03); }
+      .side-virtual-card-title { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; }
+      .side-virtual-card-name { font-weight:700; overflow:hidden; text-overflow:ellipsis; }
+      .side-virtual-card-meta { display:flex; align-items:center; gap:8px; color:var(--secondary-text-color); font-size:12px; margin:4px 0; overflow:hidden; overflow-wrap:anywhere; }
+      .side-virtual-card-rules { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin:8px 0; }
+      .side-virtual-card-rules div { min-width:0; border:1px solid var(--divider-color); border-radius:8px; padding:5px; background:rgba(0,0,0,.12); }
+      .side-virtual-card-rules span { display:block; color:var(--secondary-text-color); font-size:10px; }
+      .side-virtual-card-rules code { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .side-virtual-card { border:1px solid color-mix(in srgb, var(--divider-color) 84%, var(--primary-color)); border-radius:10px; background:linear-gradient(180deg, color-mix(in srgb, var(--secondary-background-color) 92%, var(--primary-color)), var(--secondary-background-color)); padding:10px; overflow:hidden; }
+      .side-virtual-card-title { display:flex; align-items:center; justify-content:space-between; gap:8px; font-weight:700; }
+      .side-virtual-card-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .side-virtual-card-meta { color:var(--secondary-text-color); font-size:12px; overflow-wrap:anywhere; margin-top:3px; }
+      .side-virtual-card-rules { display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-top:8px; font-size:11px; }
+      .side-virtual-card-rules div { border:1px solid var(--divider-color); border-radius:8px; padding:5px 6px; background:var(--card-background-color); min-width:0; }
+      .side-virtual-card-rules span { display:block; color:var(--secondary-text-color); margin-bottom:2px; }
+      .side-virtual-card-rules code { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block; }
+      .virtual-rule-flow { display:grid; grid-template-columns:1fr auto 1fr; gap:6px; align-items:center; margin:9px 0; }
+      .virtual-rule-box { min-width:0; border:1px solid var(--divider-color); border-radius:8px; background:var(--card-background-color); padding:6px 8px; }
+      .virtual-rule-box span { display:block; color:var(--secondary-text-color); font-size:10px; text-transform:uppercase; letter-spacing:.03em; margin-bottom:2px; }
+      .virtual-rule-box code { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .virtual-rule-arrow { color:var(--secondary-text-color); font-size:13px; }
+      .selected-source-box { border:1px solid var(--divider-color); border-radius:10px; padding:10px; margin:0 0 12px 0; background:var(--secondary-background-color); }
+      table { width:100%; min-width:980px; border-collapse:collapse; table-layout:fixed; }
+      col.select-col-col { width:42px; }
+      col.object-col-col { width:210px; }
+      col.entity-col-col { width:auto; min-width:330px; }
+      col.value-col-col { width:108px; }
+      col.unit-col-col { width:130px; }
+      col.override-col-col { width:90px; }
+      col.runtime-col-col { width:42px; }
+      th, td { text-align:left; padding:9px 12px; border-bottom:1px solid color-mix(in srgb, var(--divider-color) 72%, transparent); font-size:13px; vertical-align:middle; overflow:hidden; text-overflow:ellipsis; }
+      th[data-sort='present_value'], td[data-col='value'], th[data-sort='override'], td[data-col='override'], th[data-sort='runtime'], td[data-col='status'] { text-align:center; }
+      td[data-col='entity'] { white-space:normal; }
+      td[data-col='value'] { padding-left:6px; padding-right:6px; }
+      td[data-col='override'] { padding-left:6px; padding-right:6px; }
+      td[data-col='status'] { padding-left:6px; padding-right:6px; }
+      th { color: var(--secondary-text-color); font-weight:600; font-size:12px; position:sticky; top:0; background: color-mix(in srgb, var(--card-background-color) 94%, var(--primary-background-color)); z-index:20; overflow:hidden; box-shadow: 0 1px 0 var(--divider-color); }
       th.sortable { cursor:pointer; user-select:none; }
       .sort-btn { border:0; border-radius:0; background:transparent; color:inherit; padding:0; font:inherit; cursor:pointer; }
       td.select-col { position:sticky; left:0; z-index:2; background:var(--card-background-color); }
       th.select-col { position:sticky; left:0; z-index:30; background:var(--card-background-color); }
       td[data-col='object'] { position:sticky; left:42px; z-index:2; background:var(--card-background-color); box-shadow: 1px 0 0 var(--divider-color); }
       th.object-col { position:sticky; left:42px; z-index:29; background:var(--card-background-color); box-shadow: 1px 0 0 var(--divider-color), 0 1px 0 var(--divider-color); }
+
+      .rule-help { margin-top:8px; padding:8px 10px; border-radius:8px; background:var(--secondary-background-color); font-size:12px; line-height:1.45; }
+      .rule-help code { font-family:var(--code-font-family, monospace); background:rgba(127,127,127,.12); border-radius:4px; padding:1px 4px; }
+      .virtual-overview { margin:0 0 12px 0; padding:12px; }
+      .virtual-filterbar { grid-template-columns: minmax(260px, 520px) auto 1fr; }
+      tr.source-jump-highlight { outline:2px solid var(--primary-color); background: color-mix(in srgb, var(--primary-color) 18%, transparent) !important; }
+      .virtual-overview-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+      .virtual-overview-title { font-weight:700; }
+      .virtual-table-wrap { overflow:auto; }
+      .virtual-table { width:100%; min-width:860px; table-layout:fixed; }
+      .virtual-table th, .virtual-table td { position:static; padding:10px 8px; font-size:12px; white-space:normal; overflow-wrap:anywhere; vertical-align:middle; }
+      .virtual-table th:nth-child(1) { width:110px; }
+      .virtual-table th:nth-child(2) { width:300px; }
+      .virtual-table th:nth-child(3) { width:120px; }
+      .virtual-table th:nth-child(4) { width:80px; }
+      .virtual-table th:nth-child(5), .virtual-table th:nth-child(6), .virtual-table th:nth-child(7) { width:90px; }
+      .virtual-table th:nth-child(8) { width:170px; }
+      .virtual-table tr { cursor:default; }
+      .virtual-table .link-cell { font-size:13px; }
+      .virtual-name-link { color:var(--primary-text-color); font-weight:600; }
+      .entity-id-line { margin-top:3px; font-size:11px; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+      .virtual-source-btn { appearance:none; border:0; background:transparent; color:var(--primary-color); padding:0; font:inherit; cursor:pointer; text-align:left; }
+      .virtual-source-btn:hover { text-decoration:underline; }
+      .assistant-card { margin:10px 0 12px; padding:10px 12px; border:1px solid color-mix(in srgb, var(--primary-color) 35%, var(--divider-color)); border-radius:10px; background:color-mix(in srgb, var(--primary-color) 8%, var(--card-background-color)); }
+      .assistant-card .assistant-title { font-weight:700; margin-bottom:4px; }
+      .assistant-card .assistant-grid { display:grid; grid-template-columns:82px minmax(0,1fr); gap:3px 8px; margin-top:8px; font-size:12px; }
+      .assistant-card .assistant-grid span:nth-child(odd) { color:var(--secondary-text-color); }
+      .assistant-card button { margin-top:10px; }
+      .rule-preview { margin-top:10px; display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+      .rule-preview > div { border:1px solid var(--divider-color); border-radius:8px; padding:8px 10px; background:var(--card-background-color); }
+      .rule-preview span, .rule-preview strong { display:block; }
+      .rule-result.on { color:var(--success-color, #0b8); }
+      .rule-result.off { color:var(--secondary-text-color); }
+      .rule-result.unav { color:var(--error-color, #d33); }
+
       .virtual-spacer td { padding:0 !important; border-bottom:0 !important; }
       .virtual-spacer:hover { background:transparent; }
       tr:hover td[data-col='object'], tr:hover td.select-col { background:var(--secondary-background-color); }
       tr.selected td[data-col='object'], tr.selected td.select-col { background: color-mix(in srgb, var(--primary-color) 16%, var(--card-background-color)); }
       .inline-select { min-width:100px; max-width:140px; padding:6px 8px; font-size:13px; border-radius:7px; }
       .unit-stack { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+      .unit-display { font-weight:600; }
       tr { cursor:pointer; }
-      tr:hover { background: var(--secondary-background-color); }
+      tr:hover { background: color-mix(in srgb, var(--secondary-background-color) 88%, var(--primary-color)); }
       tr.selected { background: color-mix(in srgb, var(--primary-color) 16%, transparent); outline: 1px solid color-mix(in srgb, var(--primary-color) 28%, transparent); }
-      tr.value-flash td[data-col='value'] { animation: bepacom-value-flash 4s ease-out; }
-      tr.value-flash td[data-col='value'] .value-link { animation: bepacom-value-pulse 4s ease-out; border-radius: 8px; }
       tr.value-up { --bepacom-change-color: var(--success-color, #43a047); }
       tr.value-down { --bepacom-change-color: var(--error-color, #e53935); }
       tr.value-changed { --bepacom-change-color: var(--warning-color, #fb8c00); }
-      @keyframes bepacom-value-flash {
-        0% { background: color-mix(in srgb, var(--bepacom-change-color, #43a047) 44%, transparent); box-shadow: inset 0 0 0 9999px color-mix(in srgb, var(--bepacom-change-color, #43a047) 24%, transparent); }
-        12% { background: color-mix(in srgb, var(--bepacom-change-color, #43a047) 34%, transparent); box-shadow: inset 0 0 0 9999px color-mix(in srgb, var(--bepacom-change-color, #43a047) 16%, transparent); }
-        55% { background: color-mix(in srgb, var(--bepacom-change-color, #43a047) 16%, transparent); box-shadow: inset 0 0 0 9999px color-mix(in srgb, var(--bepacom-change-color, #43a047) 8%, transparent); }
-        100% { background: transparent; box-shadow: none; }
+      tr.value-flash td[data-col='value'] .value-link { animation: bepacom-value-pill 3.2s ease-out; }
+      tr.value-flash td[data-col='value'] .value-link::after { animation: bepacom-value-ring 1.6s ease-out; }
+      @keyframes bepacom-value-pill {
+        0% {
+          color: var(--primary-text-color);
+          background: color-mix(in srgb, var(--bepacom-change-color, #43a047) 34%, var(--card-background-color));
+          box-shadow:
+            0 0 0 1px color-mix(in srgb, var(--bepacom-change-color, #43a047) 60%, transparent),
+            0 0 18px color-mix(in srgb, var(--bepacom-change-color, #43a047) 34%, transparent);
+          transform: translateY(-1px) scale(1.035);
+        }
+        22% {
+          background: color-mix(in srgb, var(--bepacom-change-color, #43a047) 22%, var(--card-background-color));
+          box-shadow:
+            0 0 0 1px color-mix(in srgb, var(--bepacom-change-color, #43a047) 42%, transparent),
+            0 0 12px color-mix(in srgb, var(--bepacom-change-color, #43a047) 24%, transparent);
+          transform: translateY(0) scale(1);
+        }
+        100% {
+          color: var(--primary-text-color);
+          background: transparent;
+          box-shadow: 0 0 0 1px transparent, 0 0 0 transparent;
+          transform: translateY(0) scale(1);
+        }
       }
-      @keyframes bepacom-value-pulse {
-        0% { transform: scale(1.08); color: var(--bepacom-change-color, #43a047); font-weight: 700; }
-        25% { transform: scale(1.04); color: var(--bepacom-change-color, #43a047); font-weight: 700; }
-        100% { transform: scale(1); color: var(--primary-text-color); font-weight: 500; }
+      @keyframes bepacom-value-ring {
+        0% { opacity:.95; transform:scale(.88); }
+        70% { opacity:0; transform:scale(1.32); }
+        100% { opacity:0; transform:scale(1.32); }
       }
-      .table-wrap { max-height: calc(100vh - 205px); overflow:auto; }
+      .table-wrap { height:100%; min-height:0; overflow:auto; scrollbar-color: color-mix(in srgb, var(--secondary-text-color) 42%, transparent) transparent; scrollbar-width:thin; }
+      .table-wrap::-webkit-scrollbar, .side-body::-webkit-scrollbar, .view-panel::-webkit-scrollbar, .virtual-table-wrap::-webkit-scrollbar { width:8px; height:8px; }
+      .table-wrap::-webkit-scrollbar-thumb, .side-body::-webkit-scrollbar-thumb, .view-panel::-webkit-scrollbar-thumb, .virtual-table-wrap::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--secondary-text-color) 36%, transparent); border-radius:999px; }
+      .table-wrap::-webkit-scrollbar-track, .side-body::-webkit-scrollbar-track, .view-panel::-webkit-scrollbar-track, .virtual-table-wrap::-webkit-scrollbar-track { background:transparent; }
       .select-col { width:36px; text-align:center; }
       .object-main { display:flex; align-items:center; gap:10px; }
       .type-icon { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:10px; font-size:11px; font-weight:800; letter-spacing:.2px; color:white; flex:0 0 auto; }
@@ -933,21 +1231,49 @@ class BepacomExplorerPanel extends HTMLElement {
       .group-row td { background: color-mix(in srgb, var(--primary-color) 10%, var(--card-background-color)); position:sticky; top:0; z-index:1; }
       .group-toggle { appearance:none; border:0; background:transparent; color:var(--primary-text-color); font-weight:700; cursor:pointer; padding:6px 0; }
       .virtual-spacer td { padding:0; border:0; }
-      .bulkbar { display:flex; flex-wrap:wrap; gap:10px; align-items:end; padding:10px 12px; margin-bottom:12px; }
+      .bulkbar { flex:0 0 auto; display:flex; flex-wrap:wrap; gap:10px; align-items:end; padding:10px 12px; margin-bottom:10px; }
       .bulkbar-empty { color: var(--secondary-text-color); font-size:12px; margin-bottom:8px; }
       .bulkbar label { display:flex; flex-direction:column; gap:3px; font-size:11px; color:var(--secondary-text-color); }
       .bulkbar select { min-width:130px; }
-      .name { font-weight:500; }
+      .name { font-weight:700; }
       .muted { color: var(--secondary-text-color); font-size:12px; }
 
       .link-cell { appearance:none; border:0; background:transparent; color:var(--primary-text-color); padding:0; margin:0; font:inherit; text-align:left; cursor:pointer; }
       .link-cell:hover { color:var(--primary-color); text-decoration:underline; }
-      .value-link { font-weight:700; font-size:14px; }
+      .value-link { position:relative; display:inline-flex; align-items:center; justify-content:center; min-width:44px; max-width:100%; padding:4px 9px; border-radius:999px; font-weight:700; font-size:14px; line-height:1.25; transition:background .18s ease, box-shadow .18s ease, color .18s ease; }
+      .value-link::after { content:""; position:absolute; inset:-4px; border-radius:inherit; border:1px solid var(--bepacom-change-color, #43a047); opacity:0; pointer-events:none; }
+      .entity-stack { display:flex; flex-direction:column; gap:4px; min-width:0; }
+      .linked-entities { display:flex; flex-direction:column; gap:3px; min-width:0; }
+      .linked-entity-link { appearance:none; border:0; background:transparent; color:var(--secondary-text-color); padding:0; margin:0; font:inherit; font-size:12px; line-height:1.25; text-align:left; cursor:pointer; max-width:100%; display:flex; align-items:center; gap:4px; white-space:normal; overflow-wrap:anywhere; }
+      .linked-entity-link:hover { color:var(--primary-color); text-decoration:underline; }
+      .linked-entity-link:disabled { opacity:.65; cursor:default; text-decoration:none; }
+      .linked-icon { flex:0 0 auto; opacity:.9; }
+      .linked-name { min-width:0; overflow-wrap:anywhere; }
+      .linked-state { display:inline-flex; align-items:center; border-radius:999px; padding:1px 6px; margin-left:4px; font-size:11px; background:var(--secondary-background-color); border:1px solid var(--divider-color); color:var(--primary-text-color); white-space:nowrap; }
+      .runtime-filter { gap:6px; }
+      .runtime-head { text-align:center; }
+      .write-profile-head, .write-profile-cell { width:72px; text-align:center; }
+      .write-profile-dot { display:inline-block; width:11px; height:11px; border-radius:50%; vertical-align:middle; border:1px solid color-mix(in srgb, var(--divider-color) 55%, transparent); }
+      .write-profile-dot.direct { background:#1e88e5; box-shadow:0 0 0 3px color-mix(in srgb, #1e88e5 18%, transparent); }
+      .write-profile-dot.glt { background:#8e24aa; box-shadow:0 0 0 3px color-mix(in srgb, #8e24aa 18%, transparent); }
+      .runtime-dot { display:inline-flex; width:12px; height:12px; border-radius:50%; border:1px solid color-mix(in srgb, var(--divider-color) 70%, transparent); box-shadow:0 0 0 3px color-mix(in srgb, var(--divider-color) 20%, transparent); vertical-align:middle; }
+      .runtime-off { background:#7a7a7a; }
+      .runtime-poll { background:#43a047; box-shadow:0 0 0 3px color-mix(in srgb, #43a047 18%, transparent); }
+      .runtime-push { background:#1e88e5; box-shadow:0 0 0 3px color-mix(in srgb, #1e88e5 18%, transparent); }
+      .runtime-wait { background:#ffa600; box-shadow:0 0 0 3px color-mix(in srgb, #ffa600 18%, transparent); }
+      .mode-chip { display:inline-flex; align-items:center; gap:6px; width:max-content; border-radius:999px; border:1px solid var(--divider-color); background:var(--secondary-background-color); color:var(--primary-text-color); padding:3px 8px; font-size:12px; font-weight:600; }
+      .mode-chip::before { content:""; width:8px; height:8px; border-radius:50%; background:#7a7a7a; box-shadow:0 0 0 3px color-mix(in srgb, #7a7a7a 18%, transparent); }
+      .mode-chip.push { border-color:color-mix(in srgb, #1e88e5 48%, var(--divider-color)); background:color-mix(in srgb, #1e88e5 12%, var(--secondary-background-color)); }
+      .mode-chip.push::before { background:#1e88e5; box-shadow:0 0 0 3px color-mix(in srgb, #1e88e5 18%, transparent); }
+      .mode-chip.polling { border-color:color-mix(in srgb, #43a047 48%, var(--divider-color)); background:color-mix(in srgb, #43a047 12%, var(--secondary-background-color)); }
+      .mode-chip.polling::before { background:#43a047; box-shadow:0 0 0 3px color-mix(in srgb, #43a047 18%, transparent); }
+      .mode-chip.wait { border-color:color-mix(in srgb, #ffa600 48%, var(--divider-color)); background:color-mix(in srgb, #ffa600 12%, var(--secondary-background-color)); }
+      .mode-chip.wait::before { background:#ffa600; box-shadow:0 0 0 3px color-mix(in srgb, #ffa600 18%, transparent); }
+      .mode-chip.off { color:var(--secondary-text-color); }
       .pill { display:inline-flex; align-items:center; border-radius:999px; padding:3px 8px; font-size:12px; background: var(--secondary-background-color); border:1px solid var(--divider-color); margin-right:4px; white-space:nowrap; }
       .ok { color: var(--success-color, #43a047); }
       .warn { color: var(--warning-color, #ffa600); }
       .bad { color: var(--error-color, #db4437); }
-      .side { padding:16px; max-height: calc(100vh - 170px); overflow:auto; }
       .details-toggle-active { background: color-mix(in srgb, var(--primary-color) 16%, var(--secondary-background-color)) !important; border-color: color-mix(in srgb, var(--primary-color) 38%, var(--divider-color)) !important; }
       .kv { display:grid; grid-template-columns: 145px minmax(0, 1fr); gap:8px; padding:7px 0; border-bottom:1px solid var(--divider-color); }
       .kv .k { color: var(--secondary-text-color); }
@@ -965,7 +1291,7 @@ class BepacomExplorerPanel extends HTMLElement {
       .notice { background: color-mix(in srgb, var(--primary-color) 12%, transparent); border:1px solid color-mix(in srgb, var(--primary-color) 35%, transparent); border-radius:8px; padding:10px; margin:10px 0; }
       .error { background: color-mix(in srgb, var(--error-color, #db4437) 16%, transparent); color: var(--error-color, #db4437); border: 1px solid color-mix(in srgb, var(--error-color, #db4437) 35%, transparent); border-radius:8px; padding:12px; margin-bottom:12px; }
       .empty { padding:32px; text-align:center; color: var(--secondary-text-color); }
-      @media (max-width: 1100px) { .toolbar { grid-template-columns: 1fr; } .dashboard-content { grid-template-columns: 1fr; } .dashboard-cards { grid-template-columns: repeat(2, 1fr); } .content { grid-template-columns: 1fr; } .side { max-height:none; } }
+      @media (max-width: 1100px) { :host { height:auto; overflow:visible; } .wrap { height:auto; min-height:100vh; overflow:visible; } .toolbar { grid-template-columns: 1fr; } .dashboard-content { grid-template-columns: 1fr; } .dashboard-cards { grid-template-columns: repeat(2, 1fr); } #explorerView { overflow:visible; } .content { grid-template-columns: 1fr; overflow:visible; } .table-wrap { height:70vh; } .side { height:70vh; } }
     `;
 
     const rows = this._rowsHtml();
@@ -976,7 +1302,7 @@ class BepacomExplorerPanel extends HTMLElement {
         <div class="header">
           <div>
             <h1>BACnet Explorer</h1>
-            <div id="subtitle" class="subtitle">Sidebar-Ansicht für gefundene BACnet-Objekte${this._total !== undefined ? ` · ${this._points.length} von ${this._total}` : ""}${this._limited ? " · Liste begrenzt" : ""}</div>
+            <div id="subtitle" class="subtitle">Sidebar-Ansicht für gefundene BACnet-Objekte${this._total !== undefined ? ` · ${this._points.length} von ${this._total}` : ""}${this._limited ? " · Liste begrenzt" : ""}</div><div class="frontend-version">${this._versionLabel()}</div>
           </div>
           <div style="display:flex; gap:8px; align-items:center;">
             <button class="secondary" id="exportJson">JSON</button>
@@ -993,32 +1319,41 @@ class BepacomExplorerPanel extends HTMLElement {
 
         <div id="dashboard" class="dashboard">${this._dashboardHtml()}</div>
 
+        ${this._activeView === "virtual" ? `
+        <div class="toolbar card virtual-filterbar">
+          <div class="search-field"><label>Suche virtuelle Entitäten</label><input id="virtualSearch" value="${this._escape(this._virtualSearch || "")}" placeholder="Name, Entity-ID, Unique-ID, Quelle, Regel …"></div>
+          <div><label>&nbsp;</label><button id="clearVirtualSearch" class="secondary">Reset</button></div>
+        </div>` : `
         <div class="toolbar card">
-          <div class="search-field"><label>Suche</label><input id="search" value="${this._escape(this._filters.search)}" placeholder="1249, Rollo, Temp"></div>
+          <div class="search-field"><label>Suche BACnet-Objekte</label><input id="search" value="${this._escape(this._filters.search)}" placeholder="1249, Rollo, Temp"></div>
           <div><label>Device</label><select id="device">${this._deviceOptions()}</select></div>
           <div><label>Objekttyp</label><select id="type">${this._typeOptions()}</select></div>
           <div><label>Gruppierung</label><select id="groupBy">${this._groupOptions()}</select></div>
           <div><label>Overrides</label><div class="check"><input id="onlyOverrides" type="checkbox" ${this._filters.only_overrides ? "checked" : ""}> nur Overrides</div></div>
-          <div><label>Modus</label><div class="check"><input id="onlySubscribe" type="checkbox" ${this._filters.only_subscribe ? "checked" : ""}> nur Push / Subscribe</div></div>
+          <div><label>Modus</label><div class="check runtime-filter"><input id="onlySubscribe" type="checkbox" ${this._filters.only_subscribe ? "checked" : ""}> <span class="runtime-dot runtime-push"></span><span>Subscribe</span></div></div>
           <div><label>&nbsp;</label><button id="clear" class="secondary">Reset</button></div>
-        </div>
+        </div>`}
 
-        ${this._bulkToolbarHtml()}
-
-        <div class="content ${this._detailsVisible ? "" : "details-hidden"}">
-          <div id="tableWrap" class="card table-wrap">
-            ${rows ? `<table><thead><tr>${this._tableHeaderHtml()}</tr></thead><tbody id="pointsBody">${rows}</tbody></table>` : `<div id="emptyState" class="empty">Keine BACnet-Objekte gefunden.</div>`}
+        ${this._viewTabsHtml()}
+        ${this._activeView === "virtual" ? this._virtualEntitiesPageHtml() : `
+        <div id="explorerView">
+          ${this._bulkToolbarHtml()}
+          <div class="content ${this._detailsVisible ? "" : "details-hidden"}">
+            <div id="tableWrap" class="card table-wrap">
+              ${rows ? `<table>${this._tableColgroupHtml()}<thead><tr>${this._tableHeaderHtml()}</tr></thead><tbody id="pointsBody">${rows}</tbody></table>` : `<div id="emptyState" class="empty">Keine BACnet-Objekte gefunden.</div>`}
+            </div>
+            ${this._detailsVisible ? `<div class="card side">
+              ${this._sidePanelHtml(selected)}
+            </div>` : ""}
           </div>
-          ${this._detailsVisible ? `<div class="card side">
-            ${selected ? this._detailHtml(selected) : `<h2>Point Inspector</h2><div class="muted">Wähle ein Objekt aus.</div>`}
-          </div>` : ""}
-        </div>
+        </div>`}
       </div>
     `;
 
     this._bindEvents();
     const tableWrap = this.shadowRoot.getElementById("tableWrap");
     if (tableWrap) tableWrap.scrollTop = tableScrollTop;
+    this._restoreSideScroll(sideScrollTop);
     if (focusId) {
       const next = this.shadowRoot.getElementById(focusId);
       if (next) {
@@ -1031,8 +1366,258 @@ class BepacomExplorerPanel extends HTMLElement {
   }
 
 
+
+  _viewTabsHtml() {
+    const count = this._allVirtualEntities().length;
+    const tab = (id, label) => `<button class="view-tab ${this._activeView === id ? "active" : ""}" data-view-tab="${id}" type="button">${label}</button>`;
+    return `<div class="view-tabs">${tab("explorer", "Explorer")}${tab("virtual", `Virtuelle Entitäten${count ? ` (${count})` : ""}`)}</div>`;
+  }
+
+  _virtualEntitiesPageHtml() {
+    return `<div class="view-panel">${this._virtualEntitiesOverviewHtml(true)}</div>`;
+  }
+
+  _allVirtualEntities() {
+    const rows = [];
+    const q = this._normalizeSearch(this._virtualSearch || "");
+    for (const p of this._points || []) {
+      for (const ent of this._linkedEntities(p)) {
+        const haystack = [
+          ent.name, ent.friendly_name, ent.entity_name, ent.entity_id, ent.unique_id,
+          ent.entity_type, ent.device_class, ent.on_value, ent.off_value, ent.else_state,
+          p.object_key, p.object_name, p.unique_id, p.device_id, p.object_type, p.instance
+        ].map((x) => x === undefined || x === null ? "" : String(x)).join(" ");
+        if (!q || this._normalizeSearch(haystack).includes(q)) rows.push({ source: p, ent });
+      }
+    }
+    return rows;
+  }
+
+  _compactSourceLabel(p) {
+    const type = String(p?.object_type || p?.object_key || "").toLowerCase();
+    const inst = p?.instance ?? "";
+    const map = {
+      analoginput: "AI", "analog-input": "AI", analogvalue: "AV", "analog-value": "AV",
+      binaryinput: "BI", "binary-input": "BI", binaryvalue: "BV", "binary-value": "BV",
+      multistateinput: "MSI", "multi-state-input": "MSI", multistateoutput: "MSO", "multi-state-output": "MSO",
+      device: "DEV", file: "FILE"
+    };
+    const key = type.replace(/[^a-z]/g, "");
+    const prefix = map[type] || map[key] || String(p?.object_type || "OBJ").toUpperCase();
+    return `${prefix} ${inst || ""}`.trim();
+  }
+
+  _sourceTooltip(p) {
+    return [p?.object_key, p?.object_name, p?.unique_id].filter(Boolean).join(" · ");
+  }
+
+  _virtualDisplayName(ent) {
+    return ent?.name || ent?.friendly_name || ent?.entity_name || ent?.entity_id || ent?.unique_id || "Virtuelle Entität";
+  }
+
+  _binaryStateLabel(state, deviceClass = "") {
+    const value = String(state ?? "-").toLowerCase();
+    if (value !== "on" && value !== "off") return String(state ?? "-");
+
+    const labels = {
+      battery: ["Batterie schwach", "Batterie in Ordnung"],
+      battery_charging: ["Lädt", "Lädt nicht"],
+      carbon_monoxide: ["Kohlenmonoxid erkannt", "Kein Kohlenmonoxid"],
+      cold: ["Kalt", "Normal"],
+      connectivity: ["Verbunden", "Nicht verbunden"],
+      door: ["Geöffnet", "Geschlossen"],
+      garage_door: ["Geöffnet", "Geschlossen"],
+      gas: ["Gas erkannt", "Kein Gas"],
+      heat: ["Hitze erkannt", "Keine Hitze"],
+      light: ["Licht erkannt", "Kein Licht"],
+      lock: ["Entriegelt", "Verriegelt"],
+      moisture: ["Feucht", "Trocken"],
+      motion: ["Bewegung erkannt", "Keine Bewegung"],
+      moving: ["In Bewegung", "Stillstand"],
+      occupancy: ["Belegt", "Nicht belegt"],
+      opening: ["Geöffnet", "Geschlossen"],
+      plug: ["Eingesteckt", "Ausgesteckt"],
+      power: ["Strom erkannt", "Kein Strom"],
+      presence: ["Anwesend", "Abwesend"],
+      problem: ["Problem", "OK"],
+      running: ["Läuft", "Läuft nicht"],
+      safety: ["Unsicher", "Sicher"],
+      smoke: ["Rauch erkannt", "Kein Rauch"],
+      sound: ["Geräusch erkannt", "Kein Geräusch"],
+      tamper: ["Manipulation erkannt", "Keine Manipulation"],
+      update: ["Update verfügbar", "Aktuell"],
+      vibration: ["Vibration erkannt", "Keine Vibration"],
+      window: ["Geöffnet", "Geschlossen"],
+    };
+    const pair = labels[String(deviceClass || "").toLowerCase()];
+    return pair ? pair[value === "on" ? 0 : 1] : value.toUpperCase();
+  }
+
+  _virtualStateBadge(state, ent = null) {
+    const st = String(state ?? "-").toLowerCase();
+    let cls = "unknown";
+    if (st === "on" || st === "true" || st === "1") cls = "on";
+    else if (st === "off" || st === "false" || st === "0") cls = "off";
+    else if (st === "unavailable" || st === "unknown" || st === "-") cls = "unavailable";
+    const deviceClass = ent?.device_class || ent?.deviceClass || "";
+    return `<span class="virtual-state-badge ${cls}">${this._escape(this._binaryStateLabel(state, deviceClass))}</span>`;
+  }
+
+  _virtualTypeBadge(ent) {
+    const type = ent?.entity_type || "binary_sensor";
+    const dc = String(ent?.device_class || "").toLowerCase();
+    const icon = dc === "plug" ? "🔌" : type === "binary_sensor" ? "🔘" : "🔗";
+    const label = type === "binary_sensor" ? "Binary" : type.replace("_", " ");
+    return `<span class="virtual-type-badge" title="${this._escape(type)}">${icon} ${this._escape(label)}</span>`;
+  }
+
+
+  _virtualLiveState(ent) {
+    const entityId = typeof ent === "string" ? ent : (ent?.entity_id || ent?.entityId || "");
+    if (!entityId || !this.hass || !this.hass.states) {
+      return { state: "unavailable", label: "unavailable", cls: "unavailable" };
+    }
+
+    const st = this.hass.states[entityId];
+    if (!st) {
+      return { state: "unavailable", label: "unavailable", cls: "unavailable" };
+    }
+
+    const value = String(st.state ?? "unknown");
+    if (value === "on") return { state: value, label: "ON", cls: "on" };
+    if (value === "off") return { state: value, label: "OFF", cls: "off" };
+    if (value === "unavailable" || value === "unknown") {
+      return { state: value, label: value, cls: "unavailable" };
+    }
+    return { state: value, label: value, cls: "neutral" };
+  }
+
+  _virtualActionsHtml(source, ent, name, entityId) {
+    const sourceUid = this._escape(source?.unique_id || "");
+    const virtualUid = this._escape(ent?.unique_id || "");
+    const safeName = this._escape(name || "Virtuelle Entität");
+    const safeEntity = this._escape(entityId || "");
+    return `<div class="virtual-icon-actions">
+      <button class="icon-action virtual-source-btn" data-source-uid="${sourceUid}" title="Quelle öffnen" aria-label="Quelle öffnen" type="button">📍</button>
+      <button class="icon-action linked-entity-link" data-entity-id="${safeEntity}" ${entityId ? "" : "disabled"} title="HA-Dialog öffnen" aria-label="HA-Dialog öffnen" type="button">🏠</button>
+      <button class="icon-action virtual-edit-btn" data-source-uid="${sourceUid}" data-virtual-uid="${virtualUid}" title="Bearbeiten" aria-label="Bearbeiten" type="button">✏️</button>
+      <button class="icon-action virtual-duplicate-btn" data-source-uid="${sourceUid}" data-virtual-uid="${virtualUid}" title="Duplizieren" aria-label="Duplizieren" type="button">📄</button>
+      <button class="icon-action danger virtual-delete-btn" data-source-uid="${sourceUid}" data-virtual-uid="${virtualUid}" data-virtual-name="${safeName}" title="Löschen" aria-label="Löschen" type="button">🗑️</button>
+    </div>`;
+  }
+
+  _virtualEntitiesOverviewHtml(fullPage = false) {
+    const rows = this._allVirtualEntities();
+    if (!rows.length) return `<div class="card virtual-overview"><div class="virtual-overview-head"><div><div class="virtual-overview-title">Virtuelle Entitäten</div><div class="muted">Noch keine virtuellen Entitäten angelegt. Öffne im Explorer einen BACnet-Datenpunkt und erstelle dort unter „Virtuelle Entität“ einen neuen Eintrag.</div></div></div></div>`;
+
+    if (!fullPage) {
+      const cards = rows.map(({ source, ent }) => {
+        const entityId = ent.entity_id || "";
+        const live = this._virtualLiveState({ entity_id: entityId });
+        const state = live?.state ?? ent.state ?? "-";
+        const name = this._virtualDisplayName(ent);
+        const sourceLabel = this._compactSourceLabel(source);
+        const sourceTitle = this._sourceTooltip(source);
+        return `<div class="side-virtual-card">
+          <div class="side-virtual-card-title"><span class="side-virtual-card-name" title="${this._escape(name)}">${this._escape(name)}</span>${this._virtualStateBadge(state, ent)}</div>
+          <div class="side-virtual-card-meta">${this._virtualTypeBadge(ent)}<span title="${this._escape(entityId || ent.unique_id || "")}">${this._escape(entityId || ent.unique_id || "nach Reload verfügbar")}</span></div>
+          <div class="side-virtual-card-meta">Quelle: <button class="virtual-source-btn compact-source" data-source-uid="${this._escape(source.unique_id)}" title="${this._escape(sourceTitle)}">${this._escape(sourceLabel)}</button></div>
+          <div class="virtual-rule-flow">
+            <div class="virtual-rule-box"><span>Wenn EIN</span><code title="${this._escape(ent.on_value ?? "")}">${this._escape(ent.on_value ?? "")}</code></div>
+            <div class="virtual-rule-arrow">/</div>
+            <div class="virtual-rule-box"><span>Wenn AUS</span><code title="${this._escape(ent.off_value ?? "")}">${this._escape(ent.off_value ?? "")}</code></div>
+          </div>
+          <div class="side-virtual-card-meta">Sonst: <code>${this._escape(ent.else_state || "unavailable")}</code></div>
+          ${this._virtualActionsHtml(source, ent, name, entityId)}
+        </div>`;
+      }).join("");
+      return `<div class="virtual-overview"><div class="virtual-overview-head"><div><div class="virtual-overview-title">Virtuelle Entitäten</div></div><div class="muted">${rows.length} verknüpfte Entität${rows.length === 1 ? "" : "en"}</div></div><div class="side-virtual-cards">${cards}</div></div>`;
+    }
+
+    const body = rows.map(({ source, ent }) => {
+      const entityId = ent.entity_id || "";
+      const live = this._virtualLiveState({ entity_id: entityId });
+      const state = live?.state ?? ent.state ?? "-";
+      const name = this._virtualDisplayName(ent);
+      const sourceLabel = this._compactSourceLabel(source);
+      const sourceTitle = this._sourceTooltip(source);
+      return `<tr>
+        <td><button class="virtual-source-btn compact-source" data-source-uid="${this._escape(source.unique_id)}" title="${this._escape(sourceTitle)}">${this._escape(sourceLabel)}</button></td>
+        <td><button class="link-cell linked-entity-link virtual-name-link" data-entity-id="${this._escape(entityId)}" ${entityId ? "" : "disabled"}>${this._escape(name)}</button><div class="muted entity-id-line" title="${this._escape(entityId || ent.unique_id || "")}">${this._escape(entityId || ent.unique_id || "nach Reload verfügbar")}</div></td>
+        <td>${this._virtualTypeBadge(ent)}</td>
+        <td>${this._virtualStateBadge(state, ent)}</td>
+        <td><code title="${this._escape(ent.on_value ?? "")}">${this._escape(ent.on_value ?? "")}</code></td>
+        <td><code title="${this._escape(ent.off_value ?? "")}">${this._escape(ent.off_value ?? "")}</code></td>
+        <td><code title="${this._escape(ent.else_state || "unavailable")}">${this._escape(ent.else_state || "unavailable")}</code></td>
+        <td>${this._virtualActionsHtml(source, ent, name, entityId)}</td>
+      </tr>`;
+    }).join("");
+    return `<div class="card virtual-overview">
+      <div class="virtual-overview-head"><div><div class="virtual-overview-title">Virtuelle Entitäten</div><div class="muted">Eigene Übersicht aller aus BACnet-Datenpunkten erzeugten virtuellen Home-Assistant-Entitäten.</div></div><div class="muted">${rows.length} verknüpfte Entität${rows.length === 1 ? "" : "en"}</div></div>
+      <div class="virtual-table-wrap"><table class="virtual-table"><thead><tr><th>Quelle</th><th>HA Entität</th><th>Typ</th><th>Zustand</th><th>ON</th><th>OFF</th><th>ELSE</th><th>Aktionen</th></tr></thead><tbody>${body}</tbody></table></div>
+    </div>`;
+  }
+
+  _selectedVirtualEntitiesHtml(p) {
+    const items = this._linkedEntities(p);
+    if (!items.length) return `<div class="muted" style="margin:8px 0;">Für diesen BACnet-Punkt ist noch keine virtuelle Entität angelegt.</div>`;
+    const rows = items.map((ent) => {
+      const entityId = ent.entity_id || "";
+      return `<tr>
+        <td><button class="link-cell linked-entity-link" data-entity-id="${this._escape(entityId)}" ${entityId ? "" : "disabled"}>${this._escape(ent.name || entityId || ent.unique_id)}</button><div class="muted">${this._escape(entityId || ent.unique_id || "nach Reload verfügbar")}</div></td>
+        <td><span class="linked-state">${this._escape(this._binaryStateLabel(ent.state, ent.device_class))}</span></td>
+        <td><code>${this._escape(ent.on_value ?? "")}</code></td>
+        <td><code>${this._escape(ent.off_value ?? "")}</code></td>
+      </tr>`;
+    }).join("");
+    return `<div style="overflow:auto; margin:8px 0 12px;"><table class="virtual-table"><thead><tr><th>Vorhandene virtuelle Entität</th><th>Zustand</th><th>ON</th><th>OFF</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
   _displayEntityName(p) {
     return p.entity_name || p.entity_original_name || p.object_name || p.object_key || p.entity_id || "-";
+  }
+
+  _linkedEntities(p) {
+    return Array.isArray(p?.linked_virtual_entities) ? p.linked_virtual_entities : [];
+  }
+
+  _linkedEntityLive(link) {
+    const entityId = link?.entity_id || "";
+    return entityId && this.hass?.states ? this.hass.states[entityId] : null;
+  }
+
+  _linkedEntityState(link) {
+    const live = this._linkedEntityLive(link);
+    return live?.state ?? link?.state ?? "-";
+  }
+
+  _linkedEntityName(link) {
+    const live = this._linkedEntityLive(link);
+    return live?.attributes?.friendly_name || link?.name || link?.friendly_name || link?.entity_name || link?.entity_id || link?.unique_id || "Virtuelle Entität";
+  }
+
+  _linkedEntityIcon(link) {
+    const dc = String(link?.device_class || "").toLowerCase();
+    const entityId = String(link?.entity_id || "").toLowerCase();
+    if (dc === "plug" || entityId.includes("plug") || entityId.includes("steckdose")) return "🔌";
+    if (dc === "light" || entityId.includes("licht")) return "💡";
+    if (dc === "running") return "▶";
+    if (dc === "power") return "⚡";
+    return "🔗";
+  }
+
+  _linkedEntitiesHtml(p) {
+    const links = this._linkedEntities(p);
+    if (!links.length) return "";
+    return `<div class="linked-entities"><span class="virtual-badge" title="${links.length} virtuelle Entität${links.length === 1 ? "" : "en"}">🔗 ${links.length}</span>${links.map((link) => {
+      const entityId = link.entity_id || "";
+      const label = this._linkedEntityName(link);
+      const icon = this._linkedEntityIcon(link);
+      const state = this._linkedEntityState(link);
+      const disabled = entityId ? "" : " disabled";
+      const title = entityId ? `${label} · ${entityId} · HA Dialog öffnen` : "Nach dem Neuladen der Integration verfügbar";
+      return `<button class="linked-entity-link" data-entity-id="${this._escape(entityId)}" title="${this._escape(title)}"${disabled}>↳ <span class="linked-icon">${this._escape(icon)}</span> <span class="linked-name">${this._escape(label)}</span> <span class="linked-state">${this._escape(this._binaryStateLabel(state, link.device_class))}</span></button>`;
+    }).join("")}</div>`;
   }
 
   _openMoreInfo(entityId) {
@@ -1046,6 +1631,19 @@ class BepacomExplorerPanel extends HTMLElement {
 
 
 
+  _tableColgroupHtml() {
+    return `<colgroup>
+      <col class="select-col-col">
+      <col class="object-col-col">
+      <col class="entity-col-col">
+      <col class="value-col-col">
+      <col class="unit-col-col">
+      <col class="override-col-col">
+      <col class="write-profile-col-col">
+      <col class="runtime-col-col">
+    </colgroup>`;
+  }
+
   _tableHeaderHtml() {
     const cols = [
       ["object_key", "Objekt", "object-col"],
@@ -1053,8 +1651,8 @@ class BepacomExplorerPanel extends HTMLElement {
       ["present_value", "Wert", ""],
       ["unit", "Einheit", ""],
       ["override", "Override", ""],
-      ["mode", "Modus", ""],
-      ["runtime", "Laufzeit", ""],
+      ["write_profile", "Schreiben", "write-profile-head"],
+      ["runtime", "", "runtime-head"],
     ];
     return `<th class="select-col"><input id="selectVisible" type="checkbox" title="Sichtbare auswählen"></th>` + cols.map(([key, label, cls]) => {
       const marker = this._sortKey === key ? (this._sortDir === "asc" ? " ▲" : " ▼") : "";
@@ -1067,9 +1665,9 @@ class BepacomExplorerPanel extends HTMLElement {
     const dir = this._sortDir === "desc" ? -1 : 1;
     const val = (p) => {
       if (key === "entity") return this._displayEntityName(p);
-      if (key === "unit") return p.ha_unit || p.bacnet_unit || "";
+      if (key === "unit") return this._displayUnit(p);
       if (key === "override") return p.override_active ? 1 : 0;
-      if (key === "mode") return p.update_mode || "";
+      if (key === "write_profile") return p.write_profile === "glt_set_as" ? "glt" : "direct";
       if (key === "runtime") return p.last_update || "";
       return p[key] ?? "";
     };
@@ -1087,6 +1685,11 @@ class BepacomExplorerPanel extends HTMLElement {
     this._setSetting("bepacom_sort_key", this._sortKey);
     this._setSetting("bepacom_sort_dir", this._sortDir);
     this._updateListDom();
+  }
+
+  _displayUnit(p) {
+    if (this._triStateCurrent(p?.override_unit) === "__none__") return "-";
+    return p?.ha_unit || p?.bacnet_unit || "-";
   }
 
   _inlineUnitOptions(p) {
@@ -1140,7 +1743,7 @@ class BepacomExplorerPanel extends HTMLElement {
     const items = this._displayItems();
     if (!items.length) return "";
 
-    const viewport = this._tableViewport();
+    const viewport = this._tableViewport(items);
     const totalHeight = items.length * this._rowHeight;
     const start = Math.max(0, Math.min(items.length, viewport.start));
     const end = Math.max(start, Math.min(items.length, viewport.end));
@@ -1162,11 +1765,11 @@ class BepacomExplorerPanel extends HTMLElement {
         <tr class="${selected?.unique_id === p.unique_id ? "selected" : ""} ${this._valueChangeClass(p.unique_id)}" data-uid="${this._escape(p.unique_id)}">
           <td class="select-col"><input class="row-select" type="checkbox" data-uid="${this._escape(p.unique_id)}" ${this._selectedIds.has(p.unique_id) ? "checked" : ""}></td>
           <td data-col="object"><div class="object-main"><span class="type-icon ${this._escape(this._typeClass(p.object_type))}" title="${this._escape(p.object_type || "")}">${this._objectIcon(p.object_type)}</span><div><div class="name">${this._escape(p.object_key)}</div><div class="muted">Device ${this._escape(p.device_id)}</div></div></div></td>
-          <td data-col="entity"><button class="link-cell entity-link" data-entity-id="${this._escape(p.entity_id || "")}">${this._escape(this._displayEntityName(p))}</button></td>
+          <td data-col="entity"><div class="entity-stack"><button class="link-cell entity-link" data-entity-id="${this._escape(p.entity_id || "")}">${this._escape(this._displayEntityName(p))}</button>${this._linkedEntitiesHtml(p)}</div></td>
           <td data-col="value"><button class="link-cell value-link" data-entity-id="${this._escape(p.entity_id || "")}">${this._escape(this._value(p.present_value))}</button></td>
-          <td data-col="unit"><div class="unit-stack"><select class="inline-select inline-unit" data-uid="${this._escape(p.unique_id)}">${this._inlineUnitOptions(p)}</select><span class="pill">HA: ${this._escape(p.ha_unit || "-")}</span></div></td>
+          <td data-col="unit"><div class="unit-stack"><span class="unit-display">${this._escape(this._displayUnit(p))}</span></div></td>
           <td data-col="override">${p.override_active ? '<span class="pill ok">Override</span>' : '<span class="pill">Standard</span>'}</td>
-          <td data-col="mode"><select class="inline-select inline-mode" data-uid="${this._escape(p.unique_id)}">${this._inlineModeOptions(p)}</select></td>
+          <td data-col="write-profile" class="write-profile-cell">${this._writeProfileDot(p)}</td>
           <td data-col="status">${this._runtimeLabel(p)}</td>
         </tr>
       `);
@@ -1174,6 +1777,13 @@ class BepacomExplorerPanel extends HTMLElement {
 
     if (bottomHeight) rows.push(`<tr class="virtual-spacer"><td colspan="8" style="height:${bottomHeight}px"></td></tr>`);
     return rows.join("");
+  }
+
+  _writeProfileDot(p) {
+    const viaGlt = p?.write_profile === "glt_set_as";
+    const label = viaGlt ? "Über GLT schreiben" : "Direkt schreiben";
+    const cls = viaGlt ? "glt" : "direct";
+    return `<span class="write-profile-dot ${cls}" title="${label}" aria-label="${label}"></span>`;
   }
 
   _displayItems() {
@@ -1199,11 +1809,11 @@ class BepacomExplorerPanel extends HTMLElement {
     return items;
   }
 
-  _tableViewport() {
+  _tableViewport(items = null) {
     const wrap = this.shadowRoot?.getElementById("tableWrap");
     const scrollTop = wrap ? wrap.scrollTop : this._lastTableScrollTop || 0;
     const height = wrap ? wrap.clientHeight : 700;
-    const items = this._displayItems();
+    items = items || this._displayItems();
     const start = Math.max(0, Math.floor(scrollTop / this._rowHeight) - this._overscan);
     const visible = Math.ceil(height / this._rowHeight) + this._overscan * 2;
     return { start, end: Math.min(items.length, start + visible) };
@@ -1280,7 +1890,7 @@ class BepacomExplorerPanel extends HTMLElement {
     return `
       <div class="bulkbar card">
         <b>${count} ausgewählt</b>
-        <label>Modus <select id="bulkUpdateMode"><option value="">Nicht ändern</option><option value="subscribe">Push / Subscribe</option><option value="polling">Polling</option><option value="disabled">Deaktiviert</option></select></label>
+        <label>Modus <select id="bulkUpdateMode"><option value="">Nicht ändern</option><option value="subscribe">🔵 Push / Subscribe</option><option value="polling">Polling</option><option value="disabled">Deaktiviert</option></select></label>
         <label>Einheit <select id="bulkUnit"><option value="">Nicht ändern</option><option value="__auto__">Automatisch</option><option value="__none__">Keine Einheit</option><option value="%">%</option><option value="°C">°C</option><option value="W">W</option><option value="kW">kW</option><option value="min">min</option><option value="s">s</option></select></label>
         <label>Device Class <select id="bulkDeviceClass"><option value="">Nicht ändern</option><option value="__auto__">Automatisch</option><option value="__none__">Keine</option><option value="temperature">Temperatur</option><option value="power">Leistung</option><option value="duration">Dauer</option></select></label>
         <label>State Class <select id="bulkStateClass"><option value="">Nicht ändern</option><option value="__auto__">Automatisch</option><option value="__none__">Keine</option><option value="measurement">measurement</option><option value="total">total</option><option value="total_increasing">total_increasing</option></select></label>
@@ -1359,9 +1969,42 @@ class BepacomExplorerPanel extends HTMLElement {
     };
   }
 
+  _scrollSelectedIntoView() {
+    if (!this._selected) return;
+    const row = this.shadowRoot?.querySelector(`tr[data-uid="${CSS.escape(this._selected.unique_id)}"]`);
+    if (!row) return;
+    row.scrollIntoView({ block: "center", behavior: "smooth" });
+    row.classList.add("source-jump-highlight");
+    window.setTimeout(() => row.classList.remove("source-jump-highlight"), 2200);
+  }
+
   _bindEvents() {
     this._bindDashboardToggle();
     this._bindDetailToggles();
+    this.shadowRoot.querySelectorAll("[data-side-tab]").forEach((button) => {
+      button.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        this._rememberSideScroll();
+        this._sideTab = button.getAttribute("data-side-tab") || "inspector";
+        this._setSetting("bepacom_side_tab", this._sideTab);
+        this._render();
+      });
+    });
+    this.shadowRoot.getElementById("createVirtualForSelected")?.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      this._sideTab = "inspector";
+      this._setSetting("bepacom_side_tab", this._sideTab);
+      this._render();
+      setTimeout(() => this.shadowRoot?.getElementById("virtualBinaryName")?.focus(), 0);
+    });
+    this.shadowRoot.querySelectorAll("[data-view-tab]").forEach((button) => {
+      button.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        this._activeView = button.getAttribute("data-view-tab") || "explorer";
+        this._setSetting("bepacom_active_view", this._activeView);
+        this._render();
+      });
+    });
     this.shadowRoot.getElementById("refresh")?.addEventListener("click", () => this._loadPoints());
     this.shadowRoot.getElementById("toggleDetails")?.addEventListener("click", () => {
       this._detailsVisible = !this._detailsVisible;
@@ -1374,6 +2017,16 @@ class BepacomExplorerPanel extends HTMLElement {
     this.shadowRoot.getElementById("writeValueBtn")?.addEventListener("click", () => this._writeSelected());
     this.shadowRoot.getElementById("reloadIntegration")?.addEventListener("click", () => this._reloadIntegration());
     this.shadowRoot.getElementById("search")?.addEventListener("input", (ev) => this._setFilter("search", ev.target.value));
+    this.shadowRoot.getElementById("virtualSearch")?.addEventListener("input", (ev) => {
+      this._virtualSearch = ev.target.value || "";
+      this._setSetting("bepacom_virtual_search", this._virtualSearch);
+      this._render();
+    });
+    this.shadowRoot.getElementById("clearVirtualSearch")?.addEventListener("click", () => {
+      this._virtualSearch = "";
+      this._setSetting("bepacom_virtual_search", "");
+      this._render();
+    });
     this.shadowRoot.getElementById("device")?.addEventListener("change", (ev) => this._setFilter("device_id", ev.target.value));
     this.shadowRoot.getElementById("type")?.addEventListener("change", (ev) => this._setFilter("object_type", ev.target.value));
     this.shadowRoot.getElementById("groupBy")?.addEventListener("change", (ev) => { this._groupBy = ev.target.value || "none"; this._setSetting("bepacom_group_by", this._groupBy); this._visibleStart = 0; this._render(); });
@@ -1388,9 +2041,10 @@ class BepacomExplorerPanel extends HTMLElement {
     const resetButton = this.shadowRoot.getElementById("resetOverride");
     saveButton?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
     resetButton?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
+    this.shadowRoot.getElementById("applyObjectAssistant")?.addEventListener("click", () => this._applyObjectAssistantSuggestion());
     this.shadowRoot.querySelectorAll(".side input, .side select, .side textarea").forEach((el) => {
-      el.addEventListener("input", () => { this._editorDirty = true; });
-      el.addEventListener("change", () => { this._editorDirty = true; });
+      el.addEventListener("input", () => { this._editorDirty = true; if (el.id && el.id.startsWith("virtualBinary")) this._refreshVirtualRulePreview(); });
+      el.addEventListener("change", () => { this._editorDirty = true; if (el.id && el.id.startsWith("virtualBinary")) this._refreshVirtualRulePreview(); });
       el.addEventListener("keydown", (ev) => {
         ev.stopPropagation();
         if (ev.key === "Enter" && (el.id === "editEntityName" || el.id === "editEntityId")) {
@@ -1415,6 +2069,12 @@ class BepacomExplorerPanel extends HTMLElement {
         this._scrollFrame = window.requestAnimationFrame(() => { this._scrollFrame = null; this._updateListDom(); });
       };
     }
+    const sideBody = this.shadowRoot.querySelector(".side-body");
+    if (sideBody) {
+      sideBody.onscroll = () => {
+        this._sideScrollPositions.set(this._sideScrollKey(), sideBody.scrollTop);
+      };
+    }
     this._bindRowEvents();
   }
 
@@ -1433,17 +2093,49 @@ class BepacomExplorerPanel extends HTMLElement {
     this.shadowRoot.querySelectorAll(".group-toggle").forEach((button) => {
       button.addEventListener("click", (ev) => { ev.preventDefault(); ev.stopPropagation(); this._toggleGroup(button.getAttribute("data-group")); });
     });
-    this.shadowRoot.querySelectorAll(".inline-unit").forEach((select) => {
-      select.addEventListener("click", (ev) => ev.stopPropagation());
-      select.addEventListener("change", (ev) => { ev.stopPropagation(); this._saveInline(select.getAttribute("data-uid"), "unit", select.value); });
+    this.shadowRoot.querySelectorAll(".virtual-source-btn").forEach((button) => {
+      button.addEventListener("click", (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        const point = this._points.find((p) => p.unique_id === button.dataset.sourceUid);
+        if (point) {
+          this._activeView = "explorer";
+          this._sideTab = "inspector";
+          this._detailsVisible = true;
+          this._setSetting("bepacom_active_view", this._activeView);
+          this._setSetting("bepacom_side_tab", this._sideTab);
+          this._setSetting("bepacom_details_visible", "1");
+          this._selectPoint(point);
+          setTimeout(() => this._scrollSelectedIntoView(), 0);
+        }
+      });
     });
-    this.shadowRoot.querySelectorAll(".inline-mode").forEach((select) => {
-      select.addEventListener("click", (ev) => ev.stopPropagation());
-      select.addEventListener("change", (ev) => { ev.stopPropagation(); this._saveInline(select.getAttribute("data-uid"), "mode", select.value); });
+    this.shadowRoot.querySelectorAll(".virtual-edit-btn").forEach((button) => {
+      button.addEventListener("click", (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        this._editVirtualEntity(button.dataset.sourceUid, button.dataset.virtualUid, false);
+      });
+    });
+    this.shadowRoot.querySelectorAll(".virtual-duplicate-btn").forEach((button) => {
+      button.addEventListener("click", (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        this._editVirtualEntity(button.dataset.sourceUid, button.dataset.virtualUid, true);
+      });
+    });
+    this.shadowRoot.querySelectorAll(".virtual-delete-btn").forEach((button) => {
+      button.addEventListener("click", (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        this._deleteVirtualEntity(button.dataset.sourceUid, button.dataset.virtualUid, button.dataset.virtualName || "");
+      });
+    });
+    this.shadowRoot.querySelectorAll(".linked-entity-link").forEach((button) => {
+      button.addEventListener("click", (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        this._openMoreInfo(button.dataset.entityId);
+      });
     });
     this.shadowRoot.querySelectorAll("tr[data-uid]").forEach((row) => {
       row.onclick = (ev) => {
-        const moreInfoTarget = ev.target?.closest?.(".entity-link, .value-link");
+        const moreInfoTarget = ev.target?.closest?.(".entity-link, .value-link, .linked-entity-link");
         if (moreInfoTarget) {
           ev.preventDefault();
           ev.stopPropagation();
@@ -1455,7 +2147,7 @@ class BepacomExplorerPanel extends HTMLElement {
         if (point) this._selectPoint(point);
       };
       row.ondblclick = (ev) => {
-        if (ev.target?.closest?.("input, select, button, .entity-link, .value-link")) return;
+        if (ev.target?.closest?.("input, select, button, .entity-link, .value-link, .linked-entity-link, .linked-entity-link")) return;
         ev.preventDefault();
         ev.stopPropagation();
         const uid = row.getAttribute("data-uid");
@@ -1479,6 +2171,132 @@ class BepacomExplorerPanel extends HTMLElement {
     return all.concat(types.map((t) => `<option value="${this._escape(t)}" ${this._filters.object_type === t ? "selected" : ""}>${this._escape(t)}</option>`)).join("");
   }
 
+
+  _virtualRuleNormalize(value) {
+    return String(value ?? "").trim().replace(/^['\"]|['\"]$/g, "").toLowerCase();
+  }
+
+  _virtualRuleNumber(value) {
+    if (value === null || value === undefined) return null;
+    const raw = String(value).trim().replace(/^['\"]|['\"]$/g, "").replace(",", ".");
+    if (!raw) return null;
+    const num = Number(raw);
+    return Number.isFinite(num) ? num : null;
+  }
+
+  _virtualRuleEqual(value, expr) {
+    const a = this._virtualRuleNumber(value);
+    const b = this._virtualRuleNumber(expr);
+    if (a !== null && b !== null) return a === b;
+    return this._virtualRuleNormalize(value) === this._virtualRuleNormalize(expr);
+  }
+
+  _virtualRuleAdvancedMatches(value, expression) {
+    let expr = String(expression || "").trim();
+    if (!expr) return null;
+    expr = expr.replaceAll("&&", " && ").replaceAll("||", " || ");
+
+    // Safe mini evaluator for live preview only. Backend remains authoritative.
+    // Allowed characters/operators: value, numbers, quotes, (), + - * / % & | ^,
+    // comparisons and && / || / !. Anything else disables the preview result.
+    if (!/^[a-zA-Z0-9_\s()<>!=&|^+*\/%.,'"-]+$/.test(expr)) return null;
+
+    const valueNum = this._virtualRuleNumber(value);
+    const preparedValue = valueNum !== null ? String(valueNum) : JSON.stringify(this._virtualRuleNormalize(value));
+    let jsExpr = expr
+      .replace(/\bvalue\b/g, preparedValue)
+      .replace(/([^=!])=([^=])/g, "$1==$2");
+
+    try {
+      // eslint-disable-next-line no-new-func
+      return !!Function(`"use strict"; return (${jsExpr});`)();
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  _virtualRuleMatches(value, condition) {
+    const raw = String(condition ?? "").trim();
+    if (!raw) return false;
+
+    if (raw.includes("value") || raw.includes("&&") || raw.includes("||")) {
+      const advanced = this._virtualRuleAdvancedMatches(value, raw);
+      if (advanced !== null) return advanced;
+    }
+
+    if (raw.includes(",")) {
+      return raw.split(",").some((part) => this._virtualRuleMatches(value, part.trim()));
+    }
+
+    const valueNum = this._virtualRuleNumber(value);
+    const ops = [">=", "<=", "!=", "==", ">", "<"];
+    for (const op of ops) {
+      if (!raw.startsWith(op)) continue;
+      const rhs = raw.slice(op.length).trim();
+      const rhsNum = this._virtualRuleNumber(rhs);
+      if (valueNum !== null && rhsNum !== null) {
+        if (op === ">=") return valueNum >= rhsNum;
+        if (op === "<=") return valueNum <= rhsNum;
+        if (op === "!=") return valueNum !== rhsNum;
+        if (op === "==") return valueNum === rhsNum;
+        if (op === ">") return valueNum > rhsNum;
+        if (op === "<") return valueNum < rhsNum;
+      }
+      if (op === "!=") return !this._virtualRuleEqual(value, rhs);
+      if (op === "==") return this._virtualRuleEqual(value, rhs);
+      return false;
+    }
+
+    const dashIndex = raw.slice(1).indexOf("-");
+    if (dashIndex >= 0) {
+      const splitAt = dashIndex + 1;
+      const left = raw.slice(0, splitAt).trim();
+      const right = raw.slice(splitAt + 1).trim();
+      const leftNum = this._virtualRuleNumber(left);
+      const rightNum = this._virtualRuleNumber(right);
+      if (valueNum !== null && leftNum !== null && rightNum !== null) {
+        const low = Math.min(leftNum, rightNum);
+        const high = Math.max(leftNum, rightNum);
+        return valueNum >= low && valueNum <= high;
+      }
+    }
+
+    return this._virtualRuleEqual(value, raw);
+  }
+
+  _virtualRulePreviewHtml(p) {
+    const onEl = this.shadowRoot?.getElementById("virtualBinaryOnValue");
+    const offEl = this.shadowRoot?.getElementById("virtualBinaryOffValue");
+    const elseEl = this.shadowRoot?.getElementById("virtualBinaryElseState");
+    const sourceValue = p?.present_value;
+    const onRule = onEl ? onEl.value : (p?.virtual_binary?.on_value ?? "2");
+    const offRule = offEl ? offEl.value : (p?.virtual_binary?.off_value ?? "1");
+    const elseState = elseEl ? elseEl.value : (p?.virtual_binary?.else_state || "unavailable");
+
+    let result = "unavailable";
+    let cls = "unav";
+    if (this._virtualRuleMatches(sourceValue, onRule)) {
+      result = "ON";
+      cls = "on";
+    } else if (this._virtualRuleMatches(sourceValue, offRule)) {
+      result = "OFF";
+      cls = "off";
+    } else if (String(elseState || "unavailable").toLowerCase() === "off") {
+      result = "OFF";
+      cls = "off";
+    }
+
+    return `<div class="rule-preview">
+      <div><span class="muted">Aktueller BACnet-Wert</span><strong>${this._escape(this._value(sourceValue))}</strong></div>
+      <div><span class="muted">Regelergebnis</span><strong class="rule-result ${cls}">${this._escape(result)}</strong></div>
+    </div>`;
+  }
+
+  _refreshVirtualRulePreview() {
+    const box = this.shadowRoot?.getElementById("virtualRulePreview");
+    if (box && this._selected) box.innerHTML = this._virtualRulePreviewHtml(this._selected);
+  }
+
   _detailSection(id, title, content) {
     const key = `bepacom_section_${id}_open`;
     let open = false;
@@ -1499,6 +2317,114 @@ class BepacomExplorerPanel extends HTMLElement {
         } catch (_) {}
       });
     });
+  }
+
+
+  _normalizeSearch(value) {
+    return String(value || "")
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/ä/g, "ae")
+      .replace(/ö/g, "oe")
+      .replace(/ü/g, "ue")
+      .replace(/ß/g, "ss")
+      .trim();
+  }
+
+  _slugify(value) {
+    return String(value || "")
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+  }
+
+  _objectAssistantHtml(p) {
+    const rec = p?.object_assistant;
+    if (!rec || rec.kind !== "virtual_binary") return "";
+    return `<div class="assistant-card">
+      <div class="assistant-title">Objekt-Assistent: ${this._escape(rec.title || "Vorschlag")}</div>
+      <div class="muted">${this._escape(rec.reason || "")}</div>
+      <div class="assistant-grid">
+        <span>Name</span><strong>${this._escape(rec.name || "-")}</strong>
+        <span>Device Class</span><strong>${this._escape(rec.device_class || "-")}</strong>
+        <span>EIN wenn</span><code>${this._escape(rec.on_value || "")}</code>
+        <span>AUS wenn</span><code>${this._escape(rec.off_value || "")}</code>
+      </div>
+      <button id="applyObjectAssistant" class="secondary" type="button">Vorschlag übernehmen</button>
+    </div>`;
+  }
+
+  _applyObjectAssistantSuggestion() {
+    const rec = this._selected?.object_assistant;
+    if (!rec || rec.kind !== "virtual_binary") return;
+    const setValue = (id, value) => {
+      const el = this.shadowRoot?.getElementById(id);
+      if (!el) return;
+      if (el.type === "checkbox") el.checked = !!value;
+      else el.value = value ?? "";
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+    setValue("virtualBinaryEnabled", true);
+    setValue("virtualBinaryName", rec.name || this._selected?.object_name || "");
+    setValue("virtualBinaryUniqueId", rec.unique_id || `bacnet_binary_${this._slugify(this._selected?.object_name || this._selected?.object_key || this._selected?.unique_id)}`);
+    setValue("virtualBinaryDeviceClass", rec.device_class || "");
+    setValue("virtualBinaryOnValue", rec.on_value || "2");
+    setValue("virtualBinaryOffValue", rec.off_value || "1");
+    setValue("virtualBinaryElseState", rec.else_state || "unavailable");
+    this._editorDirty = true;
+    this._refreshVirtualRulePreview();
+    this._message = "Objekt-Assistent: Vorschlag übernommen. Zum Anwenden bitte Speichern klicken.";
+    this._updateHeaderDom();
+  }
+
+
+  _sidePanelHtml(selected) {
+    const count = this._allVirtualEntities().length;
+    const tab = (id, label) => `<button class="side-tab ${this._sideTab === id ? "active" : ""}" data-side-tab="${id}" type="button">${label}</button>`;
+    const body = this._sideTab === "virtual" ? this._sideVirtualHtml(selected) : (selected ? this._detailHtml(selected) : `<div class="side-section-head"><h2>Point Inspector</h2><div class="muted">Wähle links ein Objekt aus.</div></div>`);
+    return `<div class="side-tabs">${tab("inspector", "Point Inspector")}${tab("virtual", `Virtuelle Entitäten${count ? ` (${count})` : ""}`)}</div><div class="side-body">${body}</div>`;
+  }
+
+  _pointSummaryHtml(p) {
+    const value = this._value(p.present_value);
+    const unit = this._displayUnit(p);
+    return `<div class="point-summary">
+      <div>
+        <div class="point-summary-title">${this._escape(this._displayEntityName(p))}</div>
+        <div class="point-summary-sub">${this._escape(p.object_key || p.unique_id || "-")} · Device ${this._escape(p.device_id || "-")}</div>
+      </div>
+      <div class="point-summary-value">
+        <strong>${this._escape(value)}</strong>
+        <span class="point-summary-unit">${this._escape(unit || "-")}</span>
+      </div>
+      <div class="point-summary-meta">
+        ${this._modeChipHtml(p)}
+        ${p.override_active ? '<span class="pill ok">Override</span>' : '<span class="pill">Standard</span>'}
+        ${p.writable ? '<span class="pill warn">Schreibbar</span>' : ""}
+      </div>
+    </div>`;
+  }
+
+  _sideVirtualHtml(selected) {
+    if (selected) {
+      const linkedCount = this._linkedEntities(selected).length;
+      return `<div class="side-section-head"><h2>Virtuelle Entitäten</h2>
+        <div class="selected-source-box">
+          <div><strong>Quelle:</strong> ${this._escape(selected.object_key || selected.unique_id || "-")}</div>
+          <div class="muted">${this._escape(selected.object_name || "")}</div>
+          <div class="muted">${linkedCount} verknüpfte virtuelle Entität${linkedCount === 1 ? "" : "en"}</div>
+        </div></div>
+        ${this._selectedVirtualEntitiesHtml(selected)}
+        <div class="actions"><button id="createVirtualForSelected" type="button">+ Neue virtuelle Entität</button></div>
+        <div class="muted" style="margin-top:8px;">Neue virtuelle Entitäten werden im Reiter „Point Inspector“ unter „Konfiguration der Entität“ angelegt. Du kannst für denselben BACnet-Datenpunkt mehrere virtuelle Entitäten erzeugen, indem du jeweils eine eigene Unique ID verwendest.</div>
+        <h3>Alle virtuellen Entitäten</h3>
+        ${this._virtualEntitiesOverviewHtml(false)}`;
+    }
+    return `<div class="side-section-head"><h2>Virtuelle Entitäten</h2><div class="muted">Alle verknüpften virtuellen Entitäten.</div></div>${this._virtualEntitiesOverviewHtml(false)}<div class="muted" style="margin-top:8px;">Wähle links einen BACnet-Datenpunkt aus, um für diese Quelle neue virtuelle Entitäten anzulegen.</div>`;
   }
 
   _detailHtml(p) {
@@ -1530,6 +2456,39 @@ class BepacomExplorerPanel extends HTMLElement {
       ["Value Changes", p.value_changes ?? inspector.value_changes ?? "-"],
     ];
 
+    const vb = p.virtual_binary || {};
+    const vbEnabled = !!p.virtual_binary;
+    const vbName = vb.name || "";
+    const vbUniqueId = vb.unique_id || `${p.unique_id}_binary`;
+    const vbDeviceClass = vb.device_class || "plug";
+    const vbOn = vb.on_value ?? "2";
+    const vbOff = vb.off_value ?? "1";
+    const vbElse = vb.else_state || "unavailable";
+
+    const isAnalogValue = String(p.object_type || "").toLowerCase().replace(/[^a-z]/g, "") === "analogvalue";
+    const writeProfile = p.write_profile === "glt_set_as" ? "glt_set_as" : "direct";
+    const numberSettings = isAnalogValue ? `
+      <h3 style="margin-top:14px;">Stellbereich</h3>
+      <div class="muted" style="margin-bottom:8px;">Grenzen und Schrittweite der Home-Assistant-Number sowie die BACnet-Schreibpriorität für direktes Schreiben.</div>
+      <div class="edit-grid">
+        <div><label>Mindestwert</label><input id="editNumberMin" type="number" step="any" value="${this._escape(p.number_min ?? -1000000)}"></div>
+        <div><label>Höchstwert</label><input id="editNumberMax" type="number" step="any" value="${this._escape(p.number_max ?? 1000000)}"></div>
+        <div><label>Schrittweite</label><input id="editNumberStep" type="number" min="0.000001" step="any" value="${this._escape(p.number_step ?? 0.01)}"></div>
+        <div><label>BACnet-Priorität</label><input id="editWritePriority" type="number" min="1" max="16" step="1" value="${this._escape(p.write_priority ?? 8)}"></div>
+      </div>
+      <h3 style="margin-top:14px;">Schreibprofil</h3>
+      <div class="muted" style="margin-bottom:8px;">Beim GLT/SET/AS-Profil wird das binaryValue mit derselben Objekt-ID verwendet. Alle Schreib- und Freigabevorgänge erfolgen fest auf BACnet-Priorität 8.</div>
+      <div class="edit-grid">
+        <div><label>Profil</label><select id="editWriteProfile">
+          <option value="direct" ${writeProfile === "direct" ? "selected" : ""}>Direkt schreiben</option>
+          <option value="glt_set_as" ${writeProfile === "glt_set_as" ? "selected" : ""}>GLT → Wert setzen → AS</option>
+        </select></div>
+        <div><label>Wartezeit nach GLT aktivieren (ms)</label><input id="editGltDelayMs" type="number" min="0" max="60000" step="1" value="${this._escape(p.glt_delay_ms ?? 1200)}"></div>
+        <div><label>Wartezeit nach Wert schreiben (ms)</label><input id="editAsDelayMs" type="number" min="0" max="60000" step="1" value="${this._escape(p.as_delay_ms ?? 1200)}"></div>
+        <div><label>Wartezeit vor Freigabe (ms)</label><input id="editReleaseDelayMs" type="number" min="0" max="60000" step="1" value="${this._escape(p.release_delay_ms ?? 200)}"></div>
+        <div><label>Priorität 8 anschließend freigeben</label><div class="check"><input id="editReleasePriority" type="checkbox" ${p.release_priority !== false ? "checked" : ""}> analogValue und binaryValue freigeben</div></div>
+      </div>` : "";
+
     const editContent = `
       <div class="edit-grid">
         <div><label>HA Entity ID</label><input id="editEntityId" value="${this._escape(p.entity_id || "")}" placeholder="z.B. sensor.rollostellung_eg_speis"></div>
@@ -1539,6 +2498,29 @@ class BepacomExplorerPanel extends HTMLElement {
         <div><label>State Class</label><select id="editStateClass">${this._stateClassOptions(p)}</select></div>
         <div><label>Aktualisierungsmodus</label><select id="editUpdateMode">${this._updateModeOptions(p)}</select></div>
       </div>
+      ${numberSettings}
+      <h3 style="margin-top:14px;">Virtuelle Entität</h3>
+      <div class="muted" style="margin-bottom:8px;">Erzeugt zusätzlich eine neue Binary-Sensor-Entität aus diesem Rohwert. Die vorhandene BACnet-Entität bleibt bestehen. Für mehrere virtuelle Entitäten einfach eine andere Unique ID verwenden und erneut speichern.</div>
+      ${this._selectedVirtualEntitiesHtml(p)}
+      <div class="rule-help">
+        <strong>Regel-Hilfe:</strong>
+        <code>2</code> bedeutet <code>value == 2</code>, <code>&gt;2</code>, <code>&gt;=2</code>, <code>&lt;5</code>, <code>&lt;=10</code>, <code>!=0</code>, <code>1,2,5</code>, <code>2-5</code>, <code>active</code>, <code>inactive</code>, <code>alarm,fault</code>, <code>value &gt; 10 &amp;&amp; value &lt; 20</code>, <code>value == 2 || value == 5</code>, <code>(value &amp; 4096) != 0</code>, <code>((value - 1) &amp; 4) != 0</code>
+      </div>
+      ${this._objectAssistantHtml(p)}
+      <div class="edit-grid">
+        <div><label>Virtuellen Binary Sensor erzeugen</label><div class="check"><input id="virtualBinaryEnabled" type="checkbox" ${vbEnabled ? "checked" : ""}> aktiv</div></div>
+        <div><label>Name</label><input id="virtualBinaryName" value="${this._escape(vbName)}" placeholder="z.B. Steckdose Wohnen/Terrasse"></div>
+        <div><label>Unique ID</label><input id="virtualBinaryUniqueId" value="${this._escape(vbUniqueId)}" placeholder="z.B. bacnet_plug_wohnen_terrasse"></div>
+        <div><label>Device Class</label><select id="virtualBinaryDeviceClass">${this._binaryDeviceClassOptions(vbDeviceClass)}</select></div>
+        <div><label>EIN wenn</label><input id="virtualBinaryOnValue" value="${this._escape(vbOn)}" placeholder="z.B. 2, &gt;2, active oder alarm,fault"></div>
+        <div><label>AUS wenn</label><input id="virtualBinaryOffValue" value="${this._escape(vbOff)}" placeholder="z.B. 1, &lt;=2 oder inactive"></div>
+        <div><label>Sonst</label><select id="virtualBinaryElseState">
+          <option value="unavailable" ${vbElse === "unavailable" ? "selected" : ""}>unavailable</option>
+          <option value="off" ${vbElse === "off" ? "selected" : ""}>off</option>
+          <option value="unknown" ${vbElse === "unknown" ? "selected" : ""}>unknown</option>
+        </select></div>
+      </div>
+      <div id="virtualRulePreview">${this._virtualRulePreviewHtml(p)}</div>
       <div class="actions">
         <button id="saveOverride" ${this._saving ? "disabled" : ""}>Speichern${this._saving ? " …" : ""}</button>
         <button id="resetOverride" class="secondary" ${this._saving ? "disabled" : ""}>Override zurücksetzen</button>
@@ -1551,6 +2533,7 @@ class BepacomExplorerPanel extends HTMLElement {
     return `
       <h2>${this._escape(p.object_key)}</h2>
       <div class="muted">${this._escape(p.object_name || "-")}</div>
+      ${this._pointSummaryHtml(p)}
       ${this._detailSection("config", "Konfiguration der Entität", editContent)}
       <h3>BACnet Write</h3>
       ${this._writeHtml(p)}
@@ -1579,6 +2562,20 @@ class BepacomExplorerPanel extends HTMLElement {
     return this._options(values, current);
   }
 
+  _binaryDeviceClassOptions(current) {
+    return this._options([
+      ["", "Keine"], ["battery", "Batterie"], ["battery_charging", "Batterie lädt"],
+      ["carbon_monoxide", "Kohlenmonoxid"], ["cold", "Kälte"], ["connectivity", "Verbindung"],
+      ["door", "Tür"], ["garage_door", "Garagentor"], ["gas", "Gas"], ["heat", "Hitze"],
+      ["light", "Licht"], ["lock", "Schloss"], ["moisture", "Feuchtigkeit"], ["motion", "Bewegung"],
+      ["moving", "Bewegung / Stillstand"], ["occupancy", "Belegung"], ["opening", "Öffnung"],
+      ["plug", "Steckdose / Plug"], ["power", "Strom"], ["presence", "Anwesenheit"],
+      ["problem", "Problem"], ["running", "Läuft"], ["safety", "Sicherheit"],
+      ["smoke", "Rauch"], ["sound", "Geräusch"], ["tamper", "Manipulation"],
+      ["update", "Update"], ["vibration", "Vibration"], ["window", "Fenster"],
+    ], current || "");
+  }
+
   _deviceClassOptions(p) {
     const current = this._triStateCurrent(p.override_device_class);
     return this._options([
@@ -1600,7 +2597,7 @@ class BepacomExplorerPanel extends HTMLElement {
     const current = p.update_mode || (p.enabled === false ? "disabled" : (p.subscribe === true ? "subscribe" : "disabled"));
     return this._options([
       ["disabled", "Deaktiviert / keine Aktualisierung"],
-      ["subscribe", "Push / Subscribe"],
+      ["subscribe", "🔵 Push / Subscribe"],
       ["polling", "Polling"],
     ], current);
   }
@@ -1617,6 +2614,11 @@ class BepacomExplorerPanel extends HTMLElement {
     return `<span class="pill ${cls}">${this._escape(label)}</span>`;
   }
 
+  _modeChipHtml(p) {
+    const mode = p.update_mode === "subscribe" ? "push" : (p.update_mode === "polling" ? "polling" : "off");
+    return `<span class="mode-chip ${mode}">${this._escape(this._plainModeLabel(p))}</span>`;
+  }
+
   _plainModeLabel(p) {
     if (p.update_mode === "subscribe") return "Push / Subscribe";
     if (p.update_mode === "polling") return "Polling";
@@ -1624,10 +2626,11 @@ class BepacomExplorerPanel extends HTMLElement {
   }
 
   _runtimeLabel(p) {
-    if (p.update_mode === "disabled") return '<span class="bad">aus</span>';
-    if (p.subscribed === true) return '<span class="ok">Push aktiv</span>';
-    if (p.fallback_polling === true || p.update_mode === "polling") return '<span class="warn">Polling</span>';
-    return '<span class="muted">wartet</span>';
+    const dot = (cls, label) => `<span class="runtime-dot ${cls}" title="${this._escape(label)}" aria-label="${this._escape(label)}"></span>`;
+    if (p.update_mode === "disabled") return dot("runtime-off", "Aus");
+    if (p.subscribed === true) return dot("runtime-push", "Push aktiv");
+    if (p.fallback_polling === true || p.update_mode === "polling") return dot("runtime-poll", "Polling aktiv");
+    return dot("runtime-wait", "Wartet");
   }
 
   _value(value) {
