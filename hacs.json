@@ -1,6 +1,6 @@
 {
-  "name": "Bepacom BACnet/IP",
+  "name": "Bepacom",
   "content_in_root": false,
-  "hide_default_branch": false,
-  "homeassistant": "2025.1.0"
+  "homeassistant": "2026.6.0",
+  "render_readme": true
 }

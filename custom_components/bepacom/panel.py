@@ -29,7 +29,7 @@ PANEL_URL = "bepacom_explorer"
 PANEL_NAME = "bepacom-explorer-panel"
 PANEL_STATIC_URL = "/bepacom_static"
 PANEL_EVENT = "bepacom_explorer_updated"
-PANEL_VERSION = "0586"
+PANEL_VERSION = "0592"
 
 _WS_REGISTERED = "websocket_registered"
 _PANEL_REGISTERED = "panel_registered"
@@ -42,6 +42,7 @@ async def async_register_explorer_panel(hass: HomeAssistant, entry: ConfigEntry)
     if not hass.data[DOMAIN].get(_WS_REGISTERED):
         websocket_api.async_register_command(hass, websocket_explorer_entries)
         websocket_api.async_register_command(hass, websocket_explorer_points)
+        websocket_api.async_register_command(hass, websocket_explorer_points_runtime)
         websocket_api.async_register_command(hass, websocket_explorer_point)
         websocket_api.async_register_command(hass, websocket_explorer_save_override)
         websocket_api.async_register_command(hass, websocket_explorer_reset_override)
@@ -300,6 +301,12 @@ def _serialize_point(
     runtime = registry.runtime(obj)
     override = registry.overrides.get_override(obj)
     object_key = registry.object_key(obj)
+    normalized_object_type = BacnetObjectTypeMapper._normalize_object_type(
+        obj.object_type
+    )
+    default_glt_delay_ms = (
+        2000 if normalized_object_type == "multi_state_output" else 1200
+    )
 
     ha_unit = registry.overrides.get_unit_of_measurement(obj)
     ha_device_class = registry.overrides.get_device_class(obj)
@@ -332,7 +339,7 @@ def _serialize_point(
         "number_step": override.get("number_step", 0.01),
         "write_priority": override.get("write_priority", 8),
         "write_profile": override.get("write_profile", "direct"),
-        "glt_delay_ms": override.get("glt_delay_ms", 1200),
+        "glt_delay_ms": override.get("glt_delay_ms", default_glt_delay_ms),
         "as_delay_ms": override.get("as_delay_ms", 1200),
         "release_delay_ms": override.get("release_delay_ms", 200),
         "release_priority": override.get("release_priority", True),
@@ -359,8 +366,19 @@ def _serialize_point(
         "polling_updates": runtime.polling_updates,
         "value_changes": runtime.value_changes,
         "suppressed_updates": runtime.suppressed_updates,
-        "entity_id": entity_entry.entity_id if entity_entry else None,
-        "entity_name": getattr(entity_entry, "name", None) if entity_entry else None,
+        # Keep first-time registry edits visible before the integration reload has
+        # created the entity registry entry.  The stored values are applied to the
+        # real entry during setup.
+        "entity_id": (
+            entity_entry.entity_id
+            if entity_entry
+            else override.get("entity_id")
+        ),
+        "entity_name": (
+            getattr(entity_entry, "name", None)
+            if entity_entry
+            else override.get("entity_name")
+        ),
         "entity_original_name": getattr(entity_entry, "original_name", None) if entity_entry else None,
     }
 
@@ -478,6 +496,63 @@ async def websocket_explorer_points(
             "total": len(points),
             "limited": len(points) > limit,
             "diagnostics": {**coordinator.websocket_diagnostics, **registry.performance_summary()},
+        },
+    )
+
+
+def _serialize_point_runtime(obj: BacnetObject, registry) -> dict[str, Any]:
+    """Serialize only frequently changing point data for the Explorer."""
+    runtime = registry.runtime(obj)
+    return {
+        "unique_id": obj.unique_id,
+        "present_value": obj.present_value,
+        "subscribed": runtime.subscribed,
+        "fallback_polling": runtime.fallback_polling,
+        "last_update": runtime.last_update.isoformat() if runtime.last_update else None,
+        "last_update_source": runtime.last_update_source,
+        "push_updates": runtime.push_updates,
+        "polling_updates": runtime.polling_updates,
+        "value_changes": runtime.value_changes,
+        "suppressed_updates": runtime.suppressed_updates,
+    }
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "bepacom/explorer/points_runtime",
+        vol.Optional("entry_id"): str,
+        vol.Required("unique_ids"): vol.All([str], vol.Length(max=2000)),
+    }
+)
+@websocket_api.async_response
+async def websocket_explorer_points_runtime(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Return compact runtime updates for points already loaded by the UI."""
+    entry_id, data = _entry_data(hass, msg.get("entry_id"))
+    if data is None:
+        connection.send_error(msg["id"], "not_found", "No Bepacom config entry is loaded")
+        return
+
+    coordinator = data["coordinator"]
+    registry = coordinator.point_registry
+    points: list[dict[str, Any]] = []
+    for unique_id in msg["unique_ids"]:
+        obj = registry.get_by_unique_id(unique_id)
+        if obj is not None:
+            points.append(_serialize_point_runtime(obj, registry))
+
+    connection.send_result(
+        msg["id"],
+        {
+            "entry_id": entry_id,
+            "points": points,
+            "diagnostics": {
+                **coordinator.websocket_diagnostics,
+                **registry.performance_summary(),
+            },
         },
     )
 
@@ -616,6 +691,7 @@ async def websocket_explorer_write_property(
 
     priority = max(1, min(int(msg.get("priority", 8)), 16))
     value = _parse_write_value(msg.get("value"))
+    revision_before_write = registry.revision(obj)
 
     try:
         if object_type == "analog_value":
@@ -647,7 +723,7 @@ async def websocket_explorer_write_property(
                 value=value,
                 priority=priority,
             )
-        await coordinator.async_request_refresh()
+        coordinator.schedule_write_confirmation(obj, revision_before_write)
     except WriteError as err:
         connection.send_error(msg["id"], "write_failed", str(err))
         return
@@ -726,6 +802,17 @@ def _clean_override(data: dict[str, Any]) -> dict[str, Any]:
     _store_tri_state("device_class", "device_class")
     _store_tri_state("state_class", "state_class")
 
+    # An entity may not have a Home Assistant registry entry yet when a point is
+    # configured for the first time.  Persist non-empty registry customizations
+    # so setup can apply them as soon as the entity is created.
+    entity_name = _normalize_empty(data.get("entity_name"))
+    if entity_name is not None:
+        cleaned["entity_name"] = entity_name
+
+    entity_id = _normalize_empty(data.get("entity_id"))
+    if entity_id is not None:
+        cleaned["entity_id"] = entity_id
+
     for key in ("number_min", "number_max", "number_step"):
         value = data.get(key)
         if value not in (None, ""):
@@ -736,8 +823,9 @@ def _clean_override(data: dict[str, Any]) -> dict[str, Any]:
         cleaned["write_priority"] = int(priority)
 
     write_profile = str(data.get("write_profile", "direct")).strip().lower()
+    if write_profile in {"glt_set_as", "glt_set_stage"}:
+        cleaned["write_profile"] = write_profile
     if write_profile == "glt_set_as":
-        cleaned["write_profile"] = "glt_set_as"
         for key, default in (
             ("glt_delay_ms", 1200),
             ("as_delay_ms", 1200),
@@ -748,6 +836,11 @@ def _clean_override(data: dict[str, Any]) -> dict[str, Any]:
                 value = default
             cleaned[key] = max(0, min(int(value), 60_000))
         cleaned["release_priority"] = bool(data.get("release_priority", True))
+    elif write_profile == "glt_set_stage":
+        value = data.get("glt_delay_ms", 2000)
+        if value in (None, ""):
+            value = 2000
+        cleaned["glt_delay_ms"] = max(0, min(int(value), 60_000))
 
     update_mode = data.get("update_mode")
     if isinstance(update_mode, str):
@@ -893,7 +986,9 @@ async def _async_apply_override_options(
         vol.Optional("number_max"): vol.Any(str, int, float, None),
         vol.Optional("number_step"): vol.Any(str, int, float, None),
         vol.Optional("write_priority"): vol.Any(str, int, None),
-        vol.Optional("write_profile"): vol.Any("direct", "glt_set_as"),
+        vol.Optional("write_profile"): vol.Any(
+            "direct", "glt_set_as", "glt_set_stage"
+        ),
         vol.Optional("glt_delay_ms"): vol.Any(str, int, None),
         vol.Optional("as_delay_ms"): vol.Any(str, int, None),
         vol.Optional("release_delay_ms"): vol.Any(str, int, None),
@@ -944,12 +1039,20 @@ async def websocket_explorer_save_override(
             raise ValueError("Die Schrittweite muss größer als 0 sein")
         if not 1 <= write_priority <= 16:
             raise ValueError("Die BACnet-Priorität muss zwischen 1 und 16 liegen")
-        if str(msg.get("write_profile", "direct")).strip().lower() == "glt_set_as":
+        write_profile = str(msg.get("write_profile", "direct")).strip().lower()
+        if write_profile == "glt_set_as":
             for key in ("glt_delay_ms", "as_delay_ms", "release_delay_ms"):
                 raw_delay = msg.get(key)
                 delay = int(raw_delay) if raw_delay not in (None, "") else 0
                 if not 0 <= delay <= 60_000:
                     raise ValueError("Wartezeiten müssen zwischen 0 und 60000 ms liegen")
+        elif write_profile == "glt_set_stage":
+            raw_delay = msg.get("glt_delay_ms")
+            delay = int(raw_delay) if raw_delay not in (None, "") else 2000
+            if not 0 <= delay <= 60_000:
+                raise ValueError(
+                    "Die GLT-Wartezeit muss zwischen 0 und 60000 ms liegen"
+                )
     except (TypeError, ValueError) as err:
         connection.send_error(msg["id"], "invalid_number_settings", str(err))
         return

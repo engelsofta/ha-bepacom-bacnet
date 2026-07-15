@@ -70,7 +70,28 @@ class BacnetObject:
             self.object_name = data.get("objectName", self.object_name)
 
         if "presentValue" in data:
-            self.present_value = data.get("presentValue")
+            present_value = data.get("presentValue")
+            # Some gateway write acknowledgements and priority responses expose
+            # ``presentValue`` as an empty list/object.  After relinquishing a
+            # commandable object the same response can contain the effective
+            # BACnet fallback in ``relinquishDefault``.  Prefer that value so HA
+            # does not keep showing the previously commanded state forever.
+            if isinstance(present_value, (list, dict)) and not present_value:
+                relinquish_default = data.get(
+                    "relinquishDefault", data.get("relinquish_default")
+                )
+                if relinquish_default is not None and not (
+                    isinstance(relinquish_default, (list, dict))
+                    and not relinquish_default
+                ):
+                    self.present_value = relinquish_default
+                    self.raw = dict(data)
+                    self.raw["presentValue"] = relinquish_default
+                elif self.present_value is not None:
+                    self.raw = dict(data)
+                    self.raw["presentValue"] = self.present_value
+            else:
+                self.present_value = present_value
 
         # Keep the last known unit when incremental updates do not include units.
         if "units" in data:

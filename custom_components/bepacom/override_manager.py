@@ -123,9 +123,11 @@ class BepacomOverrideManager:
             return default
 
     def get_write_profile(self, obj: BacnetObject) -> str:
-        """Return the configured Analog Value write profile."""
+        """Return the configured write profile for writable value objects."""
         value = str(self.get_override(obj).get("write_profile", "direct")).strip().lower()
-        return "glt_set_as" if value == "glt_set_as" else "direct"
+        if value in {"glt_set_as", "glt_set_stage"}:
+            return value
+        return "direct"
 
     def get_write_delay_ms(
         self,

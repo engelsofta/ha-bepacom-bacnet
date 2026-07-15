@@ -8,7 +8,7 @@ from typing import Any
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -92,18 +92,13 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
         )
         self._attr_device_info = self._build_device_info()
         self._attr_extra_state_attributes = self._build_extra_state_attributes()
+        self._last_point_revision = coordinator.point_registry.revision(obj)
+        self._last_coordinator_success = coordinator.last_update_success
+        self._last_data_revision = coordinator.data_revision
 
     def _build_extra_state_attributes(self) -> dict[str, Any]:
-        """Build extra attributes for BACnet Point Inspector."""
-        attrs: dict[str, Any] = {
-            "device_id": self._obj.device_id,
-            "object_id": self._obj.object_id,
-            "object_type": self._obj.object_type,
-            "description": self._obj.description,
-            "writable": self._obj.writable,
-        }
-        attrs.update(self.coordinator.point_registry.inspector_attributes(self._obj))
-        return attrs
+        """Build the small stable attribute set exposed on the HA entity."""
+        return self.coordinator.point_registry.entity_attributes(self._obj)
 
     def _build_device_info(self) -> DeviceInfo:
         """Build Home Assistant device info for this BACnet device."""
@@ -113,6 +108,23 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
             obj=self._obj,
             device=device,
         )
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Write HA state only when this point or availability changed."""
+        revision = self.coordinator.point_registry.revision(self._obj)
+        success = self.coordinator.last_update_success
+        data_revision = self.coordinator.data_revision
+        if (
+            revision == self._last_point_revision
+            and success == self._last_coordinator_success
+            and data_revision == self._last_data_revision
+        ):
+            return
+        self._last_point_revision = revision
+        self._last_coordinator_success = success
+        self._last_data_revision = data_revision
+        self.async_write_ha_state()
 
     @property
     def native_value(self) -> float | None:
@@ -142,7 +154,6 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
                         self._attr_device_class = self._overrides.get_device_class(
                             self._obj
                         )
-                        self._attr_extra_state_attributes = self._build_extra_state_attributes()
 
         value = self._obj.present_value
 
@@ -177,6 +188,7 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
 
         try:
             client = self.coordinator.client
+            revision_before_write = self.coordinator.point_registry.revision(self._obj)
             if is_analog_value:
                 if self._overrides.get_write_profile(self._obj) == "glt_set_as":
                     await self._async_write_glt_set_as(value)
@@ -188,12 +200,15 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
                         priority=self._overrides.get_write_priority(self._obj),
                     )
             elif is_multistate_output:
-                await client.async_write_multistate_output(
-                    device_id=self._obj.device_id,
-                    object_id=self._obj.object_id,
-                    value=value,
-                    priority=self._overrides.get_write_priority(self._obj),
-                )
+                if self._overrides.get_write_profile(self._obj) == "glt_set_stage":
+                    await self._async_write_glt_set_stage(value)
+                else:
+                    await client.async_write_multistate_output(
+                        device_id=self._obj.device_id,
+                        object_id=self._obj.object_id,
+                        value=value,
+                        priority=self._overrides.get_write_priority(self._obj),
+                    )
             else:
                 await client.async_write_property(
                     device_id=self._obj.device_id,
@@ -202,8 +217,9 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
                     value=value,
                 )
             
-            # Force coordinator update to reflect new state
-            await self.coordinator.async_request_refresh()
+            self.coordinator.schedule_write_confirmation(
+                self._obj, revision_before_write
+            )
             
         except WriteError as err:
             _LOGGER.error(
@@ -297,6 +313,32 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
                 raise operation_error
             if cleanup_error is not None:
                 raise cleanup_error
+
+    async def _async_write_glt_set_stage(self, value: float) -> None:
+        """Switch to GLT control, then write a Multi-State Output stage."""
+        async with self._write_lock:
+            client = self.coordinator.client
+            device_id = self._obj.device_id
+            object_id = self._obj.object_id
+            priority = 8
+
+            await client.async_write_binary_value(
+                device_id=device_id,
+                object_id=object_id,
+                value=True,
+                priority=priority,
+            )
+            await asyncio.sleep(
+                self._overrides.get_write_delay_ms(
+                    self._obj, "glt_delay_ms", 2000
+                ) / 1000
+            )
+            await client.async_write_multistate_output(
+                device_id=device_id,
+                object_id=object_id,
+                value=value,
+                priority=priority,
+            )
 
     @property
     def available(self) -> bool:
