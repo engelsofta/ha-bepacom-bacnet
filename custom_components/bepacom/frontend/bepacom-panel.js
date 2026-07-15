@@ -28,7 +28,10 @@ class BepacomExplorerPanel extends HTMLElement {
     this._lastSeenValues = new Map();
     this._writing = false;
     this._statusOpen = this._loadStatusOpen();
-    this._groupBy = this._loadSetting("bepacom_group_by", "none");
+    // localStorage is scoped to the current origin. A fresh access path (for
+    // example the Cloudflare hostname instead of the local HA address) must
+    // therefore start with the same useful grouping on its first visit.
+    this._groupBy = this._loadSetting("bepacom_group_by", "type");
     this._sortKey = this._loadSetting("bepacom_sort_key", "object_key");
     this._sortDir = this._loadSetting("bepacom_sort_dir", "asc");
     // Rechte Detail-/Konfigurationsspalte standardmäßig ausblenden, damit die Tabelle mehr Platz hat.
@@ -40,6 +43,7 @@ class BepacomExplorerPanel extends HTMLElement {
     this._lastTableScrollTop = 0;
     this._recentValueChanges = new Map();
     this._recentValueDirections = new Map();
+    this._recentChangeTimer = null;
     this._keyboardHandler = (ev) => this._handleKeyboard(ev);
     this._rootClickHandler = (ev) => this._handleRootClick(ev);
     this._editorDirty = false;
@@ -49,32 +53,43 @@ class BepacomExplorerPanel extends HTMLElement {
     this._sideScrollPositions = new Map();
     this._activeView = this._loadSetting("bepacom_active_view", "explorer");
     this._sideTab = this._loadSetting("bepacom_side_tab", "inspector");
+    this._connected = false;
+    this._initialLoadStarted = false;
+    this._refreshGeneration = 0;
+    this._visibilityHandler = () => this._handleVisibilityChange();
   }
 
   _versionLabel() {
     const cfg = this.panel?.config || {};
-    const version = cfg.version || "0.5.11";
-    const build = cfg.frontend_build || "0586";
+    const version = cfg.version || "1.0.0";
+    const build = cfg.frontend_build || "0591";
     return `Version ${version} · Frontend-Build ${build}`;
   }
 
   connectedCallback() {
+    if (this._connected) return;
+    this._connected = true;
     this._entryId = this.panel?.config?.entry_id || null;
     window.addEventListener("keydown", this._keyboardHandler);
+    document.addEventListener("visibilitychange", this._visibilityHandler);
     this.shadowRoot.addEventListener("click", this._rootClickHandler);
-    this._loadEntries();
-    this._loadPoints(false);
-    this._refreshTimer = window.setInterval(() => this._refreshPointsInPlace(), 5000);
+    this._startInitialLoad();
+    this._startRefreshTimer();
     this._render();
   }
 
   disconnectedCallback() {
-    if (this._refreshTimer) {
-      window.clearInterval(this._refreshTimer);
-      this._refreshTimer = null;
-    }
+    this._connected = false;
+    this._stopRefreshTimer();
+    this._refreshGeneration += 1;
+    this._refreshInFlight = false;
     if (this._debounce) window.clearTimeout(this._debounce);
+    if (this._recentChangeTimer) {
+      window.clearTimeout(this._recentChangeTimer);
+      this._recentChangeTimer = null;
+    }
     window.removeEventListener("keydown", this._keyboardHandler);
+    document.removeEventListener("visibilitychange", this._visibilityHandler);
     this.shadowRoot.removeEventListener("click", this._rootClickHandler);
   }
 
@@ -82,10 +97,7 @@ class BepacomExplorerPanel extends HTMLElement {
     this._hass = hass;
     if (!this._hasHass) {
       this._hasHass = true;
-      this._loadEntries();
-      this._loadPoints(false);
-    } else {
-      this._updateListDom();
+      this._startInitialLoad();
     }
   }
 
@@ -93,10 +105,61 @@ class BepacomExplorerPanel extends HTMLElement {
     return this._hass;
   }
 
+  _startInitialLoad() {
+    if (!this._connected || !this.hass || this._initialLoadStarted) return;
+    this._initialLoadStarted = true;
+    this._loadEntries();
+    this._loadPoints(false);
+  }
+
+  _startRefreshTimer() {
+    if (!this._connected || document.hidden || this._refreshTimer) return;
+    this._refreshTimer = window.setInterval(() => this._refreshPointsInPlace(), 5000);
+  }
+
+  _stopRefreshTimer() {
+    if (!this._refreshTimer) return;
+    window.clearInterval(this._refreshTimer);
+    this._refreshTimer = null;
+  }
+
+  _handleVisibilityChange() {
+    if (document.hidden) {
+      this._stopRefreshTimer();
+      // Invalidate a request that may never settle while the browser suspends
+      // the tab. Its late result must not overwrite the fresh visible state.
+      this._refreshGeneration += 1;
+      this._refreshInFlight = false;
+      return;
+    }
+
+    if (!this._connected) return;
+    this._startRefreshTimer();
+    this._refreshPointsInPlace();
+  }
+
+  async _callWSWithTimeout(message, timeoutMs = 15000) {
+    if (!this.hass) throw new Error("Home Assistant ist nicht verbunden");
+    let timeoutId;
+    try {
+      return await Promise.race([
+        this.hass.callWS(message),
+        new Promise((_, reject) => {
+          timeoutId = window.setTimeout(
+            () => reject(new Error("Zeitüberschreitung bei der Verbindung zu Home Assistant")),
+            timeoutMs,
+          );
+        }),
+      ]);
+    } finally {
+      if (timeoutId) window.clearTimeout(timeoutId);
+    }
+  }
+
   async _loadEntries() {
     if (!this.hass) return;
     try {
-      const result = await this.hass.callWS({ type: "bepacom/explorer/entries" });
+      const result = await this._callWSWithTimeout({ type: "bepacom/explorer/entries" });
       this._entries = result.entries || [];
       if (!this._entryId && this._entries.length) this._entryId = this._entries[0].entry_id;
       this._render();
@@ -113,7 +176,7 @@ class BepacomExplorerPanel extends HTMLElement {
     if (showLoading) this._render();
 
     try {
-      const result = await this.hass.callWS({
+      const result = await this._callWSWithTimeout({
         type: "bepacom/explorer/points",
         entry_id: this._entryId || undefined,
         search: this._filters.search,
@@ -157,28 +220,28 @@ class BepacomExplorerPanel extends HTMLElement {
 
   async _refreshPointsInPlace() {
     if (!this.hass || !this._entryId) return;
+    if (document.hidden) return;
     if (this._refreshInFlight) return;
+    const generation = ++this._refreshGeneration;
     this._refreshInFlight = true;
     // Während der Benutzer tippt oder rechts editiert, darf der Auto-Refresh
     // die DOM-Struktur nicht neu aufbauen. Sonst verlieren Eingabefelder den
     // Fokus und die Tabelle springt nach oben.
     try {
-      const result = await this.hass.callWS({
-        type: "bepacom/explorer/points",
+      const result = await this._callWSWithTimeout({
+        type: "bepacom/explorer/points_runtime",
         entry_id: this._entryId || undefined,
-        search: this._filters.search,
-        object_type: this._filters.object_type,
-        only_overrides: this._filters.only_overrides,
-        only_subscribe: this._filters.only_subscribe,
-        include_disabled: true,
-        limit: 2000,
+        unique_ids: this._points.map((point) => point.unique_id),
       });
+      if (generation !== this._refreshGeneration || document.hidden || !this._connected) return;
       this._entryId = result.entry_id || this._entryId;
-      this._points = result.points || [];
+      const runtimeByUid = new Map((result.points || []).map((point) => [point.unique_id, point]));
+      this._points = this._points.map((point) => ({
+        ...point,
+        ...(runtimeByUid.get(point.unique_id) || {}),
+      }));
       this._diagnostics = result.diagnostics || {};
       this._trackClientHistory(this._points);
-      this._total = result.total || this._points.length;
-      this._limited = !!result.limited;
       if (this._selected) {
         const updated = this._points.find((p) => p.unique_id === this._selected.unique_id);
         if (updated) {
@@ -190,10 +253,11 @@ class BepacomExplorerPanel extends HTMLElement {
       }
       this._updateHeaderDom();
     } catch (err) {
+      if (generation !== this._refreshGeneration || document.hidden || !this._connected) return;
       this._error = this._formatError(err);
       this._render();
     } finally {
-      this._refreshInFlight = false;
+      if (generation === this._refreshGeneration) this._refreshInFlight = false;
     }
   }
 
@@ -263,11 +327,16 @@ class BepacomExplorerPanel extends HTMLElement {
     }
 
     if (!body) {
-      wrap.innerHTML = `<table>${this._tableColgroupHtml()}<thead><tr>${this._tableHeaderHtml()}</tr></thead><tbody id="pointsBody">${this._rowsHtml()}</tbody></table>`;
-    } else {
-      body.innerHTML = this._rowsHtml();
+      // Recreate the complete page once when transitioning from the empty
+      // state so header and toolbar bindings are installed exactly once.
+      this._render();
+      return;
     }
-    this._bindEvents();
+
+    body.innerHTML = this._rowsHtml();
+    // Only row nodes were replaced. Rebinding the whole page here would add
+    // duplicate listeners to long-lived toolbar controls on every refresh.
+    this._bindRowEvents();
     const nextWrap = this.shadowRoot?.getElementById("tableWrap");
     if (nextWrap) nextWrap.scrollTop = scrollTop;
   }
@@ -283,7 +352,7 @@ class BepacomExplorerPanel extends HTMLElement {
     // Wichtig: beim Tippen NICHT die komplette Seite neu rendern.
     // Sonst verliert das Suchfeld den Fokus. Nur die Datenzeilen werden
     // nachgeladen und gezielt aktualisiert.
-    this._debounce = window.setTimeout(() => this._refreshPointsInPlace(), 250);
+    this._debounce = window.setTimeout(() => this._loadPoints(false), 250);
   }
 
   _selectPoint(point) {
@@ -291,6 +360,8 @@ class BepacomExplorerPanel extends HTMLElement {
     this._manualReloadRunning = false;
     this._manualReloadUntil = 0;
     this._selected = point;
+    this._clientHistory.clear();
+    this._historyByUid.clear();
     this._message = null;
     // Wichtig: Der Verlauf ist je BACnet-Punkt getrennt. Beim Wechsel der
     // Auswahl darf kein alter Verlauf einer anderen Entität übernommen werden.
@@ -512,10 +583,7 @@ class BepacomExplorerPanel extends HTMLElement {
     this._saving = true;
     this._message = "Integration wird neu geladen …";
     this._error = null;
-    if (this._refreshTimer) {
-      window.clearInterval(this._refreshTimer);
-      this._refreshTimer = null;
-    }
+    this._stopRefreshTimer();
     this._render();
     try {
       const result = await this.hass.callWS({
@@ -538,9 +606,7 @@ class BepacomExplorerPanel extends HTMLElement {
         } catch (err) {
           this._error = this._formatError(err);
         } finally {
-          if (!this._refreshTimer) {
-            this._refreshTimer = window.setInterval(() => this._refreshPointsInPlace(), 5000);
-          }
+          this._startRefreshTimer();
           this._render();
         }
       }, 8000);
@@ -548,9 +614,7 @@ class BepacomExplorerPanel extends HTMLElement {
       this._manualReloadRunning = false;
       this._saving = false;
       this._error = this._formatError(err);
-      if (!this._refreshTimer) {
-        this._refreshTimer = window.setInterval(() => this._refreshPointsInPlace(), 5000);
-      }
+      this._startRefreshTimer();
       this._render();
     }
   }
@@ -591,9 +655,11 @@ class BepacomExplorerPanel extends HTMLElement {
       const changed = !hadPrevious || !this._sameValue(previous, value);
 
       if (changed) {
-        list.push({ ts: point.last_update || now, value, source: point.last_update_source || "refresh" });
-        if (list.length > 300) list.splice(0, list.length - 300);
-        this._clientHistory.set(uid, list);
+        if (this._selected?.unique_id === uid) {
+          list.push({ ts: point.last_update || now, value, source: point.last_update_source || "refresh" });
+          if (list.length > 50) list.splice(0, list.length - 50);
+          this._clientHistory.set(uid, list);
+        }
         this._lastSeenValues.set(uid, value);
         if (hadPrevious) {
           this._clientValueChangeCount.set(uid, (this._clientValueChangeCount.get(uid) || 0) + 1);
@@ -608,14 +674,26 @@ class BepacomExplorerPanel extends HTMLElement {
     if (!uid) return;
     this._recentValueChanges.set(uid, Date.now());
     this._recentValueDirections.set(uid, direction);
-    window.setTimeout(() => {
-      const ts = this._recentValueChanges.get(uid);
-      if (ts && Date.now() - ts >= 4000) {
+    this._scheduleRecentChangeCleanup();
+  }
+
+  _scheduleRecentChangeCleanup() {
+    if (this._recentChangeTimer || !this._recentValueChanges.size) return;
+    const nextExpiry = Math.min(...this._recentValueChanges.values()) + 4100;
+    const delay = Math.max(50, nextExpiry - Date.now());
+    this._recentChangeTimer = window.setTimeout(() => {
+      this._recentChangeTimer = null;
+      const now = Date.now();
+      let removed = false;
+      for (const [uid, ts] of this._recentValueChanges.entries()) {
+        if (now - ts < 4000) continue;
         this._recentValueChanges.delete(uid);
         this._recentValueDirections.delete(uid);
-        this._updateListDom();
+        removed = true;
       }
-    }, 4100);
+      if (removed && this._connected && !document.hidden) this._updateListDom();
+      this._scheduleRecentChangeCleanup();
+    }, delay);
   }
 
   _isRecentlyChanged(uid) {
@@ -759,6 +837,14 @@ class BepacomExplorerPanel extends HTMLElement {
       this._setHistoryForSelected(result.history || [], this._selected?.unique_id);
       this._message = "BACnet-Wert wurde geschrieben.";
       await this._refreshPointsInPlace();
+      // The backend confirms writes asynchronously after allowing a short COV
+      // window. Refresh once more so the displayed value follows that result
+      // without waiting for the normal Explorer interval.
+      window.setTimeout(() => {
+        if (this._connected && !document.hidden) {
+          void this._refreshPointsInPlace();
+        }
+      }, 1100);
     } catch (err) {
       this._error = this._formatError(err);
     } finally {
@@ -957,7 +1043,8 @@ class BepacomExplorerPanel extends HTMLElement {
       if (previous && this._sameValue(previous.value, item.value)) continue;
       compacted.push(item);
     }
-    this._historyByUid.set(uid, compacted.slice(-300));
+    this._historyByUid.clear();
+    this._historyByUid.set(uid, compacted.slice(-100));
   }
 
   _historyHtml() {
@@ -1667,7 +1754,7 @@ class BepacomExplorerPanel extends HTMLElement {
       if (key === "entity") return this._displayEntityName(p);
       if (key === "unit") return this._displayUnit(p);
       if (key === "override") return p.override_active ? 1 : 0;
-      if (key === "write_profile") return p.write_profile === "glt_set_as" ? "glt" : "direct";
+      if (key === "write_profile") return p.write_profile === "direct" ? "direct" : "glt";
       if (key === "runtime") return p.last_update || "";
       return p[key] ?? "";
     };
@@ -1728,9 +1815,7 @@ class BepacomExplorerPanel extends HTMLElement {
         if (this._selected?.unique_id === uniqueId) this._selected = { ...this._selected, ...updated };
       }
       this._message = "Inline-Änderung gespeichert. Wenn du fertig bist, bitte Integration neu laden.";
-      this._updateListDom();
-      this._updateHeaderDom();
-      this._updateDetailDom();
+      this._render();
     } catch (err) {
       this._error = this._formatError(err);
       this._render();
@@ -1780,7 +1865,7 @@ class BepacomExplorerPanel extends HTMLElement {
   }
 
   _writeProfileDot(p) {
-    const viaGlt = p?.write_profile === "glt_set_as";
+    const viaGlt = ["glt_set_as", "glt_set_stage"].includes(p?.write_profile);
     const label = viaGlt ? "Über GLT schreiben" : "Direkt schreiben";
     const cls = viaGlt ? "glt" : "direct";
     return `<span class="write-profile-dot ${cls}" title="${label}" aria-label="${label}"></span>`;
@@ -2465,9 +2550,19 @@ class BepacomExplorerPanel extends HTMLElement {
     const vbOff = vb.off_value ?? "1";
     const vbElse = vb.else_state || "unavailable";
 
-    const isAnalogValue = String(p.object_type || "").toLowerCase().replace(/[^a-z]/g, "") === "analogvalue";
-    const writeProfile = p.write_profile === "glt_set_as" ? "glt_set_as" : "direct";
-    const numberSettings = isAnalogValue ? `
+    const normalizedObjectType = String(p.object_type || "").toLowerCase().replace(/[^a-z]/g, "");
+    const isAnalogValue = normalizedObjectType === "analogvalue";
+    const isMultiStateOutput = normalizedObjectType === "multistateoutput";
+    const allowedWriteProfiles = isAnalogValue
+      ? ["direct", "glt_set_as"]
+      : isMultiStateOutput
+        ? ["direct", "glt_set_stage"]
+        : ["direct"];
+    const writeProfile = allowedWriteProfiles.includes(p.write_profile) ? p.write_profile : "direct";
+    const profileDescription = isMultiStateOutput
+      ? "Beim GLT/Stufe-Profil wird zuerst das binaryValue mit derselben Objekt-ID aktiviert und danach der Multi-State Output geschrieben. Beide Schreibvorgänge erfolgen fest auf BACnet-Priorität 8."
+      : "Beim GLT/SET/AS-Profil wird das binaryValue mit derselben Objekt-ID verwendet. Alle Schreib- und Freigabevorgänge erfolgen fest auf BACnet-Priorität 8.";
+    const numberSettings = (isAnalogValue || isMultiStateOutput) ? `
       <h3 style="margin-top:14px;">Stellbereich</h3>
       <div class="muted" style="margin-bottom:8px;">Grenzen und Schrittweite der Home-Assistant-Number sowie die BACnet-Schreibpriorität für direktes Schreiben.</div>
       <div class="edit-grid">
@@ -2477,16 +2572,19 @@ class BepacomExplorerPanel extends HTMLElement {
         <div><label>BACnet-Priorität</label><input id="editWritePriority" type="number" min="1" max="16" step="1" value="${this._escape(p.write_priority ?? 8)}"></div>
       </div>
       <h3 style="margin-top:14px;">Schreibprofil</h3>
-      <div class="muted" style="margin-bottom:8px;">Beim GLT/SET/AS-Profil wird das binaryValue mit derselben Objekt-ID verwendet. Alle Schreib- und Freigabevorgänge erfolgen fest auf BACnet-Priorität 8.</div>
+      <div class="muted" style="margin-bottom:8px;">${profileDescription}</div>
       <div class="edit-grid">
         <div><label>Profil</label><select id="editWriteProfile">
           <option value="direct" ${writeProfile === "direct" ? "selected" : ""}>Direkt schreiben</option>
-          <option value="glt_set_as" ${writeProfile === "glt_set_as" ? "selected" : ""}>GLT → Wert setzen → AS</option>
+          ${isAnalogValue ? `<option value="glt_set_as" ${writeProfile === "glt_set_as" ? "selected" : ""}>GLT → Wert setzen → AS</option>` : ""}
+          ${isMultiStateOutput ? `<option value="glt_set_stage" ${writeProfile === "glt_set_stage" ? "selected" : ""}>GLT → Stufe setzen</option>` : ""}
         </select></div>
-        <div><label>Wartezeit nach GLT aktivieren (ms)</label><input id="editGltDelayMs" type="number" min="0" max="60000" step="1" value="${this._escape(p.glt_delay_ms ?? 1200)}"></div>
-        <div><label>Wartezeit nach Wert schreiben (ms)</label><input id="editAsDelayMs" type="number" min="0" max="60000" step="1" value="${this._escape(p.as_delay_ms ?? 1200)}"></div>
-        <div><label>Wartezeit vor Freigabe (ms)</label><input id="editReleaseDelayMs" type="number" min="0" max="60000" step="1" value="${this._escape(p.release_delay_ms ?? 200)}"></div>
-        <div><label>Priorität 8 anschließend freigeben</label><div class="check"><input id="editReleasePriority" type="checkbox" ${p.release_priority !== false ? "checked" : ""}> analogValue und binaryValue freigeben</div></div>
+        <div><label>Wartezeit nach GLT aktivieren (ms)</label><input id="editGltDelayMs" type="number" min="0" max="60000" step="1" value="${this._escape(p.glt_delay_ms ?? (isMultiStateOutput ? 2000 : 1200))}"></div>
+        ${isAnalogValue ? `
+          <div><label>Wartezeit nach Wert schreiben (ms)</label><input id="editAsDelayMs" type="number" min="0" max="60000" step="1" value="${this._escape(p.as_delay_ms ?? 1200)}"></div>
+          <div><label>Wartezeit vor Freigabe (ms)</label><input id="editReleaseDelayMs" type="number" min="0" max="60000" step="1" value="${this._escape(p.release_delay_ms ?? 200)}"></div>
+          <div><label>Priorität 8 anschließend freigeben</label><div class="check"><input id="editReleasePriority" type="checkbox" ${p.release_priority !== false ? "checked" : ""}> analogValue und binaryValue freigeben</div></div>
+        ` : ""}
       </div>` : "";
 
     const editContent = `
