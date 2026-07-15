@@ -1,3 +1,4 @@
+
 # Bepacom BACnet/IP for Home Assistant
 
 ![Version](https://img.shields.io/badge/Version-1.0.0-blue)
@@ -5,6 +6,8 @@
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 
 The Bepacom integration connects BACnet/IP data points from a Bepacom gateway to Home Assistant. It automatically discovers supported BACnet objects, creates suitable Home Assistant entities, and updates them primarily through WebSocket/COV notifications. The integrated **BACnet Explorer** provides a central interface for managing, customizing, and diagnosing BACnet points.
+
+<img width="128" height="128" alt="logo" src="https://github.com/user-attachments/assets/f1b885eb-4fe1-41c7-be2a-5a2c988517e5" />
 
 > [!IMPORTANT]
 > This integration requires the add-on from **[Bepacom-Raalte/bepacom-HA-Addons](https://github.com/Bepacom-Raalte/bepacom-HA-Addons)**. The add-on provides the Bepacom HTTP and WebSocket API used by this integration. The integration will not work unless the add-on is installed, running, and reachable from Home Assistant.
