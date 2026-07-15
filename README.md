@@ -1,195 +1,195 @@
-# Bepacom BACnet/IP für Home Assistant
+# Bepacom BACnet/IP for Home Assistant
 
 ![Version](https://img.shields.io/badge/Version-1.0.0-blue)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.6.0%2B-41BDF5)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 
-Die Bepacom-Integration bindet BACnet/IP-Datenpunkte eines Bepacom-Gateways in Home Assistant ein. Sie erkennt unterstützte BACnet-Objekte automatisch, erstellt passende Home-Assistant-Entitäten und aktualisiert sie bevorzugt per WebSocket/COV. Über den integrierten **BACnet Explorer** lassen sich Datenpunkte verwalten, diagnostizieren und an die eigene Anlage anpassen.
+The Bepacom integration connects BACnet/IP data points from a Bepacom gateway to Home Assistant. It automatically discovers supported BACnet objects, creates suitable Home Assistant entities, and updates them primarily through WebSocket/COV notifications. The integrated **BACnet Explorer** provides a central interface for managing, customizing, and diagnosing BACnet points.
 
 > [!IMPORTANT]
-> Diese Integration benötigt zwingend das Add-on aus **[Bepacom-Raalte/bepacom-HA-Addons](https://github.com/Bepacom-Raalte/bepacom-HA-Addons)**. Das Add-on stellt die von der Integration verwendete Bepacom-HTTP- und WebSocket-Schnittstelle bereit. Ohne ein installiertes, gestartetes und erreichbares Add-on funktioniert die Integration nicht.
+> This integration requires the add-on from **[Bepacom-Raalte/bepacom-HA-Addons](https://github.com/Bepacom-Raalte/bepacom-HA-Addons)**. The add-on provides the Bepacom HTTP and WebSocket API used by this integration. The integration will not work unless the add-on is installed, running, and reachable from Home Assistant.
 
-## Funktionsumfang
+## Features
 
-- automatische Erkennung der vom Bepacom-Gateway bereitgestellten BACnet-Geräte und -Objekte
-- Einrichtung vollständig über die Home-Assistant-Oberfläche
-- stabile Entity-IDs nach dem Schema `bepacom_<device>_<objekttyp>_<objekt-id>`
-- automatische Zuordnung zu `sensor`, `binary_sensor`, `number` und `switch`
-- automatische Normalisierung verbreiteter BACnet-Einheiten
-- automatische Erkennung geeigneter Home-Assistant-Geräte- und Zustandsklassen
-- Push-Aktualisierung über WebSocket/COV
-- Fallback-Polling bei nicht verfügbaren oder fehlerhaften Subscriptions
-- Wiederverbindung, Heartbeat-Überwachung und Schutz vor Push-Duplikaten
-- direkte Schreibzugriffe auf Analog Value, Multi-State Output und Binary Value
-- konfigurierbare BACnet-Schreibpriorität
-- Freigabe von BACnet-Prioritätseinträgen
-- spezielle GLT-/AS-Schreibprofile
-- integrierter BACnet Explorer in der Home-Assistant-Seitenleiste
-- individuelle Anpassungen je BACnet-Datenpunkt
-- virtuelle Binary-Sensoren aus numerischen oder mehrstufigen BACnet-Werten
-- Diagnosezähler, Änderungsverlauf und Datenexport
-- Unterstützung mehrerer Bepacom-Verbindungen
+- automatic discovery of BACnet devices and objects exposed by the Bepacom gateway
+- configuration through the Home Assistant user interface
+- stable entity IDs using the format `bepacom_<device>_<object-type>_<object-id>`
+- automatic mapping to `sensor`, `binary_sensor`, `number`, and `switch` entities
+- normalization of common BACnet engineering units
+- automatic Home Assistant device-class and state-class detection
+- WebSocket/COV push updates
+- fallback polling when subscriptions are unavailable or fail
+- automatic reconnects, heartbeat monitoring, and duplicate push suppression
+- direct writes to Analog Value, Multi-State Output, and Binary Value objects
+- configurable BACnet write priority
+- services for releasing BACnet priority slots
+- dedicated GLT/AS write profiles
+- integrated BACnet Explorer in the Home Assistant sidebar
+- per-point entity overrides and runtime settings
+- virtual binary sensors derived from numeric or multi-state BACnet values
+- diagnostics, recent value history, and data export
+- support for multiple Bepacom connections
 
-## Voraussetzungen
+## Requirements
 
-- Home Assistant `2026.6.0` oder neuer
-- HACS für die empfohlene Installation als benutzerdefiniertes Repository
-- installiertes und laufendes **[Bepacom Home Assistant Add-on](https://github.com/Bepacom-Raalte/bepacom-HA-Addons)**
-- Netzwerkzugriff von Home Assistant auf die HTTP-/WebSocket-Schnittstelle des Add-ons
-- standardmäßig TCP-Port `8099`, sofern im Add-on nicht anders konfiguriert
+- Home Assistant `2026.6.0` or newer
+- HACS for the recommended custom-repository installation
+- the **[Bepacom Home Assistant Add-on](https://github.com/Bepacom-Raalte/bepacom-HA-Addons)** installed and running
+- network access from Home Assistant to the add-on's HTTP and WebSocket API
+- TCP port `8099` by default, unless configured differently in the add-on
 
-Die Integration selbst ist kein BACnet/IP-Stack. Kommunikation, BACnet-Erkennung und die Gateway-API werden vom Bepacom-Add-on bereitgestellt.
+The integration is not a standalone BACnet/IP stack. BACnet communication, discovery, and the gateway API are provided by the Bepacom add-on.
 
 ## Installation
 
-### 1. Bepacom-Add-on installieren
+### 1. Install the Bepacom add-on
 
-Installiere zuerst das Add-on aus dem Repository:
+Install the add-on from:
 
 **[github.com/Bepacom-Raalte/bepacom-HA-Addons](https://github.com/Bepacom-Raalte/bepacom-HA-Addons)**
 
-Konfiguriere und starte das Add-on. Prüfe anschließend, ob seine HTTP-Schnittstelle von Home Assistant erreichbar ist. Der Standardport der Integration ist `8099`.
+Configure and start the add-on. Verify that its HTTP API is reachable from Home Assistant. The integration uses port `8099` by default.
 
-### 2. Installation über HACS
+### 2. Install through HACS
 
-1. Öffne HACS in Home Assistant.
-2. Öffne den Bereich **Integrationen**.
-3. Öffne das Menü oben rechts und wähle **Benutzerdefinierte Repositories**.
-4. Trage die URL dieses GitHub-Repositories ein.
-5. Wähle als Kategorie **Integration**.
-6. Installiere **Bepacom**.
-7. Starte Home Assistant vollständig neu.
+1. Open HACS in Home Assistant.
+2. Open **Integrations**.
+3. Open the menu in the upper-right corner and select **Custom repositories**.
+4. Enter the URL of this GitHub repository.
+5. Select **Integration** as the category.
+6. Install **Bepacom**.
+7. Restart Home Assistant completely.
 
-### 3. Manuelle Installation
+### 3. Manual installation
 
-1. Kopiere den Ordner `custom_components/bepacom` in das Verzeichnis `custom_components` deiner Home-Assistant-Konfiguration.
-2. Die resultierende Struktur muss `config/custom_components/bepacom/manifest.json` enthalten.
-3. Starte Home Assistant vollständig neu.
+1. Copy the `custom_components/bepacom` directory into the `custom_components` directory of your Home Assistant configuration.
+2. The resulting path must contain `config/custom_components/bepacom/manifest.json`.
+3. Restart Home Assistant completely.
 
-## Einrichtung
+## Setup
 
-1. Öffne **Einstellungen → Geräte & Dienste**.
-2. Wähle **Integration hinzufügen**.
-3. Suche nach **Bepacom**.
-4. Trage Host/IP-Adresse und Port der Bepacom-Schnittstelle ein.
-5. Bestätige die Einrichtung.
+1. Open **Settings → Devices & services**.
+2. Select **Add integration**.
+3. Search for **Bepacom**.
+4. Enter the host/IP address and port of the Bepacom API.
+5. Confirm the setup.
 
-| Einstellung | Beschreibung | Standard |
+| Setting | Description | Default |
 |---|---|---:|
-| Host | IP-Adresse oder Hostname des Bepacom-Add-ons | – |
-| Port | Port der HTTP-/WebSocket-Schnittstelle | `8099` |
+| Host | IP address or hostname of the Bepacom add-on | – |
+| Port | Port of the HTTP/WebSocket API | `8099` |
 
-Nach dem ersten vollständigen Datenabruf erstellt die Integration Geräte und Entitäten. Zusätzlich erscheint der **BACnet Explorer** in der Home-Assistant-Seitenleiste.
+After the initial full BACnet inventory has been loaded, the integration creates devices and entities. The **BACnet Explorer** is also added to the Home Assistant sidebar.
 
-## Unterstützte BACnet-Objekte
+## Supported BACnet objects
 
-Die endgültige Zuordnung berücksichtigt Objekttyp, Schreibbarkeit und vorhandene Metadaten.
+The final entity mapping takes the BACnet object type, write capability, and available metadata into account.
 
-| BACnet-Objekttyp | Home-Assistant-Entität | Schreibbar |
+| BACnet object type | Home Assistant entity | Writable |
 |---|---|---|
-| Analog Input | Sensor | nein |
-| Analog Value | Number | ja |
-| Analog Output | Number | ja, wenn vom Gateway unterstützt |
-| Binary Input | Binary Sensor | nein |
-| Binary Value | Switch | ja |
-| Binary Output | Switch | ja, wenn vom Gateway unterstützt |
-| Multi-State Input | Sensor | nein |
-| Multi-State Output | Number | ja |
-| Temperature Sensor | Sensor | nein |
-| Humidity Sensor | Sensor | nein |
-| Pressure Sensor | Sensor | nein |
-| Loop | Sensor | abhängig von den Gateway-Metadaten |
+| Analog Input | Sensor | no |
+| Analog Value | Number | yes |
+| Analog Output | Number | when supported by the gateway |
+| Binary Input | Binary Sensor | no |
+| Binary Value | Switch | yes |
+| Binary Output | Switch | when supported by the gateway |
+| Multi-State Input | Sensor | no |
+| Multi-State Output | Number | yes |
+| Temperature Sensor | Sensor | no |
+| Humidity Sensor | Sensor | no |
+| Pressure Sensor | Sensor | no |
+| Loop | Sensor | depends on gateway metadata |
 
-Unbekannte interne oder proprietäre Objekttypen werden nicht automatisch als beliebige Sensoren angelegt. Schreibbare Inputs können abhängig von den Gateway-Metadaten als `number` erscheinen.
+Unknown internal or proprietary objects are not exposed as arbitrary Home Assistant sensors. Writable inputs may be represented as `number` entities when the gateway metadata marks them as writable.
 
 ## BACnet Explorer
 
-Der BACnet Explorer ist die zentrale Oberfläche für Verwaltung und Diagnose. Er bietet:
+The BACnet Explorer is the central management and diagnostics interface. It provides:
 
-- Suche und Filter nach Gerät, Objekttyp, Name, Beschreibung, Entity-ID und Zustand
-- Anzeige von BACnet-Pfad, Objekt-ID, aktuellem Wert und Metadaten
-- Aktivieren oder Deaktivieren einzelner Datenpunkte
-- Bearbeiten von Name und Entity-ID
-- Überschreiben von Einheit, Device Class und State Class
-- Einstellen von Minimum, Maximum und Schrittweite für Number-Entitäten
-- Auswahl zwischen Subscription und Polling
-- Einstellung des Polling-Intervalls
-- Auswahl der Schreibpriorität und des Schreibprofils
-- direktes Testschreiben auf unterstützte BACnet-Objekte
-- Anzeige verknüpfter Home-Assistant-Entitäten
-- Erstellen, Bearbeiten, Duplizieren und Löschen virtueller Binary-Sensoren
-- Laufzeitdiagnose für Push, Polling, Wertänderungen und unterdrückte Duplikate
-- Verlauf der letzten Wertänderungen
-- Export als JSON, CSV oder Excel-kompatible Datei
-- Bulk-Bearbeitung mehrerer BACnet-Punkte
+- search and filtering by device, object type, name, description, entity ID, and state
+- BACnet path, object ID, current value, and metadata inspection
+- enabling and disabling individual BACnet points
+- entity name and entity ID editing
+- unit, device-class, and state-class overrides
+- minimum, maximum, and step configuration for Number entities
+- subscription and polling selection
+- configurable polling intervals
+- write-priority and write-profile selection
+- direct test writes to supported BACnet objects
+- linked Home Assistant entity information
+- creation, editing, duplication, and deletion of virtual binary sensors
+- runtime diagnostics for push updates, polling, value changes, and suppressed duplicates
+- recent value-change history
+- JSON, CSV, and Excel-compatible export
+- bulk editing of multiple BACnet points
 
-Änderungen an Eigenschaften, die die Art einer Home-Assistant-Entität beeinflussen, werden nach einem Reload der Integration beziehungsweise einem Neustart vollständig wirksam.
+Changes that affect the Home Assistant entity type or registry metadata may require an integration reload or a Home Assistant restart before they become fully effective.
 
-## Aktualisierung und Datenfluss
+## Updates and data flow
 
 ### WebSocket/COV
 
-Die Integration verwendet bevorzugt die vom Gateway angebotenen WebSocket-Subscriptions. Nur tatsächliche Wertänderungen werden an die betroffene Home-Assistant-Entität weitergegeben. Identische Snapshot-Werte und Push-Duplikate werden frühzeitig herausgefiltert.
+The integration primarily uses the WebSocket subscriptions provided by the gateway. Only actual value changes are forwarded to the affected Home Assistant entity. Identical snapshot values and duplicate push messages are filtered before they create unnecessary Home Assistant state updates.
 
-### Fallback-Polling
+### Fallback polling
 
-Kann für einen Datenpunkt keine Subscription aufgebaut werden, aktiviert die Integration automatisch ein gezieltes Fallback-Polling. Das Standardintervall beträgt 30 Sekunden. Optional kann außerdem eine zyklische vollständige Aktualisierung aktiviert werden.
+If a subscription cannot be established for a BACnet point, the integration automatically enables targeted fallback polling. The default interval is 30 seconds. An optional periodic full refresh can also be enabled in the integration settings.
 
-### Verbindungsüberwachung
+### Connection monitoring
 
-Die WebSocket-Verbindung wird per Heartbeat überwacht. Bei einem Abbruch versucht die Integration mit begrenztem Backoff eine erneute Verbindung und Subscription. Diagnosezähler im Explorer helfen bei der Unterscheidung zwischen BACnet-Pushs, verarbeiteten Werten, unterdrückten Duplikaten und Polling-Aktualisierungen.
+WebSocket connections are monitored through a heartbeat timeout. When a connection is lost, the integration reconnects with a bounded backoff and restores its subscriptions. Diagnostics in the Explorer distinguish raw BACnet notifications, processed object updates, suppressed duplicates, callbacks, and polling updates.
 
-## Globale Optionen
+## Global options
 
-Unter **Einstellungen → Geräte & Dienste → Bepacom → Konfigurieren** stehen die globalen Laufzeitoptionen zur Verfügung:
+Open **Settings → Devices & services → Bepacom → Configure** to access the global runtime options:
 
-| Option | Funktion |
+| Option | Description |
 |---|---|
-| Zyklische Datenaktualisierung | aktiviert einen regelmäßigen vollständigen Datenabruf |
-| Snapshot-WebSocket-Modus | verarbeitet Gateways, die vollständige Snapshots statt einzelner Objektmeldungen senden |
-| Push-Werte protokollieren | schreibt empfangene Push-Werte zur Fehlersuche in das Log |
-| Heartbeat-Timeout | Zeit bis zur Erkennung einer inaktiven WebSocket-Verbindung |
+| Periodic data refresh | enables regular full BACnet database refreshes |
+| Snapshot WebSocket mode | supports gateways that send complete snapshots instead of individual object updates |
+| Log push values | logs received push values for troubleshooting |
+| Heartbeat timeout | controls when an inactive WebSocket connection is considered disconnected |
 
-Objektspezifische Einstellungen werden ausschließlich im BACnet Explorer vorgenommen.
+Object-specific settings are managed exclusively through the BACnet Explorer.
 
-## Schreiben von BACnet-Werten
+## Writing BACnet values
 
-### Direktes Schreiben
+### Direct writes
 
-Bei `direct` wird der gewünschte Wert direkt mit der für den Datenpunkt eingestellten BACnet-Priorität geschrieben. Die Voreinstellung ist Priorität `8`.
+The `direct` profile writes the requested value using the BACnet priority configured for that point. Priority `8` is used by default.
 
-Nach einem Schreibvorgang wartet die Integration kurz auf eine Push-Bestätigung. Bleibt sie aus, wird gezielt nur das geschriebene Objekt gelesen. Ein vollständiger Datenabruf dient ausschließlich als Rückfalllösung.
+After a write, the integration briefly waits for a push confirmation. If no confirmation arrives, it reads only the affected BACnet object. A full BACnet database refresh is used only as a final fallback.
 
-### Schreibprofil „GLT → Wert setzen → AS“
+### “GLT → set value → AS” write profile
 
-Dieses Profil ist für Analog Values vorgesehen, bei denen dieselbe Objekt-ID für GLT-/AS-Umschaltung und Sollwert verwendet wird:
+This profile is intended for Analog Value objects where the same object ID is used for GLT/AS control and the setpoint:
 
-1. zugehörigen Binary Value auf GLT setzen
-2. konfigurierbare Wartezeit abwarten
-3. Analog Value schreiben
-4. AS-Wartezeit abwarten
-5. Binary Value auf AS zurückstellen
-6. optional Priorität von Binary Value und Analog Value freigeben
+1. switch the associated Binary Value to GLT control
+2. wait for the configured GLT delay
+3. write the Analog Value
+4. wait for the configured AS delay
+5. switch the Binary Value back to AS control
+6. optionally release the Binary Value and Analog Value priority slots
 
-Die Rückkehr zu AS wird auch dann versucht, wenn der eigentliche Schreibvorgang fehlschlägt.
+The integration attempts to return control to AS even if the actual value write fails.
 
-### Schreibprofil „GLT → Stufe setzen“
+### “GLT → set stage” write profile
 
-Dieses Profil ist für Multi-State Outputs vorgesehen:
+This profile is intended for Multi-State Output objects:
 
-1. zugehörigen Binary Value auf GLT setzen
-2. konfigurierbare Wartezeit abwarten
-3. gewünschte Stufe auf den Multi-State Output schreiben
+1. switch the associated Binary Value to GLT control
+2. wait for the configured GLT delay
+3. write the requested stage to the Multi-State Output
 
-## BACnet-Prioritäten freigeben
+## Releasing BACnet priorities
 
-Die Integration stellt drei Home-Assistant-Aktionen bereit:
+The integration registers three Home Assistant actions:
 
 - `bepacom.release_analog_value_priority`
 - `bepacom.release_multistate_output_priority`
 - `bepacom.release_binary_value_priority`
 
-Beispiel für die Freigabe eines Binary Value auf Priorität 8:
+Example for releasing Binary Value priority 8:
 
 ```yaml
 action: bepacom.release_binary_value_priority
@@ -199,7 +199,7 @@ data:
   priority: 8
 ```
 
-Beispiel für einen Multi-State Output:
+Example for a Multi-State Output:
 
 ```yaml
 action: bepacom.release_multistate_output_priority
@@ -209,33 +209,33 @@ data:
   priority: 8
 ```
 
-Sind mehrere Bepacom-Verbindungen eingerichtet, muss zusätzlich `config_entry_id` angegeben werden.
+When multiple Bepacom connections are configured, `config_entry_id` must also be supplied.
 
-Beim Freigeben kann das Gateway einen leeren `presentValue` zusammen mit `relinquishDefault` liefern. Die Integration verwendet in diesem Fall den BACnet-Rückfallwert, damit Home Assistant nicht dauerhaft den zuvor geschriebenen Zustand anzeigt.
+After releasing a priority, some gateways return an empty `presentValue` together with `relinquishDefault`. In that case, the integration uses the BACnet fallback value so Home Assistant does not continue showing a stale commanded state.
 
-## Virtuelle Binary-Sensoren
+## Virtual binary sensors
 
-Aus einem BACnet-Sensor oder Multi-State Input können im Explorer virtuelle Binary-Sensoren erzeugt werden. Für jede virtuelle Entität lassen sich definieren:
+The Explorer can create virtual Binary Sensor entities from BACnet Sensor and Multi-State Input objects. Each virtual entity supports:
 
-- Name und Unique ID
-- Home-Assistant-Device-Class
-- Bedingung für `on`
-- Bedingung für `off`
-- Verhalten für alle übrigen Werte: `unknown` oder `unavailable`
+- a custom name and unique ID
+- a Home Assistant device class
+- a rule for the `on` state
+- a rule for the `off` state
+- an `unknown` or `unavailable` fallback state
 
-Unterstützt werden unter anderem:
+Supported rule formats include:
 
-- einzelne Werte, beispielsweise `2`
-- Textwerte wie `active` oder `inactive`
-- mehrere Alternativen, beispielsweise `alarm,fault`
-- Vergleiche wie `>2`, `<=10`, `==3` oder `!=0`
-- Bereiche
+- individual values, for example `2`
+- text values such as `active` or `inactive`
+- multiple alternatives, for example `alarm,fault`
+- comparisons such as `>2`, `<=10`, `==3`, or `!=0`
+- numeric ranges
 
-Die virtuellen Entitäten verwenden den Zustand des ausgewählten BACnet-Quellobjekts und werden gemeinsam mit diesem aktualisiert.
+Virtual entities follow the selected BACnet source object and are updated together with that source.
 
-## Entity-IDs und Migration
+## Entity IDs and migration
 
-Neue Entitäten erhalten stabile IDs, zum Beispiel:
+New entities receive stable IDs such as:
 
 ```text
 sensor.bepacom_1_analoginput_601
@@ -243,43 +243,43 @@ number.bepacom_1_multistateoutput_82476
 switch.bepacom_1_binaryvalue_82476
 ```
 
-Beim Start versucht die Integration, ältere automatisch erzeugte Entity-IDs auf dieses stabile Schema zu migrieren. Bereits manuell belegte Ziel-IDs werden nicht überschrieben; ein entsprechender Hinweis erscheint im Log.
+During startup, the integration attempts to migrate older generated entity IDs to this stable format. Existing entities that already occupy the target ID are never overwritten; a warning is written to the Home Assistant log instead.
 
 ## Performance
 
-Version 1.0.0 ist auf größere BACnet-Installationen ausgelegt:
+Version 1.0.0 is designed for larger BACnet installations:
 
-- unveränderte Push-Werte werden vor Home Assistant herausgefiltert
-- nur die tatsächlich betroffene Entität schreibt einen neuen HA-Zustand
-- der Explorer lädt zyklisch nur kompakte Laufzeitdaten
-- GUI-Aktualisierungen pausieren in inaktiven Browser-Tabs
-- Schreibbestätigungen lesen gezielt ein Objekt statt die gesamte BACnet-Datenbank
-- Historien sind begrenzt und werden im Browser nur für den ausgewählten Punkt geführt
-- fehlerhafte Schreibbestätigungen werden zu einem gemeinsamen vollständigen Fallback-Abruf zusammengefasst
+- unchanged push values are filtered before they reach Home Assistant
+- only the affected entity writes a new Home Assistant state
+- the Explorer periodically loads compact runtime data instead of complete object metadata
+- browser updates pause while the Explorer tab is hidden
+- write confirmation reads a single object instead of the complete BACnet database
+- history is bounded and browser-side history is kept only for the selected point
+- failed write confirmations are coalesced into a single full fallback refresh
 
-## Fehlerdiagnose
+## Troubleshooting
 
-### Integration kann nicht eingerichtet werden
+### The integration cannot be configured
 
-- prüfen, ob das Bepacom-Add-on läuft
-- Host und Port kontrollieren
-- Erreichbarkeit der Add-on-API aus dem Home-Assistant-Netz prüfen
-- Add-on- und Home-Assistant-Protokoll kontrollieren
+- verify that the Bepacom add-on is running
+- check the configured host and port
+- verify API reachability from the Home Assistant network
+- inspect both the add-on and Home Assistant logs
 
-### Entität aktualisiert sich nicht
+### An entity does not update
 
-- im BACnet Explorer den Subscription- und Polling-Status prüfen
-- kontrollieren, ob der BACnet-Punkt im Gateway einen neuen Wert liefert
-- bei Bedarf Push-Wert-Protokollierung vorübergehend aktivieren
-- auf Meldungen zu Subscription, Heartbeat oder Fallback-Polling achten
+- inspect its subscription and polling status in the BACnet Explorer
+- verify that the gateway reports a new BACnet value
+- temporarily enable push-value logging if necessary
+- check the log for subscription, heartbeat, or fallback-polling messages
 
-### Explorer zeigt nach einem Update die alte Version
+### The Explorer shows an old version after updating
 
-1. Home Assistant vollständig neu starten.
-2. Browser-Seite mit geleertem Cache neu laden.
-3. In der Explorer-Kopfzeile Version und Frontend-Build prüfen.
+1. Restart Home Assistant completely.
+2. Reload the browser page while bypassing or clearing the cache.
+3. Check the integration version and frontend build displayed in the Explorer header.
 
-### Debug-Protokollierung
+### Debug logging
 
 ```yaml
 logger:
@@ -288,34 +288,34 @@ logger:
     custom_components.bepacom: debug
 ```
 
-Debug-Protokollierung kann sehr viele Meldungen erzeugen und sollte nach der Fehlersuche wieder deaktiviert werden.
+Debug logging can produce a large number of messages. Disable it again after troubleshooting.
 
-## Aktualisierung
+## Updating
 
-1. Neue Version über HACS installieren oder den Integrationsordner manuell ersetzen.
-2. Home Assistant vollständig neu starten.
-3. Browser-Cache neu laden, falls der Explorer noch den vorherigen Frontend-Build zeigt.
-4. Nach größeren Updates die Bepacom-Integration einmal neu laden und die Diagnose im Explorer prüfen.
+1. Install the new version through HACS, or replace the integration directory manually.
+2. Restart Home Assistant completely.
+3. Clear or bypass the browser cache if the Explorer still shows the previous frontend build.
+4. After major updates, reload the Bepacom integration and review the Explorer diagnostics.
 
-Vor einem Update empfiehlt sich eine Sicherung der Home-Assistant-Konfiguration.
+A Home Assistant configuration backup is recommended before updating.
 
-## Datenschutz und Netzwerk
+## Privacy and network access
 
-Die Kommunikation erfolgt lokal zwischen Home Assistant und der konfigurierten Bepacom-Schnittstelle. Die Integration benötigt selbst keinen Cloud-Dienst. Ob das verwendete Add-on weitere Netzwerkverbindungen benötigt, ist dessen eigener Dokumentation zu entnehmen.
+Communication remains local between Home Assistant and the configured Bepacom API. The integration itself does not require a cloud service. Refer to the add-on documentation for any additional network requirements of the gateway service.
 
 ## Support
 
-Bei Problemen sollten folgende Informationen angegeben werden:
+When reporting a problem, please include:
 
-- Version der Integration und Frontend-Build
-- Home-Assistant-Version
-- Version und Konfiguration des Bepacom-Add-ons
-- betroffene BACnet Device-ID, Objektart und Objekt-ID
-- relevante Diagnosewerte aus dem BACnet Explorer
-- ein zeitlich begrenzter Debug-Logausschnitt rund um den Fehler
+- integration version and frontend build
+- Home Assistant version
+- Bepacom add-on version and relevant configuration
+- affected BACnet device ID, object type, and object ID
+- relevant BACnet Explorer diagnostics
+- a short debug-log excerpt covering the time of the problem
 
-Fehler und Funktionswünsche können über den Issue-Bereich des GitHub-Repositories gemeldet werden.
+Please use the GitHub repository's issue tracker for bug reports and feature requests.
 
-## Danksagung
+## Acknowledgements
 
-Die Integration setzt auf der Schnittstelle des Projekts **[Bepacom-Raalte/bepacom-HA-Addons](https://github.com/Bepacom-Raalte/bepacom-HA-Addons)** auf. Vielen Dank an die Beteiligten für die Bereitstellung der Home-Assistant-/BACnet-Gateway-Funktionalität.
+This integration relies on the API provided by **[Bepacom-Raalte/bepacom-HA-Addons](https://github.com/Bepacom-Raalte/bepacom-HA-Addons)**. Thank you to the project contributors for providing the Home Assistant/BACnet gateway functionality.
