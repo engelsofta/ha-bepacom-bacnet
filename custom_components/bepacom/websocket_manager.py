@@ -1039,7 +1039,29 @@ class BepacomWebSocketManager:
         is initialized.
         """
         key = (device_id, object_id)
-        value = self._comparable_value(self._payload_present_value(payload))
+        raw_value = self._payload_present_value(payload)
+
+        # Some gateway builds send subscription acknowledgements or priority-
+        # release responses as ``data: []`` (or as an empty object).  A complete
+        # release response can include the effective BACnet fallback value as
+        # relinquishDefault; dispatch that instead of retaining a stale state.
+        if isinstance(raw_value, (list, dict)) and not raw_value:
+            relinquish_default = payload.get(
+                "relinquishDefault", payload.get("relinquish_default")
+            )
+            if relinquish_default is None or (
+                isinstance(relinquish_default, (list, dict))
+                and not relinquish_default
+            ):
+                _LOGGER.debug(
+                    "Ignoring empty WebSocket value for %s/%s",
+                    device_id,
+                    object_id,
+                )
+                return False
+            raw_value = relinquish_default
+
+        value = self._comparable_value(raw_value)
 
         if key not in self._last_dispatched_values:
             self._last_dispatched_values[key] = value

@@ -9,7 +9,7 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -113,6 +113,9 @@ class BepacomSensor(CoordinatorEntity[BepacomCoordinator], SensorEntity):
         )
         self._attr_device_info = self._build_device_info()
         self._attr_extra_state_attributes = self._build_extra_state_attributes()
+        self._last_point_revision = coordinator.point_registry.revision(obj)
+        self._last_coordinator_success = coordinator.last_update_success
+        self._last_data_revision = coordinator.data_revision
 
     def _build_device_info(self) -> DeviceInfo:
         """Build Home Assistant device info for this BACnet device."""
@@ -122,6 +125,23 @@ class BepacomSensor(CoordinatorEntity[BepacomCoordinator], SensorEntity):
             obj=self._obj,
             device=device,
         )
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Write HA state only when this point or availability changed."""
+        revision = self.coordinator.point_registry.revision(self._obj)
+        success = self.coordinator.last_update_success
+        data_revision = self.coordinator.data_revision
+        if (
+            revision == self._last_point_revision
+            and success == self._last_coordinator_success
+            and data_revision == self._last_data_revision
+        ):
+            return
+        self._last_point_revision = revision
+        self._last_coordinator_success = success
+        self._last_data_revision = data_revision
+        self.async_write_ha_state()
 
     def _get_bacnet_attr(self, name: str, default: Any = None) -> Any:
         """Return a BACnet object attribute using snake_case or camelCase names."""
@@ -208,39 +228,8 @@ class BepacomSensor(CoordinatorEntity[BepacomCoordinator], SensorEntity):
         return words[:1].upper() + words[1:]
 
     def _build_extra_state_attributes(self) -> dict[str, Any]:
-        """Build extra attributes from BACnet metadata."""
-        attrs: dict[str, Any] = {
-            "device_id": self._obj.device_id,
-            "object_id": self._obj.object_id,
-            "object_type": self._obj.object_type,
-            "description": self._obj.description,
-            "writable": self._obj.writable,
-        }
-
-        attrs.update(self.coordinator.point_registry.inspector_attributes(self._obj))
-
-        optional_attrs = {
-            "bacnet_unit": self._get_bacnet_attr("units"),
-            "resolution": self._get_bacnet_attr("resolution"),
-            "out_of_service": self._get_bacnet_attr("out_of_service"),
-            "cov_increment": self._get_bacnet_attr("cov_increment"),
-        }
-
-        for key, value in optional_attrs.items():
-            if value is not None:
-                attrs[key] = value
-
-        reliability = self._get_bacnet_attr("reliability")
-        if reliability is not None:
-            attrs["reliability"] = self._format_reliability(reliability)
-
-        status_flags = self._get_bacnet_attr("status_flags")
-
-        if status_flags is not None:
-            normalized_flags = self._normalize_status_flags(status_flags)
-            attrs["status_flags"] = normalized_flags if normalized_flags else status_flags
-
-        return attrs
+        """Build the small stable attribute set exposed on the HA entity."""
+        return self.coordinator.point_registry.entity_attributes(self._obj)
 
     @staticmethod
     def _normalize_status_flags(status_flags: Any) -> dict[str, Any]:
@@ -319,9 +308,6 @@ class BepacomSensor(CoordinatorEntity[BepacomCoordinator], SensorEntity):
                         )
                         self._attr_state_class = self._overrides.get_state_class(
                             self._obj
-                        )
-                        self._attr_extra_state_attributes = (
-                            self._build_extra_state_attributes()
                         )
 
         value = self._obj.present_value

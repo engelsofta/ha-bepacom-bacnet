@@ -29,6 +29,7 @@ from .const import (
 )
 from .discovery import DiscoveryEngine
 from .exceptions import InvalidResponse
+from .models import BacnetObject
 from .override_manager import BepacomOverrideManager
 from .point_registry import BepacomPointRegistry
 from .websocket_manager import BepacomWebSocketManager
@@ -114,6 +115,9 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._last_subscription_summary: tuple[int, int] | None = None
         self._last_inventory_summary: tuple[int, int] | None = None
         self._pending_push_update_task: asyncio.Task[None] | None = None
+        self._write_confirmation_tasks: dict[str, asyncio.Task[None]] = {}
+        self._write_fallback_refresh_task: asyncio.Task[None] | None = None
+        self._data_revision = 0
 
     @property
     def websocket_diagnostics(self) -> dict[str, Any]:
@@ -130,6 +134,11 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             }
         )
         return diagnostics
+
+    @property
+    def data_revision(self) -> int:
+        """Return a revision that changes only after a full database refresh."""
+        return self._data_revision
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from the Bepacom gateway."""
@@ -201,6 +210,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._discovery_completed = True
 
             self.data = raw
+            self._data_revision += 1
 
 
             if (
@@ -257,6 +267,20 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 pass
             
             self._pending_push_update_task = None
+
+        confirmation_tasks = list(self._write_confirmation_tasks.values())
+        self._write_confirmation_tasks.clear()
+        for task in confirmation_tasks:
+            task.cancel()
+        if confirmation_tasks:
+            await asyncio.gather(*confirmation_tasks, return_exceptions=True)
+
+        if self._write_fallback_refresh_task is not None:
+            self._write_fallback_refresh_task.cancel()
+            await asyncio.gather(
+                self._write_fallback_refresh_task, return_exceptions=True
+            )
+            self._write_fallback_refresh_task = None
 
         self._fallback_objects.clear()
         self._fallback_invalid_responses.clear()
@@ -565,6 +589,8 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         device_id: str,
         object_id: str,
         payload: dict[str, Any],
+        *,
+        source: str = "push",
     ) -> bool:
         """Merge an object update into coordinator data."""
         device_key = f"device:{device_id}"
@@ -584,7 +610,80 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         device_data[object_id] = merged_data
         self._update_discovery_object(device_id, object_id, merged_data)
-        return self.point_registry.update_point(device_id, object_id, merged_data, source="push")
+        return self.point_registry.update_point(
+            device_id, object_id, merged_data, source=source
+        )
+
+    def schedule_write_confirmation(
+        self,
+        obj: BacnetObject,
+        revision_before_write: int,
+    ) -> None:
+        """Confirm a write without blocking the service or loading all objects."""
+        previous = self._write_confirmation_tasks.get(obj.unique_id)
+        if previous is not None and not previous.done():
+            previous.cancel()
+
+        task = self.hass.async_create_task(
+            self._async_confirm_written_object(obj, revision_before_write),
+            name=f"bepacom-confirm-write-{obj.unique_id}",
+        )
+        self._write_confirmation_tasks[obj.unique_id] = task
+
+    async def _async_confirm_written_object(
+        self,
+        obj: BacnetObject,
+        revision_before_write: int,
+    ) -> None:
+        """Wait for COV, then read one object and use a full refresh as fallback."""
+        task = asyncio.current_task()
+        try:
+            await asyncio.sleep(0.75)
+            if self.point_registry.revision(obj) > revision_before_write:
+                return
+
+            object_key = f"{obj.object_type}:{obj.object_id}"
+            payload = await self.client.async_get_object(
+                str(obj.device_id), object_key
+            )
+            if self._apply_object_update(
+                str(obj.device_id), object_key, payload, source="poll"
+            ):
+                self._schedule_push_update()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            _LOGGER.warning(
+                "Targeted write confirmation failed for %s; falling back to full refresh",
+                obj.unique_id,
+                exc_info=True,
+            )
+            self._schedule_write_fallback_refresh()
+        finally:
+            if self._write_confirmation_tasks.get(obj.unique_id) is task:
+                self._write_confirmation_tasks.pop(obj.unique_id, None)
+
+    def _schedule_write_fallback_refresh(self) -> None:
+        """Coalesce rare targeted-read failures into one full refresh."""
+        if (
+            self._write_fallback_refresh_task is not None
+            and not self._write_fallback_refresh_task.done()
+        ):
+            return
+        self._write_fallback_refresh_task = self.hass.async_create_task(
+            self._async_write_fallback_refresh(),
+            name="bepacom-write-fallback-refresh",
+        )
+
+    async def _async_write_fallback_refresh(self) -> None:
+        """Run the coalesced full refresh used only as a write fallback."""
+        try:
+            await asyncio.sleep(0.25)
+            await self.async_request_refresh()
+        except asyncio.CancelledError:
+            raise
+        finally:
+            self._write_fallback_refresh_task = None
 
     def _normalize_object_payload(
         self,
@@ -682,7 +781,9 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         )
                         continue
 
-                    if self._apply_object_update(device_id, object_id, payload):
+                    if self._apply_object_update(
+                        device_id, object_id, payload, source="poll"
+                    ):
                         self._schedule_push_update()
 
                 await asyncio.sleep(FALLBACK_POLL_INTERVAL.total_seconds())

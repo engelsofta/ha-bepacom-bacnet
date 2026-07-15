@@ -645,21 +645,28 @@ class BepacomClient:
         value: bool,
         priority: int = 8,
     ) -> bool:
-        """Write a Binary Value presentValue through gateway API v2."""
+        """Write a Binary Value presentValue through gateway API v2.
+
+        The gateway expects the BACnet BinaryPV labels ``active`` and
+        ``inactive`` here.  Numeric 1/0 values can be accepted as booleans by
+        Home Assistant but are not a reliable wire representation for this
+        endpoint.
+        """
         device_path_id = self._normalize_device_path_id(str(device_id))
         object_path_id = f"binaryValue:{object_id}"
+        write_value = "active" if value else "inactive"
 
         try:
             await self._post(
                 f"/apiv2/{device_path_id}/{object_path_id}/presentValue",
-                params={"value": int(value), "priority": priority},
+                params={"value": write_value, "priority": priority},
             )
         except (CannotConnect, InvalidResponse) as err:
             raise WriteError(str(err)) from err
 
         _LOGGER.info(
             "Successfully wrote %s to %s on %s at priority %s",
-            value,
+            write_value,
             object_path_id,
             device_path_id,
             priority,

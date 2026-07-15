@@ -9,7 +9,7 @@ from typing import Any
 
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.util import slugify
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -76,15 +76,12 @@ class BepacomBinarySensor(CoordinatorEntity[BepacomCoordinator], BinarySensorEnt
         self._attr_has_entity_name = has_entity_name
         self._attr_device_class = BacnetObjectTypeMapper.get_device_class(obj)
         self._attr_device_info = self._build_device_info()
-        self._attr_extra_state_attributes = {
-            "device_id": obj.device_id,
-            "object_id": obj.object_id,
-            "object_type": obj.object_type,
-            "description": obj.description,
-        }
-        self._attr_extra_state_attributes.update(
-            coordinator.point_registry.inspector_attributes(obj)
+        self._attr_extra_state_attributes = (
+            coordinator.point_registry.entity_attributes(obj)
         )
+        self._last_point_revision = coordinator.point_registry.revision(obj)
+        self._last_coordinator_success = coordinator.last_update_success
+        self._last_data_revision = coordinator.data_revision
 
     def _build_device_info(self) -> DeviceInfo:
         """Build Home Assistant device info for this BACnet device."""
@@ -94,6 +91,23 @@ class BepacomBinarySensor(CoordinatorEntity[BepacomCoordinator], BinarySensorEnt
             obj=self._obj,
             device=device,
         )
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Write HA state only when this point or availability changed."""
+        revision = self.coordinator.point_registry.revision(self._obj)
+        success = self.coordinator.last_update_success
+        data_revision = self.coordinator.data_revision
+        if (
+            revision == self._last_point_revision
+            and success == self._last_coordinator_success
+            and data_revision == self._last_data_revision
+        ):
+            return
+        self._last_point_revision = revision
+        self._last_coordinator_success = success
+        self._last_data_revision = data_revision
+        self.async_write_ha_state()
 
     @property
     def is_on(self) -> bool | None:
@@ -133,7 +147,7 @@ class BepacomBinarySensor(CoordinatorEntity[BepacomCoordinator], BinarySensorEnt
         elif isinstance(value, (int, float)):
             return value != 0
         elif isinstance(value, str):
-            return value.lower() in ("true", "yes", "on", "1")
+            return value.strip().lower() in ("true", "yes", "on", "1", "active")
 
         return bool(value)
 
@@ -175,6 +189,26 @@ class BepacomVirtualBinarySensor(CoordinatorEntity[BepacomCoordinator], BinarySe
             "off_condition": config.get("off_value"),
             "else_state": config.get("else_state", "unavailable"),
         }
+        self._last_point_revision = coordinator.point_registry.revision(source_obj)
+        self._last_coordinator_success = coordinator.last_update_success
+        self._last_data_revision = coordinator.data_revision
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Update only when the virtual entity source or availability changed."""
+        revision = self.coordinator.point_registry.revision(self._source_obj)
+        success = self.coordinator.last_update_success
+        data_revision = self.coordinator.data_revision
+        if (
+            revision == self._last_point_revision
+            and success == self._last_coordinator_success
+            and data_revision == self._last_data_revision
+        ):
+            return
+        self._last_point_revision = revision
+        self._last_coordinator_success = success
+        self._last_data_revision = data_revision
+        self.async_write_ha_state()
 
     def _build_device_info(self) -> DeviceInfo:
         """Build Home Assistant device info for this BACnet device."""

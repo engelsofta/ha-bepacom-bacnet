@@ -20,11 +20,12 @@ class PointRuntimeState:
     last_update_source: str | None = None
     subscribed: bool | None = None
     fallback_polling: bool = False
-    history: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=300))
+    history: deque[dict[str, Any]] = field(default_factory=lambda: deque(maxlen=100))
     push_updates: int = 0
     polling_updates: int = 0
     value_changes: int = 0
     suppressed_updates: int = 0
+    revision: int = 0
     has_value: bool = False
     last_value: Any = None
 
@@ -109,6 +110,7 @@ class BepacomPointRegistry:
             if runtime.has_value and not value_changed:
                 runtime.suppressed_updates += 1
             if value_changed:
+                runtime.revision += 1
                 runtime.last_update = now
                 runtime.last_update_source = "poll"
                 if runtime.has_value:
@@ -186,6 +188,7 @@ class BepacomPointRegistry:
 
         value_changed = (not runtime.has_value) or not _values_equal(obj.present_value, previous_value)
         if value_changed:
+            runtime.revision += 1
             # As a final safety net, compare against the newest persisted
             # history entry as well. This prevents duplicate visible history
             # rows if a backend reload or mixed push/poll source already stored
@@ -240,6 +243,10 @@ class BepacomPointRegistry:
         """Return runtime state for a point."""
         return self._runtime.setdefault(obj.unique_id, PointRuntimeState())
 
+    def revision(self, obj: BacnetObject) -> int:
+        """Return the value revision used to suppress unrelated HA writes."""
+        return self.runtime(obj).revision
+
     def history(self, obj: BacnetObject, *, limit: int = 120) -> list[dict[str, Any]]:
         """Return recent value history for a point."""
         runtime = self.runtime(obj)
@@ -277,6 +284,24 @@ class BepacomPointRegistry:
             "value_changes": sum(state.value_changes for state in runtimes),
             "suppressed_updates": sum(state.suppressed_updates for state in runtimes),
         }
+
+    @staticmethod
+    def entity_attributes(obj: BacnetObject) -> dict[str, Any]:
+        """Return small, stable attributes for Home Assistant state entities.
+
+        Runtime counters, raw BACnet payloads and override diagnostics belong
+        to the Explorer inspector. Keeping them off HA states avoids emitting
+        state_changed events merely because diagnostic metadata changed.
+        """
+        attrs: dict[str, Any] = {
+            "bacnet_device_id": obj.device_id,
+            "bacnet_object_type": obj.object_type,
+            "bacnet_object_instance": obj.object_id,
+            "writable": obj.writable,
+        }
+        if obj.description:
+            attrs["description"] = obj.description
+        return attrs
 
     def inspector_attributes(self, obj: BacnetObject) -> dict[str, Any]:
         """Return a compact BACnet Point Inspector attribute set."""
