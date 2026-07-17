@@ -10,6 +10,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 
 from .api import BepacomClient
@@ -22,6 +23,8 @@ from .panel import async_register_explorer_panel, async_unregister_explorer_pane
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS: list[str] = ["sensor", "binary_sensor", "switch", "number"]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 SERVICE_RELEASE_ANALOG_VALUE_PRIORITY = "release_analog_value_priority"
 SERVICE_RELEASE_MULTISTATE_OUTPUT_PRIORITY = "release_multistate_output_priority"
