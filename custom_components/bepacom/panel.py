@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Any
 import inspect
@@ -29,7 +30,7 @@ PANEL_URL = "bepacom_explorer"
 PANEL_NAME = "bepacom-explorer-panel"
 PANEL_STATIC_URL = "/bepacom_static"
 PANEL_EVENT = "bepacom_explorer_updated"
-PANEL_VERSION = "0592"
+PANEL_VERSION = "0601"
 
 _WS_REGISTERED = "websocket_registered"
 _PANEL_REGISTERED = "panel_registered"
@@ -64,7 +65,7 @@ async def async_register_explorer_panel(hass: HomeAssistant, entry: ConfigEntry)
         hass,
         frontend_url_path=PANEL_URL,
         webcomponent_name=PANEL_NAME,
-        sidebar_title="BACnet Explorer",
+        sidebar_title="Engelsoft Beacon BACnet/IP",
         sidebar_icon="mdi:database-search",
         module_url=f"{PANEL_STATIC_URL}/bepacom-panel.js?v={PANEL_VERSION}",
         config={"domain": DOMAIN, "entry_id": entry.entry_id, "version": VERSION, "frontend_build": PANEL_VERSION},
@@ -116,9 +117,23 @@ def _entry_data(hass: HomeAssistant, entry_id: str | None) -> tuple[str | None, 
 
 
 @callback
-def _entity_registry_entry(hass: HomeAssistant, entry_id: str | None, unique_id: str):
+def _entity_registry_entry(
+    hass: HomeAssistant,
+    entry_id: str | None,
+    unique_id: str,
+    entity_domain: str | None = None,
+):
     """Return the Home Assistant entity registry entry for a Bepacom point."""
-    return _entity_registry_entries_by_unique_id(hass, entry_id).get(unique_id)
+    ent_reg = er.async_get(hass)
+    for entity in ent_reg.entities.values():
+        if entity.unique_id != unique_id or entity.platform != DOMAIN:
+            continue
+        if entry_id and getattr(entity, "config_entry_id", None) not in (None, entry_id):
+            continue
+        if entity_domain and not entity.entity_id.startswith(f"{entity_domain}."):
+            continue
+        return entity
+    return None
 
 
 @callback
@@ -304,6 +319,12 @@ def _serialize_point(
     normalized_object_type = BacnetObjectTypeMapper._normalize_object_type(
         obj.object_type
     )
+    preferred_entity_domain = (
+        "switch"
+        if normalized_object_type == "multi_state_output"
+        and registry.overrides.get_multistate_representation(obj) == "switch"
+        else BacnetObjectTypeMapper.get_entity_type(obj).value
+    )
     default_glt_delay_ms = (
         2000 if normalized_object_type == "multi_state_output" else 1200
     )
@@ -313,9 +334,11 @@ def _serialize_point(
     ha_state_class = registry.overrides.get_state_class(obj)
     update_mode = registry.overrides.get_update_mode(obj, "disabled")
     entity_entry = (
-        entity_entries.get(obj.unique_id)
-        if entity_entries is not None
-        else _entity_registry_entry(hass, entry_id, obj.unique_id) if hass is not None else None
+        _entity_registry_entry(
+            hass, entry_id, obj.unique_id, preferred_entity_domain
+        )
+        if hass is not None
+        else None
     )
 
     return {
@@ -337,6 +360,9 @@ def _serialize_point(
         "number_min": override.get("number_min", -1000000),
         "number_max": override.get("number_max", 1000000),
         "number_step": override.get("number_step", 0.01),
+        "multistate_representation": override.get("multistate_representation", "number"),
+        "multistate_off_value": override.get("multistate_off_value", 1),
+        "multistate_on_value": override.get("multistate_on_value", 2),
         "write_priority": override.get("write_priority", 8),
         "write_profile": override.get("write_profile", "direct"),
         "glt_delay_ms": override.get("glt_delay_ms", default_glt_delay_ms),
@@ -384,6 +410,25 @@ def _serialize_point(
 
 
 @callback
+def _matches_search_query(haystack: str, query: str) -> bool:
+    """Match whitespace-separated terms with optional glob wildcards."""
+    normalized_haystack = str(haystack or "").lower()
+    terms = [term for term in str(query or "").strip().lower().split() if term]
+
+    for term in terms:
+        if "*" not in term and "?" not in term:
+            if term not in normalized_haystack:
+                return False
+            continue
+
+        pattern = re.escape(term).replace(r"\*", ".*").replace(r"\?", ".")
+        if re.search(pattern, normalized_haystack, flags=re.DOTALL) is None:
+            return False
+
+    return True
+
+
+@callback
 def _matches_filters(point: dict[str, Any], msg: dict[str, Any]) -> bool:
     """Return whether a serialized point matches frontend filters."""
     search = str(msg.get("search") or "").strip().lower()
@@ -420,7 +465,7 @@ def _matches_filters(point: dict[str, Any], msg: dict[str, Any]) -> bool:
                 "entity_original_name",
             )
         ).lower()
-        if search not in haystack:
+        if not _matches_search_query(haystack, search):
             return False
 
     return True
@@ -762,7 +807,18 @@ async def _async_update_entity_registry_from_msg(
     if "entity_id" not in msg and "entity_name" not in msg:
         return
 
-    entity_entry = _entity_registry_entry(hass, entry_id, obj.unique_id)
+    object_type = BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
+    requested_representation = str(
+        msg.get("multistate_representation", "number")
+    ).strip().lower()
+    entity_domain = (
+        "switch"
+        if object_type == "multi_state_output" and requested_representation == "switch"
+        else BacnetObjectTypeMapper.get_entity_type(obj).value
+    )
+    entity_entry = _entity_registry_entry(
+        hass, entry_id, obj.unique_id, entity_domain
+    )
     if entity_entry is None:
         return
 
@@ -776,7 +832,11 @@ async def _async_update_entity_registry_from_msg(
 
     if "entity_id" in msg:
         new_entity_id = _normalize_empty(msg.get("entity_id"))
-        if new_entity_id and new_entity_id != entity_entry.entity_id:
+        if (
+            new_entity_id
+            and new_entity_id.startswith(f"{entity_domain}.")
+            and new_entity_id != entity_entry.entity_id
+        ):
             kwargs["new_entity_id"] = new_entity_id
 
     if kwargs:
@@ -817,6 +877,12 @@ def _clean_override(data: dict[str, Any]) -> dict[str, Any]:
         value = data.get(key)
         if value not in (None, ""):
             cleaned[key] = float(value)
+
+    representation = str(data.get("multistate_representation", "number")).strip().lower()
+    if representation == "switch":
+        cleaned["multistate_representation"] = "switch"
+        cleaned["multistate_off_value"] = float(data.get("multistate_off_value", 1))
+        cleaned["multistate_on_value"] = float(data.get("multistate_on_value", 2))
 
     priority = data.get("write_priority")
     if priority not in (None, ""):
@@ -985,6 +1051,9 @@ async def _async_apply_override_options(
         vol.Optional("number_min"): vol.Any(str, int, float, None),
         vol.Optional("number_max"): vol.Any(str, int, float, None),
         vol.Optional("number_step"): vol.Any(str, int, float, None),
+        vol.Optional("multistate_representation"): vol.Any("number", "switch"),
+        vol.Optional("multistate_off_value"): vol.Any(str, int, float, None),
+        vol.Optional("multistate_on_value"): vol.Any(str, int, float, None),
         vol.Optional("write_priority"): vol.Any(str, int, None),
         vol.Optional("write_profile"): vol.Any(
             "direct", "glt_set_as", "glt_set_stage"
@@ -1033,12 +1102,16 @@ async def websocket_explorer_save_override(
         number_max = float(msg.get("number_max", 1000000))
         number_step = float(msg.get("number_step", 0.01))
         write_priority = int(msg.get("write_priority", 8))
+        multistate_off_value = float(msg.get("multistate_off_value", 1))
+        multistate_on_value = float(msg.get("multistate_on_value", 2))
         if not number_min < number_max:
             raise ValueError("Der Mindestwert muss kleiner als der Höchstwert sein")
         if number_step <= 0:
             raise ValueError("Die Schrittweite muss größer als 0 sein")
         if not 1 <= write_priority <= 16:
             raise ValueError("Die BACnet-Priorität muss zwischen 1 und 16 liegen")
+        if multistate_off_value == multistate_on_value:
+            raise ValueError("AUS-Wert und EIN-Wert müssen unterschiedlich sein")
         write_profile = str(msg.get("write_profile", "direct")).strip().lower()
         if write_profile == "glt_set_as":
             for key in ("glt_delay_ms", "as_delay_ms", "release_delay_ms"):
@@ -1057,8 +1130,27 @@ async def websocket_explorer_save_override(
         connection.send_error(msg["id"], "invalid_number_settings", str(err))
         return
 
-    await _async_update_entity_registry_from_msg(hass, entry_id, obj, msg)
-    await _async_apply_override_options(hass, entry, msg, source_obj=obj)
+    override_msg = dict(msg)
+    if (
+        BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
+        == "multi_state_output"
+    ):
+        requested_domain = (
+            "switch"
+            if str(msg.get("multistate_representation", "number")).strip().lower()
+            == "switch"
+            else "number"
+        )
+        submitted_entity_id = _normalize_empty(msg.get("entity_id"))
+        if submitted_entity_id and not submitted_entity_id.startswith(
+            f"{requested_domain}."
+        ):
+            # The visible ID still belongs to the representation being left.
+            # Do not rename or persist it for the newly selected platform.
+            override_msg.pop("entity_id", None)
+
+    await _async_update_entity_registry_from_msg(hass, entry_id, obj, override_msg)
+    await _async_apply_override_options(hass, entry, override_msg, source_obj=obj)
     obj = registry.get_by_unique_id(msg["unique_id"]) or obj
 
     connection.send_result(
