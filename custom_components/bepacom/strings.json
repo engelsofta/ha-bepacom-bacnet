@@ -37,10 +37,6 @@
           "heartbeat_timeout": "Heartbeat-Timeout"
         }
       }
-    },
-    "error": {},
-    "abort": {
-      "no_objects": "Es wurden noch keine BACnet Objekte gefunden. Starte Home Assistant neu oder warte, bis die Discovery abgeschlossen ist."
     }
   }
 }
