@@ -57,11 +57,12 @@ class BepacomExplorerPanel extends HTMLElement {
     this._initialLoadStarted = false;
     this._refreshGeneration = 0;
     this._visibilityHandler = () => this._handleVisibilityChange();
+    this._virtualStateUpdateQueued = false;
   }
 
   _versionLabel() {
     const cfg = this.panel?.config || {};
-    const version = cfg.version || "1.0.0";
+    const version = cfg.version || "1.1.0";
     const build = cfg.frontend_build || "0591";
     return `Version ${version} · Frontend-Build ${build}`;
   }
@@ -95,6 +96,7 @@ class BepacomExplorerPanel extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    this._scheduleVirtualStateDomUpdate();
     if (!this._hasHass) {
       this._hasHass = true;
       this._startInitialLoad();
@@ -103,6 +105,33 @@ class BepacomExplorerPanel extends HTMLElement {
 
   get hass() {
     return this._hass;
+  }
+
+  _scheduleVirtualStateDomUpdate() {
+    if (this._virtualStateUpdateQueued) return;
+    this._virtualStateUpdateQueued = true;
+    queueMicrotask(() => {
+      this._virtualStateUpdateQueued = false;
+      if (!this._connected) return;
+      this._updateVirtualStateDom();
+    });
+  }
+
+  _updateVirtualStateDom() {
+    if (!this.shadowRoot || !this.hass?.states) return;
+    this.shadowRoot.querySelectorAll("[data-virtual-state-entity-id]").forEach((badge) => {
+      const entityId = badge.dataset.virtualStateEntityId || "";
+      const state = this.hass.states[entityId]?.state ?? "unavailable";
+      const normalized = String(state).toLowerCase();
+      let cls = "unknown";
+      if (normalized === "on" || normalized === "true" || normalized === "1") cls = "on";
+      else if (normalized === "off" || normalized === "false" || normalized === "0") cls = "off";
+      else if (["unavailable", "unknown", "-"].includes(normalized)) cls = "unavailable";
+
+      badge.classList.remove("on", "off", "unavailable", "unknown", "neutral");
+      badge.classList.add(cls);
+      badge.textContent = this._binaryStateLabel(state, badge.dataset.deviceClass || "");
+    });
   }
 
   _startInitialLoad() {
@@ -397,6 +426,9 @@ class BepacomExplorerPanel extends HTMLElement {
     const numberMin = this.shadowRoot.getElementById("editNumberMin")?.value;
     const numberMax = this.shadowRoot.getElementById("editNumberMax")?.value;
     const numberStep = this.shadowRoot.getElementById("editNumberStep")?.value;
+    const multistateRepresentation = this.shadowRoot.getElementById("editMultistateRepresentation")?.value;
+    const multistateOffValue = this.shadowRoot.getElementById("editMultistateOffValue")?.value;
+    const multistateOnValue = this.shadowRoot.getElementById("editMultistateOnValue")?.value;
     const writePriority = this.shadowRoot.getElementById("editWritePriority")?.value;
     const writeProfile = this.shadowRoot.getElementById("editWriteProfile")?.value;
     const gltDelayMs = this.shadowRoot.getElementById("editGltDelayMs")?.value;
@@ -432,6 +464,9 @@ class BepacomExplorerPanel extends HTMLElement {
         number_min: numberMin,
         number_max: numberMax,
         number_step: numberStep,
+        multistate_representation: multistateRepresentation,
+        multistate_off_value: multistateOffValue,
+        multistate_on_value: multistateOnValue,
         write_priority: writePriority,
         write_profile: writeProfile,
         glt_delay_ms: gltDelayMs,
@@ -510,7 +545,7 @@ class BepacomExplorerPanel extends HTMLElement {
   async _deleteVirtualEntity(sourceUid, virtualUid, virtualName = "") {
     if (!this.hass || !sourceUid || !virtualUid) return;
     const label = virtualName || virtualUid;
-    const ok = window.confirm(`Virtuelle Entität löschen?\n\n${label}\n\nDiese Aktion entfernt die virtuelle Entität aus der Bepacom-Konfiguration und aus der Home-Assistant-Entity-Registry. Danach bitte die Integration neu laden.`);
+    const ok = window.confirm(`Virtuelle Entität löschen?\n\n${label}\n\nDiese Aktion entfernt die virtuelle Entität aus der Engelsoft-Beacon-Konfiguration und aus der Home-Assistant-Entity-Registry. Danach bitte die Integration neu laden.`);
     if (!ok) return;
 
     this._saving = true;
@@ -1011,7 +1046,14 @@ class BepacomExplorerPanel extends HTMLElement {
   _statusClass(label, value) {
     if (label.includes("Verbunden")) return value === "Ja" ? "stat-ok" : "stat-bad";
     if (label.includes("Reconnect") && Number(value) > 0) return Number(value) > 10 ? "stat-bad" : "stat-warn";
-    if (label.includes("Verarbeitung") && Number(value) > 5) return "stat-warn";
+    if (label.includes("Ø Push-Verarbeitung")) {
+      if (Number(value) > 50) return "stat-bad";
+      if (Number(value) > 20) return "stat-warn";
+    }
+    if (label.includes("Max Push-Verarbeitung")) {
+      if (Number(value) > 250) return "stat-bad";
+      if (Number(value) > 100) return "stat-warn";
+    }
     if (label.includes("Deaktiviert") && Number(value) > 0) return "stat-muted";
     return "";
   }
@@ -1388,7 +1430,7 @@ class BepacomExplorerPanel extends HTMLElement {
       <div class="wrap">
         <div class="header">
           <div>
-            <h1>BACnet Explorer</h1>
+            <h1>Engelsoft Beacon BACnet/IP</h1>
             <div id="subtitle" class="subtitle">Sidebar-Ansicht für gefundene BACnet-Objekte${this._total !== undefined ? ` · ${this._points.length} von ${this._total}` : ""}${this._limited ? " · Liste begrenzt" : ""}</div><div class="frontend-version">${this._versionLabel()}</div>
           </div>
           <div style="display:flex; gap:8px; align-items:center;">
@@ -1408,11 +1450,11 @@ class BepacomExplorerPanel extends HTMLElement {
 
         ${this._activeView === "virtual" ? `
         <div class="toolbar card virtual-filterbar">
-          <div class="search-field"><label>Suche virtuelle Entitäten</label><input id="virtualSearch" value="${this._escape(this._virtualSearch || "")}" placeholder="Name, Entity-ID, Unique-ID, Quelle, Regel …"></div>
+          <div class="search-field"><label>Suche virtuelle Entitäten</label><input id="virtualSearch" value="${this._escape(this._virtualSearch || "")}" placeholder="Name, ID, Quelle · * und ? möglich"></div>
           <div><label>&nbsp;</label><button id="clearVirtualSearch" class="secondary">Reset</button></div>
         </div>` : `
         <div class="toolbar card">
-          <div class="search-field"><label>Suche BACnet-Objekte</label><input id="search" value="${this._escape(this._filters.search)}" placeholder="1249, Rollo, Temp"></div>
+          <div class="search-field"><label>Suche BACnet-Objekte</label><input id="search" value="${this._escape(this._filters.search)}" placeholder="820*, Rollo, multiStateInput 82*"></div>
           <div><label>Device</label><select id="device">${this._deviceOptions()}</select></div>
           <div><label>Objekttyp</label><select id="type">${this._typeOptions()}</select></div>
           <div><label>Gruppierung</label><select id="groupBy">${this._groupOptions()}</select></div>
@@ -1474,7 +1516,7 @@ class BepacomExplorerPanel extends HTMLElement {
           ent.entity_type, ent.device_class, ent.on_value, ent.off_value, ent.else_state,
           p.object_key, p.object_name, p.unique_id, p.device_id, p.object_type, p.instance
         ].map((x) => x === undefined || x === null ? "" : String(x)).join(" ");
-        if (!q || this._normalizeSearch(haystack).includes(q)) rows.push({ source: p, ent });
+        if (!q || this._matchesSearchQuery(haystack, q)) rows.push({ source: p, ent });
       }
     }
     return rows;
@@ -1540,14 +1582,17 @@ class BepacomExplorerPanel extends HTMLElement {
     return pair ? pair[value === "on" ? 0 : 1] : value.toUpperCase();
   }
 
-  _virtualStateBadge(state, ent = null) {
+  _virtualStateBadge(state, ent = null, entityId = "") {
     const st = String(state ?? "-").toLowerCase();
     let cls = "unknown";
     if (st === "on" || st === "true" || st === "1") cls = "on";
     else if (st === "off" || st === "false" || st === "0") cls = "off";
     else if (st === "unavailable" || st === "unknown" || st === "-") cls = "unavailable";
     const deviceClass = ent?.device_class || ent?.deviceClass || "";
-    return `<span class="virtual-state-badge ${cls}">${this._escape(this._binaryStateLabel(state, deviceClass))}</span>`;
+    const liveAttrs = entityId
+      ? ` data-virtual-state-entity-id="${this._escape(entityId)}" data-device-class="${this._escape(deviceClass)}"`
+      : "";
+    return `<span class="virtual-state-badge ${cls}"${liveAttrs}>${this._escape(this._binaryStateLabel(state, deviceClass))}</span>`;
   }
 
   _virtualTypeBadge(ent) {
@@ -1593,9 +1638,16 @@ class BepacomExplorerPanel extends HTMLElement {
     </div>`;
   }
 
-  _virtualEntitiesOverviewHtml(fullPage = false) {
-    const rows = this._allVirtualEntities();
-    if (!rows.length) return `<div class="card virtual-overview"><div class="virtual-overview-head"><div><div class="virtual-overview-title">Virtuelle Entitäten</div><div class="muted">Noch keine virtuellen Entitäten angelegt. Öffne im Explorer einen BACnet-Datenpunkt und erstelle dort unter „Virtuelle Entität“ einen neuen Eintrag.</div></div></div></div>`;
+  _virtualEntitiesOverviewHtml(fullPage = false, sourcePoint = null) {
+    const rows = sourcePoint
+      ? this._linkedEntities(sourcePoint).map((ent) => ({ source: sourcePoint, ent }))
+      : this._allVirtualEntities();
+    if (!rows.length) {
+      const emptyText = sourcePoint
+        ? "Für diesen BACnet-Punkt ist noch keine virtuelle Entität angelegt."
+        : "Noch keine virtuellen Entitäten angelegt. Öffne im Explorer einen BACnet-Datenpunkt und erstelle dort unter „Virtuelle Entität“ einen neuen Eintrag.";
+      return `<div class="card virtual-overview"><div class="virtual-overview-head"><div><div class="virtual-overview-title">Virtuelle Entitäten</div><div class="muted">${emptyText}</div></div></div></div>`;
+    }
 
     if (!fullPage) {
       const cards = rows.map(({ source, ent }) => {
@@ -1606,7 +1658,7 @@ class BepacomExplorerPanel extends HTMLElement {
         const sourceLabel = this._compactSourceLabel(source);
         const sourceTitle = this._sourceTooltip(source);
         return `<div class="side-virtual-card">
-          <div class="side-virtual-card-title"><span class="side-virtual-card-name" title="${this._escape(name)}">${this._escape(name)}</span>${this._virtualStateBadge(state, ent)}</div>
+          <div class="side-virtual-card-title"><span class="side-virtual-card-name" title="${this._escape(name)}">${this._escape(name)}</span>${this._virtualStateBadge(state, ent, entityId)}</div>
           <div class="side-virtual-card-meta">${this._virtualTypeBadge(ent)}<span title="${this._escape(entityId || ent.unique_id || "")}">${this._escape(entityId || ent.unique_id || "nach Reload verfügbar")}</span></div>
           <div class="side-virtual-card-meta">Quelle: <button class="virtual-source-btn compact-source" data-source-uid="${this._escape(source.unique_id)}" title="${this._escape(sourceTitle)}">${this._escape(sourceLabel)}</button></div>
           <div class="virtual-rule-flow">
@@ -1632,7 +1684,7 @@ class BepacomExplorerPanel extends HTMLElement {
         <td><button class="virtual-source-btn compact-source" data-source-uid="${this._escape(source.unique_id)}" title="${this._escape(sourceTitle)}">${this._escape(sourceLabel)}</button></td>
         <td><button class="link-cell linked-entity-link virtual-name-link" data-entity-id="${this._escape(entityId)}" ${entityId ? "" : "disabled"}>${this._escape(name)}</button><div class="muted entity-id-line" title="${this._escape(entityId || ent.unique_id || "")}">${this._escape(entityId || ent.unique_id || "nach Reload verfügbar")}</div></td>
         <td>${this._virtualTypeBadge(ent)}</td>
-        <td>${this._virtualStateBadge(state, ent)}</td>
+        <td>${this._virtualStateBadge(state, ent, entityId)}</td>
         <td><code title="${this._escape(ent.on_value ?? "")}">${this._escape(ent.on_value ?? "")}</code></td>
         <td><code title="${this._escape(ent.off_value ?? "")}">${this._escape(ent.off_value ?? "")}</code></td>
         <td><code title="${this._escape(ent.else_state || "unavailable")}">${this._escape(ent.else_state || "unavailable")}</code></td>
@@ -1643,21 +1695,6 @@ class BepacomExplorerPanel extends HTMLElement {
       <div class="virtual-overview-head"><div><div class="virtual-overview-title">Virtuelle Entitäten</div><div class="muted">Eigene Übersicht aller aus BACnet-Datenpunkten erzeugten virtuellen Home-Assistant-Entitäten.</div></div><div class="muted">${rows.length} verknüpfte Entität${rows.length === 1 ? "" : "en"}</div></div>
       <div class="virtual-table-wrap"><table class="virtual-table"><thead><tr><th>Quelle</th><th>HA Entität</th><th>Typ</th><th>Zustand</th><th>ON</th><th>OFF</th><th>ELSE</th><th>Aktionen</th></tr></thead><tbody>${body}</tbody></table></div>
     </div>`;
-  }
-
-  _selectedVirtualEntitiesHtml(p) {
-    const items = this._linkedEntities(p);
-    if (!items.length) return `<div class="muted" style="margin:8px 0;">Für diesen BACnet-Punkt ist noch keine virtuelle Entität angelegt.</div>`;
-    const rows = items.map((ent) => {
-      const entityId = ent.entity_id || "";
-      return `<tr>
-        <td><button class="link-cell linked-entity-link" data-entity-id="${this._escape(entityId)}" ${entityId ? "" : "disabled"}>${this._escape(ent.name || entityId || ent.unique_id)}</button><div class="muted">${this._escape(entityId || ent.unique_id || "nach Reload verfügbar")}</div></td>
-        <td><span class="linked-state">${this._escape(this._binaryStateLabel(ent.state, ent.device_class))}</span></td>
-        <td><code>${this._escape(ent.on_value ?? "")}</code></td>
-        <td><code>${this._escape(ent.off_value ?? "")}</code></td>
-      </tr>`;
-    }).join("");
-    return `<div style="overflow:auto; margin:8px 0 12px;"><table class="virtual-table"><thead><tr><th>Vorhandene virtuelle Entität</th><th>Zustand</th><th>ON</th><th>OFF</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
 
   _displayEntityName(p) {
@@ -2127,6 +2164,10 @@ class BepacomExplorerPanel extends HTMLElement {
     saveButton?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
     resetButton?.addEventListener("pointerdown", (ev) => ev.stopPropagation());
     this.shadowRoot.getElementById("applyObjectAssistant")?.addEventListener("click", () => this._applyObjectAssistantSuggestion());
+    this.shadowRoot.getElementById("editMultistateRepresentation")?.addEventListener("change", (ev) => {
+      const switchValues = this.shadowRoot.getElementById("multistateSwitchValues");
+      if (switchValues) switchValues.style.display = ev.target.value === "switch" ? "contents" : "none";
+    });
     this.shadowRoot.querySelectorAll(".side input, .side select, .side textarea").forEach((el) => {
       el.addEventListener("input", () => { this._editorDirty = true; if (el.id && el.id.startsWith("virtualBinary")) this._refreshVirtualRulePreview(); });
       el.addEventListener("change", () => { this._editorDirty = true; if (el.id && el.id.startsWith("virtualBinary")) this._refreshVirtualRulePreview(); });
@@ -2417,6 +2458,25 @@ class BepacomExplorerPanel extends HTMLElement {
       .trim();
   }
 
+  _matchesSearchQuery(haystack, query) {
+    const normalizedHaystack = this._normalizeSearch(haystack || "");
+    const terms = this._normalizeSearch(query || "").split(/\s+/).filter(Boolean);
+
+    return terms.every((term) => {
+      if (!term.includes("*") && !term.includes("?")) {
+        return normalizedHaystack.includes(term);
+      }
+
+      const escaped = term.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+      const pattern = escaped.replace(/\*/g, ".*").replace(/\?/g, ".");
+      try {
+        return new RegExp(pattern, "s").test(normalizedHaystack);
+      } catch (_) {
+        return normalizedHaystack.includes(term);
+      }
+    });
+  }
+
   _slugify(value) {
     return String(value || "")
       .normalize("NFKD")
@@ -2468,30 +2528,10 @@ class BepacomExplorerPanel extends HTMLElement {
 
 
   _sidePanelHtml(selected) {
-    const count = this._allVirtualEntities().length;
+    const count = selected ? this._linkedEntities(selected).length : 0;
     const tab = (id, label) => `<button class="side-tab ${this._sideTab === id ? "active" : ""}" data-side-tab="${id}" type="button">${label}</button>`;
     const body = this._sideTab === "virtual" ? this._sideVirtualHtml(selected) : (selected ? this._detailHtml(selected) : `<div class="side-section-head"><h2>Point Inspector</h2><div class="muted">Wähle links ein Objekt aus.</div></div>`);
     return `<div class="side-tabs">${tab("inspector", "Point Inspector")}${tab("virtual", `Virtuelle Entitäten${count ? ` (${count})` : ""}`)}</div><div class="side-body">${body}</div>`;
-  }
-
-  _pointSummaryHtml(p) {
-    const value = this._value(p.present_value);
-    const unit = this._displayUnit(p);
-    return `<div class="point-summary">
-      <div>
-        <div class="point-summary-title">${this._escape(this._displayEntityName(p))}</div>
-        <div class="point-summary-sub">${this._escape(p.object_key || p.unique_id || "-")} · Device ${this._escape(p.device_id || "-")}</div>
-      </div>
-      <div class="point-summary-value">
-        <strong>${this._escape(value)}</strong>
-        <span class="point-summary-unit">${this._escape(unit || "-")}</span>
-      </div>
-      <div class="point-summary-meta">
-        ${this._modeChipHtml(p)}
-        ${p.override_active ? '<span class="pill ok">Override</span>' : '<span class="pill">Standard</span>'}
-        ${p.writable ? '<span class="pill warn">Schreibbar</span>' : ""}
-      </div>
-    </div>`;
   }
 
   _sideVirtualHtml(selected) {
@@ -2503,13 +2543,11 @@ class BepacomExplorerPanel extends HTMLElement {
           <div class="muted">${this._escape(selected.object_name || "")}</div>
           <div class="muted">${linkedCount} verknüpfte virtuelle Entität${linkedCount === 1 ? "" : "en"}</div>
         </div></div>
-        ${this._selectedVirtualEntitiesHtml(selected)}
+        ${this._virtualEntitiesOverviewHtml(false, selected)}
         <div class="actions"><button id="createVirtualForSelected" type="button">+ Neue virtuelle Entität</button></div>
-        <div class="muted" style="margin-top:8px;">Neue virtuelle Entitäten werden im Reiter „Point Inspector“ unter „Konfiguration der Entität“ angelegt. Du kannst für denselben BACnet-Datenpunkt mehrere virtuelle Entitäten erzeugen, indem du jeweils eine eigene Unique ID verwendest.</div>
-        <h3>Alle virtuellen Entitäten</h3>
-        ${this._virtualEntitiesOverviewHtml(false)}`;
+        <div class="muted" style="margin-top:8px;">Hier werden ausschließlich die virtuellen Entitäten angezeigt, die dem aktuell ausgewählten BACnet-Punkt zugeordnet sind. Neue Einträge werden im Reiter „Point Inspector“ unter „Konfiguration der Entität“ angelegt.</div>`;
     }
-    return `<div class="side-section-head"><h2>Virtuelle Entitäten</h2><div class="muted">Alle verknüpften virtuellen Entitäten.</div></div>${this._virtualEntitiesOverviewHtml(false)}<div class="muted" style="margin-top:8px;">Wähle links einen BACnet-Datenpunkt aus, um für diese Quelle neue virtuelle Entitäten anzulegen.</div>`;
+    return `<div class="side-section-head"><h2>Virtuelle Entitäten</h2><div class="muted">Wähle links einen BACnet-Punkt aus. Anschließend werden hier nur dessen zugeordnete virtuelle Entitäten angezeigt.</div></div>`;
   }
 
   _detailHtml(p) {
@@ -2559,6 +2597,20 @@ class BepacomExplorerPanel extends HTMLElement {
         ? ["direct", "glt_set_stage"]
         : ["direct"];
     const writeProfile = allowedWriteProfiles.includes(p.write_profile) ? p.write_profile : "direct";
+    const multistateRepresentation = p.multistate_representation === "switch" ? "switch" : "number";
+    const multistateEntitySettings = isMultiStateOutput ? `
+      <h3 style="margin-top:14px;">Darstellung in Home Assistant</h3>
+      <div class="muted" style="margin-bottom:8px;">Als Schalter wird nur der konfigurierte AUS- bzw. EIN-Wert geschrieben. Andere aktuelle Werte werden als unbekannt angezeigt.</div>
+      <div class="edit-grid">
+        <div><label>Entitätstyp</label><select id="editMultistateRepresentation">
+          <option value="number" ${multistateRepresentation === "number" ? "selected" : ""}>Zahlenwert</option>
+          <option value="switch" ${multistateRepresentation === "switch" ? "selected" : ""}>Schalter</option>
+        </select></div>
+        <div id="multistateSwitchValues" class="edit-grid" style="display:${multistateRepresentation === "switch" ? "contents" : "none"}">
+          <div><label>AUS-Wert</label><input id="editMultistateOffValue" type="number" step="any" value="${this._escape(p.multistate_off_value ?? 1)}"></div>
+          <div><label>EIN-Wert</label><input id="editMultistateOnValue" type="number" step="any" value="${this._escape(p.multistate_on_value ?? 2)}"></div>
+        </div>
+      </div>` : "";
     const profileDescription = isMultiStateOutput
       ? "Beim GLT/Stufe-Profil wird zuerst das binaryValue mit derselben Objekt-ID aktiviert und danach der Multi-State Output geschrieben. Beide Schreibvorgänge erfolgen fest auf BACnet-Priorität 8."
       : "Beim GLT/SET/AS-Profil wird das binaryValue mit derselben Objekt-ID verwendet. Alle Schreib- und Freigabevorgänge erfolgen fest auf BACnet-Priorität 8.";
@@ -2596,10 +2648,12 @@ class BepacomExplorerPanel extends HTMLElement {
         <div><label>State Class</label><select id="editStateClass">${this._stateClassOptions(p)}</select></div>
         <div><label>Aktualisierungsmodus</label><select id="editUpdateMode">${this._updateModeOptions(p)}</select></div>
       </div>
+      ${multistateEntitySettings}
       ${numberSettings}
-      <h3 style="margin-top:14px;">Virtuelle Entität</h3>
+    `;
+
+    const virtualEntityContent = `
       <div class="muted" style="margin-bottom:8px;">Erzeugt zusätzlich eine neue Binary-Sensor-Entität aus diesem Rohwert. Die vorhandene BACnet-Entität bleibt bestehen. Für mehrere virtuelle Entitäten einfach eine andere Unique ID verwenden und erneut speichern.</div>
-      ${this._selectedVirtualEntitiesHtml(p)}
       <div class="rule-help">
         <strong>Regel-Hilfe:</strong>
         <code>2</code> bedeutet <code>value == 2</code>, <code>&gt;2</code>, <code>&gt;=2</code>, <code>&lt;5</code>, <code>&lt;=10</code>, <code>!=0</code>, <code>1,2,5</code>, <code>2-5</code>, <code>active</code>, <code>inactive</code>, <code>alarm,fault</code>, <code>value &gt; 10 &amp;&amp; value &lt; 20</code>, <code>value == 2 || value == 5</code>, <code>(value &amp; 4096) != 0</code>, <code>((value - 1) &amp; 4) != 0</code>
@@ -2619,6 +2673,9 @@ class BepacomExplorerPanel extends HTMLElement {
         </select></div>
       </div>
       <div id="virtualRulePreview">${this._virtualRulePreviewHtml(p)}</div>
+    `;
+
+    const editActions = `
       <div class="actions">
         <button id="saveOverride" ${this._saving ? "disabled" : ""}>Speichern${this._saving ? " …" : ""}</button>
         <button id="resetOverride" class="secondary" ${this._saving ? "disabled" : ""}>Override zurücksetzen</button>
@@ -2631,10 +2688,9 @@ class BepacomExplorerPanel extends HTMLElement {
     return `
       <h2>${this._escape(p.object_key)}</h2>
       <div class="muted">${this._escape(p.object_name || "-")}</div>
-      ${this._pointSummaryHtml(p)}
       ${this._detailSection("config", "Konfiguration der Entität", editContent)}
-      <h3>BACnet Write</h3>
-      ${this._writeHtml(p)}
+      ${this._detailSection("virtual-config", "Virtuelle Entität konfigurieren", virtualEntityContent)}
+      ${editActions}
       ${this._detailSection("live", "Live-Monitor / Verlauf", this._historyHtml())}
       ${this._detailSection("inspector", "Inspector", inspectorContent)}
       ${this._detailSection("engineering", "Engineering-Properties", this._engineeringHtml())}
