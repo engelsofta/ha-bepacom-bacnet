@@ -5,19 +5,16 @@
     "@engelsofta"
   ],
   "config_flow": true,
+  "dependencies": [
+    "http"
+  ],
   "documentation": "https://github.com/engelsofta/ha-bepacom-bacnet",
-  "issue_tracker": "https://github.com/engelsofta/ha-bepacom-bacnet/issues",
-  "requirements": [],
-  "version": "1.1.0",
   "integration_type": "hub",
   "iot_class": "local_push",
-  "platforms": [
-    "sensor",
-    "binary_sensor",
-    "switch",
-    "number"
-  ],
+  "issue_tracker": "https://github.com/engelsofta/ha-bepacom-bacnet/issues",
   "loggers": [
     "custom_components.bepacom"
-  ]
+  ],
+  "requirements": [],
+  "version": "1.1.1"
 }
