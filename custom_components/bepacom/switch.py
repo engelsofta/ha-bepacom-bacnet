@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -33,13 +34,18 @@ async def async_setup_entry(
         "coordinator"
     ]
 
-    # Create switches for binary output objects
+    overrides = BepacomOverrideManager(entry.options)
     entities: list[SwitchEntity] = []
 
     for obj in coordinator.point_registry.all():
         entity_type = BacnetObjectTypeMapper.get_entity_type(obj)
 
-        if entity_type == EntityType.SWITCH:
+        is_multistate_switch = (
+            BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
+            == "multi_state_output"
+            and overrides.get_multistate_representation(obj) == "switch"
+        )
+        if entity_type == EntityType.SWITCH or is_multistate_switch:
             entities.append(BepacomSwitch(coordinator, obj))
 
     if entities:
@@ -60,6 +66,7 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
 
         self._obj = obj
         self._overrides = BepacomOverrideManager(coordinator._entry.options)
+        self._write_lock = asyncio.Lock()
         self._attr_unique_id = obj.unique_id
         self._attr_entity_id = f"switch.{obj.entity_id}"
         self._attr_suggested_object_id = obj.entity_id
@@ -128,6 +135,26 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
         if value is None:
             return None
 
+        object_type = BacnetObjectTypeMapper._normalize_object_type(
+            self._obj.object_type
+        )
+        if object_type == "multi_state_output":
+            try:
+                current = float(value)
+            except (TypeError, ValueError):
+                return None
+            on_value = self._overrides.get_multistate_switch_value(
+                self._obj, "multistate_on_value", 2
+            )
+            off_value = self._overrides.get_multistate_switch_value(
+                self._obj, "multistate_off_value", 1
+            )
+            if current == on_value:
+                return True
+            if current == off_value:
+                return False
+            return None
+
         # Handle common boolean representations
         if isinstance(value, bool):
             return value
@@ -149,8 +176,9 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
             self._obj.object_type
         )
         is_binary_value = object_type == "binary_value"
+        is_multistate_output = object_type == "multi_state_output"
 
-        if not self._obj.writable and not is_binary_value:
+        if not self._obj.writable and not (is_binary_value or is_multistate_output):
             _LOGGER.error(
                 "Cannot write to non-writable switch %s",
                 self._obj.unique_id,
@@ -166,6 +194,12 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
                     object_id=self._obj.object_id,
                     value=True,
                     priority=self._overrides.get_write_priority(self._obj),
+                )
+            elif is_multistate_output:
+                await self._async_write_multistate_switch(
+                    self._overrides.get_multistate_switch_value(
+                        self._obj, "multistate_on_value", 2
+                    )
                 )
             else:
                 await client.async_write_property(
@@ -197,8 +231,9 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
             self._obj.object_type
         )
         is_binary_value = object_type == "binary_value"
+        is_multistate_output = object_type == "multi_state_output"
 
-        if not self._obj.writable and not is_binary_value:
+        if not self._obj.writable and not (is_binary_value or is_multistate_output):
             _LOGGER.error(
                 "Cannot write to non-writable switch %s",
                 self._obj.unique_id,
@@ -214,6 +249,12 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
                     object_id=self._obj.object_id,
                     value=False,
                     priority=self._overrides.get_write_priority(self._obj),
+                )
+            elif is_multistate_output:
+                await self._async_write_multistate_switch(
+                    self._overrides.get_multistate_switch_value(
+                        self._obj, "multistate_off_value", 1
+                    )
                 )
             else:
                 await client.async_write_property(
@@ -237,6 +278,31 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
             _LOGGER.exception(
                 "Unexpected error turning off switch %s",
                 self._obj.unique_id,
+            )
+
+    async def _async_write_multistate_switch(self, value: float) -> None:
+        """Write one of the configured Multi-State Output switch values."""
+        async with self._write_lock:
+            client = self.coordinator.client
+            priority = self._overrides.get_write_priority(self._obj)
+            if self._overrides.get_write_profile(self._obj) == "glt_set_stage":
+                priority = 8
+                await client.async_write_binary_value(
+                    device_id=self._obj.device_id,
+                    object_id=self._obj.object_id,
+                    value=True,
+                    priority=priority,
+                )
+                await asyncio.sleep(
+                    self._overrides.get_write_delay_ms(
+                        self._obj, "glt_delay_ms", 2000
+                    ) / 1000
+                )
+            await client.async_write_multistate_output(
+                device_id=self._obj.device_id,
+                object_id=self._obj.object_id,
+                value=value,
+                priority=priority,
             )
 
     @property

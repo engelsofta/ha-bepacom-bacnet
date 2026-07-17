@@ -1,13 +1,13 @@
-
 # Engelsoft Beacon BACnet/IP for Home Assistant
 
-![Version](https://img.shields.io/badge/Version-1.0.0-blue)
+![Version](https://img.shields.io/badge/Version-1.1.0-blue)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.6.0%2B-41BDF5)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 
-The Bepacom integration connects BACnet/IP data points from a Bepacom gateway to Home Assistant. It automatically discovers supported BACnet objects, creates suitable Home Assistant entities, and updates them primarily through WebSocket/COV notifications. The integrated **BACnet Explorer** provides a central interface for managing, customizing, and diagnosing BACnet points.
+<img width="128" height="128" alt="logo" src="https://github.com/user-attachments/assets/c15254e9-f16f-4f18-a1f0-e437df4de4c3" />
 
-<img width="128" height="128" alt="logo" src="https://github.com/user-attachments/assets/f1b885eb-4fe1-41c7-be2a-5a2c988517e5" />
+
+The Engelsoft Beacon BACnet/IP integration connects BACnet/IP data points from a Bepacom gateway to Home Assistant. It automatically discovers supported BACnet objects, creates suitable Home Assistant entities, and updates them primarily through WebSocket/COV notifications. The integrated **BACnet Explorer** provides a central interface for managing, customizing, and diagnosing BACnet points.
 
 > [!IMPORTANT]
 > This integration requires the add-on from **[Bepacom-Raalte/bepacom-HA-Addons](https://github.com/Bepacom-Raalte/bepacom-HA-Addons)**. The add-on provides the Bepacom HTTP and WebSocket API used by this integration. The integration will not work unless the add-on is installed, running, and reachable from Home Assistant.
@@ -31,7 +31,7 @@ The Bepacom integration connects BACnet/IP data points from a Bepacom gateway to
 - per-point entity overrides and runtime settings
 - virtual binary sensors derived from numeric or multi-state BACnet values
 - diagnostics, recent value history, and data export
-- support for multiple Bepacom connections
+- support for multiple Engelsoft Beacon BACnet/IP connections
 
 ## Requirements
 
@@ -60,7 +60,7 @@ Configure and start the add-on. Verify that its HTTP API is reachable from Home 
 3. Open the menu in the upper-right corner and select **Custom repositories**.
 4. Enter the URL of this GitHub repository.
 5. Select **Integration** as the category.
-6. Install **Bepacom**.
+6. Install **Engelsoft Beacon BACnet/IP**.
 7. Restart Home Assistant completely.
 
 ### 3. Manual installation
@@ -73,7 +73,7 @@ Configure and start the add-on. Verify that its HTTP API is reachable from Home 
 
 1. Open **Settings → Devices & services**.
 2. Select **Add integration**.
-3. Search for **Bepacom**.
+3. Search for **Engelsoft Beacon BACnet/IP**.
 4. Enter the host/IP address and port of the Bepacom API.
 5. Confirm the setup.
 
@@ -144,7 +144,7 @@ WebSocket connections are monitored through a heartbeat timeout. When a connecti
 
 ## Global options
 
-Open **Settings → Devices & services → Bepacom → Configure** to access the global runtime options:
+Open **Settings → Devices & services → Engelsoft Beacon BACnet/IP → Configure** to access the global runtime options:
 
 | Option | Description |
 |---|---|
@@ -212,7 +212,7 @@ data:
   priority: 8
 ```
 
-When multiple Bepacom connections are configured, `config_entry_id` must also be supplied.
+When multiple Engelsoft Beacon BACnet/IP connections are configured, `config_entry_id` must also be supplied.
 
 After releasing a priority, some gateways return an empty `presentValue` together with `relinquishDefault`. In that case, the integration uses the BACnet fallback value so Home Assistant does not continue showing a stale commanded state.
 
@@ -250,7 +250,7 @@ During startup, the integration attempts to migrate older generated entity IDs t
 
 ## Performance
 
-Version 1.0.0 is designed for larger BACnet installations:
+Version 1.1.0 is designed for larger BACnet installations:
 
 - unchanged push values are filtered before they reach Home Assistant
 - only the affected entity writes a new Home Assistant state
@@ -298,7 +298,7 @@ Debug logging can produce a large number of messages. Disable it again after tro
 1. Install the new version through HACS, or replace the integration directory manually.
 2. Restart Home Assistant completely.
 3. Clear or bypass the browser cache if the Explorer still shows the previous frontend build.
-4. After major updates, reload the Bepacom integration and review the Explorer diagnostics.
+4. After major updates, reload the Engelsoft Beacon BACnet/IP integration and review the Explorer diagnostics.
 
 A Home Assistant configuration backup is recommended before updating.
 
