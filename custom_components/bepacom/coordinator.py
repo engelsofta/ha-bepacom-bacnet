@@ -38,6 +38,10 @@ _LOGGER = logging.getLogger(__name__)
 _MAX_INVALID_FALLBACK_RESPONSES = 3
 _PUSH_UPDATE_DEBOUNCE_SECONDS = 0.5
 _SUBSCRIBE_CONCURRENCY = 5
+_INVENTORY_STABLE_SAMPLES = 3
+_INVENTORY_STABLE_SAMPLE_DELAY_SECONDS = 5
+_INVENTORY_MISSING_POINT_GRACE_SECONDS = 60
+_INVENTORY_MAX_TOLERATED_MISSING_POINTS = 2
 
 
 class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -114,6 +118,8 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._subscriptions_initialized = False
         self._last_subscription_summary: tuple[int, int] | None = None
         self._last_inventory_summary: tuple[int, int] | None = None
+        self._inventory_readiness_samples = 0
+        self._inventory_missing_configured_points = 0
         self._pending_push_update_task: asyncio.Task[None] | None = None
         self._write_confirmation_tasks: dict[str, asyncio.Task[None]] = {}
         self._write_fallback_refresh_task: asyncio.Task[None] | None = None
@@ -130,6 +136,10 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "subscriptions_started": self._subscriptions_started,
                 "subscriptions_initialized": self._subscriptions_initialized,
                 "last_subscription_summary": self._last_subscription_summary,
+                "inventory_readiness_samples": self._inventory_readiness_samples,
+                "inventory_missing_configured_points": (
+                    self._inventory_missing_configured_points
+                ),
                 "fallback_objects": len(self._fallback_objects),
             }
         )
@@ -167,30 +177,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 # temporary empty/incomplete snapshot: platform setup only runs
                 # once and virtual entities whose source is absent would
                 # otherwise not be created until the integration is reloaded.
-                discovery = DiscoveryEngine()
-                discovery.parse(raw)
-
-                if not discovery.devices or not discovery.objects:
-                    raise UpdateFailed(
-                        "BACnet inventory is not ready yet "
-                        f"({len(discovery.devices)} devices / "
-                        f"{len(discovery.objects)} objects)"
-                    )
-
-                configured_virtual_sources = {
-                    str(item.get("source_unique_id") or "").strip()
-                    for item in self._overrides.get_virtual_entities()
-                    if item.get("source_unique_id")
-                }
-                missing_virtual_sources = configured_virtual_sources.difference(
-                    discovery.objects
-                )
-                if missing_virtual_sources:
-                    raise UpdateFailed(
-                        "BACnet inventory is still incomplete; waiting for "
-                        f"{len(missing_virtual_sources)} configured virtual-entity "
-                        "source point(s)"
-                    )
+                discovery, raw = await self._async_wait_for_stable_inventory(raw)
 
                 self.discovery = discovery
 
@@ -233,6 +220,118 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 _LOGGER.warning("Bepacom is not ready yet: %s", err)
 
             raise UpdateFailed(str(err)) from err
+
+    async def _async_wait_for_stable_inventory(
+        self,
+        initial_raw: dict[str, Any],
+    ) -> tuple[DiscoveryEngine, dict[str, Any]]:
+        """Wait until the gateway inventory is complete and stable.
+
+        A gateway restart can return a valid but steadily growing BACnet
+        database.  Require all previously configured runtime points and virtual
+        sources, then require the complete inventory signature to remain
+        unchanged for several samples before creating Home Assistant entities.
+        """
+        required_ids = self._overrides.configured_runtime_point_ids()
+        required_ids.update(
+            str(item.get("source_unique_id") or "").strip()
+            for item in self._overrides.get_virtual_entities()
+            if item.get("source_unique_id")
+        )
+
+        raw = initial_raw
+        previous_signature: frozenset[str] | None = None
+        stable_samples = 0
+
+        grace_samples = (
+            _INVENTORY_MISSING_POINT_GRACE_SECONDS
+            // _INVENTORY_STABLE_SAMPLE_DELAY_SECONDS
+        ) + 1
+        # If the last configured point appears at the end of the grace period,
+        # still allow enough follow-up samples to confirm that relevant set.
+        max_samples = grace_samples + _INVENTORY_STABLE_SAMPLES - 1
+
+        for sample in range(1, max_samples + 1):
+            discovery = DiscoveryEngine()
+            discovery.parse(raw)
+
+            if not discovery.devices or not discovery.objects:
+                raise UpdateFailed(
+                    "BACnet inventory is not ready yet "
+                    f"({len(discovery.devices)} devices / "
+                    f"{len(discovery.objects)} objects)"
+                )
+
+            missing_ids = required_ids.difference(discovery.objects)
+            self._inventory_missing_configured_points = len(missing_ids)
+
+            # Once persistent runtime configuration exists, only those points
+            # determine readiness. Gateways may continue adding/removing
+            # unrelated internal objects even though every point Home Assistant
+            # actually uses is already available. Without configured points,
+            # retain the conservative full-inventory comparison.
+            signature = (
+                frozenset(required_ids.intersection(discovery.objects))
+                if required_ids
+                else frozenset(discovery.objects)
+            )
+            if signature == previous_signature:
+                stable_samples += 1
+            else:
+                previous_signature = signature
+                stable_samples = 1
+
+            self._inventory_readiness_samples = stable_samples
+            _LOGGER.info(
+                "BACnet inventory readiness: stable=%s/%s devices=%s "
+                "objects=%s missing_configured=%s",
+                stable_samples,
+                _INVENTORY_STABLE_SAMPLES,
+                len(discovery.devices),
+                len(discovery.objects),
+                len(missing_ids),
+            )
+
+            if stable_samples >= _INVENTORY_STABLE_SAMPLES and not missing_ids:
+                return discovery, raw
+
+            elapsed_seconds = (
+                sample - 1
+            ) * _INVENTORY_STABLE_SAMPLE_DELAY_SECONDS
+            grace_expired = elapsed_seconds >= _INVENTORY_MISSING_POINT_GRACE_SECONDS
+
+            if (
+                grace_expired
+                and stable_samples >= _INVENTORY_STABLE_SAMPLES
+                and len(missing_ids) <= _INVENTORY_MAX_TOLERATED_MISSING_POINTS
+            ):
+                _LOGGER.warning(
+                    "BACnet inventory is stable but %s configured point(s) are "
+                    "missing after %ss; starting without: %s",
+                    len(missing_ids),
+                    _INVENTORY_MISSING_POINT_GRACE_SECONDS,
+                    ", ".join(sorted(missing_ids)),
+                )
+                return discovery, raw
+
+            if sample < max_samples:
+                await asyncio.sleep(_INVENTORY_STABLE_SAMPLE_DELAY_SECONDS)
+                raw = await self.client.async_get_database()
+                if not isinstance(raw, dict):
+                    raise UpdateFailed(
+                        f"Unexpected response type while checking inventory: {type(raw)}"
+                    )
+
+        missing_ids = required_ids.difference(discovery.objects)
+        if len(missing_ids) > _INVENTORY_MAX_TOLERATED_MISSING_POINTS:
+            raise UpdateFailed(
+                "BACnet inventory is still incomplete after the startup grace period; "
+                f"waiting for {len(missing_ids)} configured point(s)"
+            )
+
+        raise UpdateFailed(
+            "BACnet inventory is still changing after the startup grace period"
+        )
 
     async def async_start(self) -> None:
         """Start object subscriptions after the initial refresh."""

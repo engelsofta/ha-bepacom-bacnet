@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Bepacom Gateway",
+        "title": "Engelsoft Beacon BACnet/IP",
         "description": "Bitte Host und Port eingeben.",
         "data": {
           "host": "Host",
@@ -21,15 +21,15 @@
   "options": {
     "step": {
       "init": {
-        "title": "Bepacom Optionen",
-        "description": "Allgemeine Grundeinstellungen. Objektverwaltung, Overrides, Subscribe/Polling, Explorer und Bulk-Edit erfolgen über die Sidebar „BACnet Explorer“.",
+        "title": "Engelsoft Beacon BACnet/IP Optionen",
+        "description": "Allgemeine Grundeinstellungen. Objektverwaltung, Overrides, Subscribe/Polling, Explorer und Bulk-Edit erfolgen über die Sidebar „Engelsoft Beacon BACnet/IP“.",
         "menu_options": {
           "general": "Allgemeine Einstellungen"
         }
       },
       "general": {
         "title": "Allgemeine Einstellungen",
-        "description": "Hier bleiben nur globale Basisoptionen. BACnet-Objekte, Subscribe/Polling und Overrides werden ausschließlich in der Sidebar „BACnet Explorer“ bearbeitet.",
+        "description": "Hier bleiben nur globale Basisoptionen. BACnet-Objekte, Subscribe/Polling und Overrides werden ausschließlich in der Sidebar „Engelsoft Beacon BACnet/IP“ bearbeitet.",
         "data": {
           "enable_polling": "Zyklische Datenaktualisierung aktivieren",
           "snapshot_websocket_mode": "Snapshot-WebSocket-Modus",

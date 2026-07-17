@@ -200,7 +200,21 @@ async def _async_remove_inactive_entity_entries(
         if obj is None:
             continue
         entity_type = BacnetObjectTypeMapper.get_entity_type(obj)
-        if entity_type != EntityType.NONE and coordinator.point_registry.overrides.is_enabled(obj):
+        expected_domain = entity_type.value
+        if (
+            BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
+            == "multi_state_output"
+            and coordinator.point_registry.overrides.get_multistate_representation(obj)
+            == "switch"
+        ):
+            expected_domain = "switch"
+
+        entity_domain = entity_entry.entity_id.split(".", 1)[0]
+        if (
+            entity_type != EntityType.NONE
+            and coordinator.point_registry.overrides.is_enabled(obj)
+            and entity_domain == expected_domain
+        ):
             continue
 
         registry.async_remove(entity_entry.entity_id)
@@ -221,8 +235,11 @@ async def _async_apply_deferred_entity_registry_overrides(
         return
 
     registry = er.async_get(hass)
-    entries_by_unique_id = {
-        str(entity_entry.unique_id): entity_entry
+    entries_by_unique_id_and_domain = {
+        (
+            str(entity_entry.unique_id),
+            entity_entry.entity_id.split(".", 1)[0],
+        ): entity_entry
         for entity_entry in er.async_entries_for_config_entry(registry, entry.entry_id)
         if getattr(entity_entry, "platform", None) == DOMAIN
     }
@@ -232,7 +249,19 @@ async def _async_apply_deferred_entity_registry_overrides(
         if not isinstance(override, dict):
             continue
 
-        entity_entry = entries_by_unique_id.get(obj.unique_id)
+        entity_type = BacnetObjectTypeMapper.get_entity_type(obj)
+        expected_domain = entity_type.value
+        if (
+            BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
+            == "multi_state_output"
+            and coordinator.point_registry.overrides.get_multistate_representation(obj)
+            == "switch"
+        ):
+            expected_domain = "switch"
+
+        entity_entry = entries_by_unique_id_and_domain.get(
+            (obj.unique_id, expected_domain)
+        )
         if entity_entry is None:
             continue
 
@@ -247,7 +276,17 @@ async def _async_apply_deferred_entity_registry_overrides(
         if stored_entity_id is not None and str(stored_entity_id).strip():
             desired_entity_id = str(stored_entity_id).strip()
             if entity_entry.entity_id != desired_entity_id:
-                kwargs["new_entity_id"] = desired_entity_id
+                occupying_entry = registry.async_get(desired_entity_id)
+                if occupying_entry is None:
+                    kwargs["new_entity_id"] = desired_entity_id
+                else:
+                    _LOGGER.info(
+                        "Skipping deferred entity_id override for %s: %s is "
+                        "already used by %s",
+                        obj.unique_id,
+                        desired_entity_id,
+                        occupying_entry.unique_id,
+                    )
 
         if not kwargs:
             continue

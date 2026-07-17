@@ -105,6 +105,71 @@ class BepacomOverrideManager:
 
         return {}
 
+    def configured_runtime_point_ids(self) -> set[str]:
+        """Return configured point IDs that must exist before startup.
+
+        The BACnet gateway can expose a partial inventory for a while after its
+        own restart.  Active push/polling overrides are durable knowledge of
+        points that were available previously, so they are a stronger readiness
+        signal than merely checking whether the database is non-empty.
+        """
+        result: set[str] = set()
+
+        for key, value in self._overrides.items():
+            if not isinstance(value, dict):
+                continue
+
+            mode = str(value.get("update_mode") or "").strip().lower()
+            enabled = value.get("enabled")
+            subscribe = value.get("subscribe")
+            active = mode in {
+                "subscribe",
+                "subscribed",
+                "push",
+                "cov",
+                "subscription",
+                "polling",
+                "poll",
+                "zyklisch",
+            }
+
+            if not active and enabled is not False:
+                active = isinstance(subscribe, bool) or (
+                    isinstance(subscribe, str)
+                    and subscribe.strip().lower()
+                    in {
+                        "1",
+                        "true",
+                        "yes",
+                        "ja",
+                        "on",
+                        "subscribe",
+                        "push",
+                        "cov",
+                        "polling",
+                        "poll",
+                    }
+                )
+
+            if not active:
+                continue
+
+            normalized_key = str(key).strip()
+            if normalized_key.startswith("bepacom_"):
+                result.add(normalized_key)
+                continue
+
+            # Alternate persisted form: ``device|objectType:instance``.
+            if "|" in normalized_key:
+                device_id, object_key = normalized_key.split("|", 1)
+                if ":" in object_key:
+                    object_type, object_id = object_key.split(":", 1)
+                    result.add(
+                        f"bepacom_{device_id}_{object_type.lower()}_{object_id}"
+                    )
+
+        return result
+
     def get_number_setting(self, obj: BacnetObject, key: str, default: float) -> float:
         """Return a finite numeric entity setting or its default."""
         value = self.get_override(obj).get(key)
@@ -113,6 +178,19 @@ class BepacomOverrideManager:
         except (TypeError, ValueError):
             return default
         return parsed if parsed == parsed and abs(parsed) != float("inf") else default
+
+    def get_multistate_representation(self, obj: BacnetObject) -> str:
+        """Return how a Multi-State Output should be exposed in Home Assistant."""
+        value = str(
+            self.get_override(obj).get("multistate_representation", "number")
+        ).strip().lower()
+        return "switch" if value == "switch" else "number"
+
+    def get_multistate_switch_value(
+        self, obj: BacnetObject, key: str, default: float
+    ) -> float:
+        """Return a finite BACnet value used by a Multi-State Output switch."""
+        return self.get_number_setting(obj, key, default)
 
     def get_write_priority(self, obj: BacnetObject, default: int = 8) -> int:
         """Return the configured BACnet write priority (1-16)."""

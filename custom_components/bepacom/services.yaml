@@ -4,7 +4,7 @@ release_analog_value_priority:
   fields:
     config_entry_id:
       name: Verbindung
-      description: Bepacom-Verbindung; nur bei mehreren eingerichteten Verbindungen erforderlich.
+      description: Engelsoft-Beacon-Verbindung; nur bei mehreren eingerichteten Verbindungen erforderlich.
       required: false
       selector:
         config_entry:
@@ -43,7 +43,7 @@ release_multistate_output_priority:
   fields:
     config_entry_id:
       name: Verbindung
-      description: Bepacom-Verbindung; nur bei mehreren eingerichteten Verbindungen erforderlich.
+      description: Engelsoft-Beacon-Verbindung; nur bei mehreren eingerichteten Verbindungen erforderlich.
       required: false
       selector:
         config_entry:
@@ -82,7 +82,7 @@ release_binary_value_priority:
   fields:
     config_entry_id:
       name: Verbindung
-      description: Bepacom-Verbindung; nur bei mehreren eingerichteten Verbindungen erforderlich.
+      description: Engelsoft-Beacon-Verbindung; nur bei mehreren eingerichteten Verbindungen erforderlich.
       required: false
       selector:
         config_entry:
