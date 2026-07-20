@@ -279,7 +279,7 @@ class BepacomOverrideManager:
         # Do not blindly convert a BACnet unit of °C into a temperature device
         # class. Some BACnet gateways report °C for every analog value. Only use
         # temperature automatically when the object type/name makes that plausible.
-        unit = BacnetObjectTypeMapper.get_unit_of_measurement(obj)
+        unit = self.get_unit_of_measurement(obj)
         original: SensorDeviceClass | str | None
         if unit in {
             UnitOfTemperature.CELSIUS,
@@ -287,6 +287,8 @@ class BepacomOverrideManager:
             UnitOfTemperature.KELVIN,
         } and not self._looks_like_temperature(obj):
             original = None
+        elif unit == "cm":
+            original = getattr(SensorDeviceClass, "DISTANCE", "distance")
         else:
             original = BacnetObjectTypeMapper.get_device_class(obj)
 

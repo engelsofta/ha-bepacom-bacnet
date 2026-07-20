@@ -74,6 +74,50 @@ class BepacomPointRegistry:
         self.objects: dict[str, BacnetObject] = {}
         self._by_path: dict[tuple[str, str], BacnetObject] = {}
         self._runtime: dict[str, PointRuntimeState] = {}
+        self._change_history: deque[dict[str, Any]] = deque(maxlen=10_000)
+        self._change_sequence = 0
+
+    def _record_change(
+        self,
+        obj: BacnetObject,
+        previous_value: Any,
+        value: Any,
+        source: str,
+        timestamp: datetime,
+    ) -> None:
+        """Store one real value change for the compact live monitor."""
+        self._change_sequence += 1
+        self._change_history.append(
+            {
+                "sequence": self._change_sequence,
+                "ts": timestamp.isoformat(),
+                "unique_id": obj.unique_id,
+                "device_id": str(obj.device_id),
+                "object_type": obj.object_type,
+                "object_id": str(obj.object_id),
+                "object_key": self.object_key(obj),
+                "object_name": obj.object_name,
+                "previous_value": previous_value,
+                "value": value,
+                "source": source or "unknown",
+            }
+        )
+
+    def changes_since(self, sequence: int = 0, *, limit: int = 1000) -> dict[str, Any]:
+        """Return global value changes after a monotonically increasing cursor."""
+        safe_limit = max(1, min(int(limit), 10_000))
+        changes = [
+            item for item in self._change_history if int(item["sequence"]) > int(sequence)
+        ][:safe_limit]
+        oldest_sequence = (
+            int(self._change_history[0]["sequence"]) if self._change_history else self._change_sequence
+        )
+        return {
+            "changes": changes,
+            "latest_sequence": self._change_sequence,
+            "oldest_sequence": oldest_sequence,
+            "retained": len(self._change_history),
+        }
 
     def refresh_options(self, options: dict[str, Any] | None) -> None:
         """Refresh option backed helpers after options changed."""
@@ -110,6 +154,7 @@ class BepacomPointRegistry:
             if runtime.has_value and not value_changed:
                 runtime.suppressed_updates += 1
             if value_changed:
+                previous_value = runtime.last_value if runtime.has_value else None
                 runtime.revision += 1
                 runtime.last_update = now
                 runtime.last_update_source = "poll"
@@ -126,6 +171,8 @@ class BepacomPointRegistry:
                     )
                 runtime.has_value = True
                 runtime.last_value = obj.present_value
+                if previous_value is not None:
+                    self._record_change(obj, previous_value, obj.present_value, "poll", now)
 
     def all(self, *, include_disabled: bool = False) -> Iterable[BacnetObject]:
         """Iterate over all points, optionally including disabled ones."""
@@ -188,6 +235,7 @@ class BepacomPointRegistry:
 
         value_changed = (not runtime.has_value) or not _values_equal(obj.present_value, previous_value)
         if value_changed:
+            had_previous = runtime.has_value
             runtime.revision += 1
             # As a final safety net, compare against the newest persisted
             # history entry as well. This prevents duplicate visible history
@@ -206,6 +254,14 @@ class BepacomPointRegistry:
                 )
             runtime.has_value = True
             runtime.last_value = obj.present_value
+            if had_previous:
+                self._record_change(
+                    obj,
+                    previous_value,
+                    obj.present_value,
+                    source,
+                    now,
+                )
         else:
             runtime.suppressed_updates += 1
             # Keep the canonical last value aligned after the first ever update,

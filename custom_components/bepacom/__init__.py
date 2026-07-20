@@ -118,6 +118,76 @@ def _expected_entity_id(entity_entry: er.RegistryEntry) -> str | None:
     return f"{domain}.{unique_id}"
 
 
+def _is_generated_legacy_entity_id(unique_id: str, entity_id: str) -> bool:
+    """Return whether an override contains an old automatically generated ID.
+
+    Older entity implementations derived their IDs from the BACnet device name
+    and object label.  Depending on the Home Assistant version this produced
+    variants such as ``switch.device_1_82980`` or
+    ``sensor.device_1_analoginput_analoginput_17``.  Match only those exact
+    generated shapes so genuinely user-defined IDs remain untouched.
+    """
+    parts = str(unique_id or "").strip().split("_", 3)
+    if len(parts) != 4 or parts[0] != DOMAIN:
+        return False
+
+    device_id, object_type, object_id = parts[1:]
+    normalized_entity_id = str(entity_id or "").strip().lower()
+    if "." not in normalized_entity_id:
+        return False
+
+    _domain, object_slug = normalized_entity_id.split(".", 1)
+    legacy_slugs = {
+        f"device_{device_id}_{object_id}",
+        f"device_{device_id}_{object_type}_{object_id}",
+        f"device_{device_id}_{object_type}_{object_type}_{object_id}",
+    }
+    return object_slug in legacy_slugs
+
+
+async def _async_migrate_legacy_entity_id_overrides(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+) -> None:
+    """Remove generated legacy IDs saved as Explorer overrides.
+
+    The entity registry migration already assigns the stable BACnet-based ID.
+    Keeping an old generated ID in the point override would rename the entity
+    back again at the end of every integration reload.  Removing only the
+    recognized generated value lets the normal stable suggestion take over and
+    preserves every other point setting and custom user-assigned entity ID.
+    """
+    raw_overrides = entry.options.get(CONF_ENTITY_OVERRIDES, {})
+    if not isinstance(raw_overrides, dict):
+        return
+
+    migrated = 0
+    updated_overrides: dict[str, Any] = dict(raw_overrides)
+    for key, raw_override in raw_overrides.items():
+        if not isinstance(raw_override, dict):
+            continue
+
+        stored_entity_id = raw_override.get("entity_id")
+        if not _is_generated_legacy_entity_id(str(key), str(stored_entity_id or "")):
+            continue
+
+        cleaned_override = dict(raw_override)
+        cleaned_override.pop("entity_id", None)
+        updated_overrides[key] = cleaned_override
+        migrated += 1
+
+    if not migrated:
+        return
+
+    options = dict(entry.options)
+    options[CONF_ENTITY_OVERRIDES] = updated_overrides
+    hass.config_entries.async_update_entry(entry, options=options)
+    _LOGGER.info(
+        "Removed %s generated legacy entity_id overrides; stable BACnet IDs will be used",
+        migrated,
+    )
+
+
 async def _async_migrate_legacy_entity_ids(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -318,6 +388,11 @@ async def async_setup_entry(
     """Set up Bepacom from a config entry."""
 
     _LOGGER.info("Starting Bepacom integration")
+
+    # Migrate saved Explorer IDs before the coordinator snapshots entry.options.
+    # Otherwise a legacy override can rename an entity back after the registry
+    # migration later in this setup sequence.
+    await _async_migrate_legacy_entity_id_overrides(hass, entry)
 
     client = BepacomClient(
         host=entry.data["host"],

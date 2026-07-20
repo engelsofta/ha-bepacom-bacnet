@@ -14,21 +14,13 @@ from homeassistant.helpers.update_coordinator import (
 
 from .api import BepacomClient
 from .const import (
-    CONF_ENABLE_POLLING,
-    CONF_HEARTBEAT_TIMEOUT,
-    CONF_PUSH_VALUE_LOGGING,
-    CONF_SNAPSHOT_WEBSOCKET_MODE,
     CONF_SUBSCRIBED_OBJECTS,
-    DEFAULT_ENABLE_POLLING,
-    DEFAULT_HEARTBEAT_TIMEOUT,
-    DEFAULT_PUSH_VALUE_LOGGING,
     DEFAULT_SCAN_INTERVAL,
-    DEFAULT_SNAPSHOT_WEBSOCKET_MODE,
     DOMAIN,
     FALLBACK_POLL_INTERVAL,
 )
 from .discovery import DiscoveryEngine
-from .exceptions import InvalidResponse
+from .exceptions import CannotConnect, InvalidResponse
 from .models import BacnetObject
 from .override_manager import BepacomOverrideManager
 from .point_registry import BepacomPointRegistry
@@ -55,22 +47,11 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     ) -> None:
         """Initialize coordinator."""
 
-        self._polling_enabled = entry.options.get(
-            CONF_ENABLE_POLLING,
-            DEFAULT_ENABLE_POLLING,
-        )
-        self._snapshot_websocket_mode = entry.options.get(
-            CONF_SNAPSHOT_WEBSOCKET_MODE,
-            DEFAULT_SNAPSHOT_WEBSOCKET_MODE,
-        )
-        self._push_value_logging = entry.options.get(
-            CONF_PUSH_VALUE_LOGGING,
-            DEFAULT_PUSH_VALUE_LOGGING,
-        )
-        self._heartbeat_timeout = entry.options.get(
-            CONF_HEARTBEAT_TIMEOUT,
-            DEFAULT_HEARTBEAT_TIMEOUT,
-        )
+        # Transport behavior is automatic. Object-specific Push/Polling choices
+        # remain managed in the sidebar explorer.
+        self._polling_enabled = False
+        self._snapshot_websocket_mode = True
+        self._push_value_logging = _LOGGER.isEnabledFor(logging.DEBUG)
 
         super().__init__(
             hass,
@@ -108,7 +89,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             client=client,
             on_update=self._async_handle_subscription_update,
             on_subscription_failure=self._async_handle_subscription_failure,
-            heartbeat_timeout=self._heartbeat_timeout,
+            on_reconnect=self._async_restore_managed_targets,
             push_value_logging=self._push_value_logging,
         )
         self._fallback_objects: set[tuple[str, str]] = set()
@@ -124,6 +105,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._write_confirmation_tasks: dict[str, asyncio.Task[None]] = {}
         self._write_fallback_refresh_task: asyncio.Task[None] | None = None
         self._data_revision = 0
+        self._managed_target_restore_lock = asyncio.Lock()
 
     @property
     def websocket_diagnostics(self) -> dict[str, Any]:
@@ -416,6 +398,25 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if self._snapshot_websocket_mode:
             initial_values = self._snapshot_initial_values(targets)
             self._websocket_manager.set_snapshot_targets(targets, initial_values)
+            try:
+                managed_result = await self.client.async_set_managed_targets(targets)
+                if managed_result.get("accepted"):
+                    _LOGGER.info(
+                        "Bepacom managed gateway targets configured: strategy=%s targets=%s devices=%s interval=%s",
+                        managed_result.get("strategy"),
+                        managed_result.get("targets"),
+                        managed_result.get("devices"),
+                        managed_result.get("poll_rate", "n/a"),
+                    )
+                else:
+                    _LOGGER.debug(
+                        "Bepacom gateway keeps legacy subscription handling: %s",
+                        managed_result.get("mode", "unknown"),
+                    )
+            except (CannotConnect, InvalidResponse):
+                _LOGGER.debug(
+                    "Bepacom gateway does not support managed targets; continuing with legacy snapshot behavior"
+                )
             gateway_targets = targets[:1]
 
             _LOGGER.info(
@@ -480,6 +481,32 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         self._ensure_fallback_polling()
         return successful
+
+    async def _async_restore_managed_targets(self) -> None:
+        """Restore managed gateway targets after a WebSocket reconnect."""
+        if not self._snapshot_websocket_mode or not self.data:
+            return
+
+        async with self._managed_target_restore_lock:
+            targets = self._iter_subscription_targets()
+            if not targets:
+                return
+
+            try:
+                result = await self.client.async_set_managed_targets(targets)
+            except (CannotConnect, InvalidResponse):
+                _LOGGER.warning(
+                    "Could not restore Bepacom managed targets after reconnect"
+                )
+                return
+
+            if result.get("accepted"):
+                _LOGGER.info(
+                    "Restored Bepacom managed targets after reconnect: strategy=%s targets=%s unchanged=%s",
+                    result.get("strategy"),
+                    result.get("targets"),
+                    result.get("unchanged", False),
+                )
 
     async def _async_subscribe_targets(
         self,

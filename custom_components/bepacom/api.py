@@ -12,7 +12,7 @@ from typing import Any
 import aiohttp
 from yarl import URL
 
-from .const import DEFAULT_SUBSCRIPTION_LIFETIME
+from .const import DEFAULT_SUBSCRIPTION_LIFETIME, WEBSOCKET_PING_INTERVAL
 from .exceptions import CannotConnect, InvalidResponse, WriteError
 
 _LOGGER = logging.getLogger(__name__)
@@ -191,7 +191,11 @@ class BepacomClient:
 
         assert self._session is not None
 
-        return await self._session.ws_connect(url, heartbeat=30)
+        return await self._session.ws_connect(
+            url,
+            heartbeat=WEBSOCKET_PING_INTERVAL,
+            autoping=True,
+        )
 
     def _decode_response(self, text: str) -> Any:
         """Decode a gateway response."""
@@ -362,6 +366,35 @@ class BepacomClient:
                     return result
 
         raise InvalidResponse
+
+    async def async_set_managed_targets(
+        self, targets: list[tuple[str, str]]
+    ) -> dict[str, Any]:
+        """Send the complete managed polling target list to a capable gateway."""
+        await self.async_connect()
+        assert self._session is not None
+
+        url = f"{self._base}/apiv1/managed/targets"
+        payload = {
+            "targets": [
+                {"device_id": device_id, "object_id": object_id}
+                for device_id, object_id in targets
+            ]
+        }
+        try:
+            async with self._session.post(url, json=payload) as response:
+                if response.status == 404:
+                    return {"accepted": False, "mode": "unsupported"}
+                response.raise_for_status()
+                result = self._decode_response(await response.text())
+        except asyncio.TimeoutError as err:
+            raise CannotConnect from err
+        except aiohttp.ClientError as err:
+            raise CannotConnect from err
+
+        if not isinstance(result, dict):
+            raise InvalidResponse
+        return result
 
     async def async_subscribe(
         self,

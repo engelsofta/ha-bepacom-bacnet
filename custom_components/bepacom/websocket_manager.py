@@ -13,6 +13,7 @@ from typing import Any
 import aiohttp
 
 from .api import BepacomClient
+from .const import WEBSOCKET_PING_INTERVAL
 from .exceptions import InvalidResponse
 
 _LOGGER = logging.getLogger(__name__)
@@ -22,6 +23,7 @@ _UNSUBSCRIBE_CONCURRENCY = 20
 
 type UpdateCallback = Callable[[str, str, dict[str, Any]], Awaitable[bool | None] | bool | None]
 type FailureCallback = Callable[[str, str], Awaitable[None] | None]
+type ReconnectCallback = Callable[[], Awaitable[None] | None]
 
 
 @dataclass(slots=True)
@@ -57,14 +59,14 @@ class BepacomWebSocketManager:
         client: BepacomClient,
         on_update: UpdateCallback,
         on_subscription_failure: FailureCallback | None = None,
-        heartbeat_timeout: int = 60,
+        on_reconnect: ReconnectCallback | None = None,
         push_value_logging: bool = False,
     ) -> None:
         """Initialize the WebSocket manager."""
         self._client = client
         self._on_update = on_update
         self._on_subscription_failure = on_subscription_failure
-        self._heartbeat_timeout = heartbeat_timeout
+        self._on_reconnect = on_reconnect
         self._push_value_logging = push_value_logging
         self._subscriptions: dict[tuple[str, str], _SubscriptionState] = {}
         self._max_backoff = 60
@@ -98,7 +100,6 @@ class BepacomWebSocketManager:
         self._last_dispatched_values: dict[tuple[str, str], Any] = {}
         self._connection_statistics: dict[str, _ConnectionStatistics] = {}
         self._snapshot_targets: set[tuple[str, str]] = set()
-        self._heartbeat_closes = 0
         self._last_resubscribe: float | None = None
 
     def _stats_for_url(self, ws_url: str) -> _ConnectionStatistics:
@@ -228,7 +229,6 @@ class BepacomWebSocketManager:
             "websocket_urls": len(self._connection_statistics),
             "push_count": total_pushes,
             "reconnect_count": total_reconnects,
-            "heartbeat_closes": self._heartbeat_closes,
             "last_push_age": self._format_age(last_push),
             "last_connect_age": self._format_age(last_connect),
             "last_disconnect_age": self._format_age(last_disconnect),
@@ -251,7 +251,7 @@ class BepacomWebSocketManager:
             "dispatch_time_max_ms": self._dispatch_time_max * 1000,
             "subscriptions_enabled": self.subscriptions_enabled,
             "push_value_logging": self._push_value_logging,
-            "heartbeat_timeout": self._heartbeat_timeout,
+            "websocket_ping_interval": WEBSOCKET_PING_INTERVAL,
         }
 
     async def async_subscribe(self, device_id: str, object_id: str) -> bool:
@@ -504,39 +504,6 @@ class BepacomWebSocketManager:
             await self._async_resubscribe_for_url(state.ws_url)
             reconnect_delay = min(reconnect_delay * 2, self._max_backoff)
 
-    async def _async_heartbeat_watchdog(
-        self,
-        state: _SubscriptionState,
-        websocket: aiohttp.ClientWebSocketResponse,
-    ) -> None:
-        """Close stale WebSocket connections when no pushes arrive."""
-        while not state.stop_event.is_set() and not websocket.closed:
-            await asyncio.sleep(max(5, min(30, self._heartbeat_timeout / 2)))
-
-            stats = self._stats_for_url(state.ws_url)
-            reference = stats.last_push or stats.last_connect
-
-            if reference is None:
-                continue
-
-            age = time.monotonic() - reference
-
-            if age < self._heartbeat_timeout:
-                continue
-
-            self._heartbeat_closes += 1
-            _LOGGER.warning(
-                "Bepacom WebSocket heartbeat timeout: url=%s owner=%s/%s no_push_for=%.1fs timeout=%ss; reconnecting",
-                state.ws_url,
-                state.device_id,
-                state.object_id,
-                age,
-                self._heartbeat_timeout,
-            )
-
-            await websocket.close()
-            return
-
     async def _async_resubscribe_for_url(self, ws_url: str) -> None:
         """Renew gateway subscriptions for one WebSocket URL after reconnect."""
         states = [
@@ -591,6 +558,16 @@ class BepacomWebSocketManager:
         )
         self._log_diagnostics(state.ws_url, reason="connected")
 
+        if stats.connect_count > 1 and self._on_reconnect is not None:
+            try:
+                result = self._on_reconnect()
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception:
+                _LOGGER.exception(
+                    "Failed to restore managed gateway targets after WebSocket reconnect"
+                )
+
         if self._websocket_connects == 1:
             _LOGGER.info(
                 "Bepacom WebSocket connected for %s/%s; subscription diagnostics: attempts=%s subscribe_successes=%s",
@@ -600,10 +577,6 @@ class BepacomWebSocketManager:
                 self._subscribe_successes,
             )
         state.websocket = websocket
-        heartbeat_task = asyncio.create_task(
-            self._async_heartbeat_watchdog(state, websocket),
-            name=f"bepacom-heartbeat-{state.device_id}-{state.object_id}",
-        )
 
         try:
             async for message in websocket:
@@ -657,12 +630,6 @@ class BepacomWebSocketManager:
                         self._websocket_updates,
                     )
         finally:
-            heartbeat_task.cancel()
-            try:
-                await heartbeat_task
-            except asyncio.CancelledError:
-                pass
-
             stats.last_disconnect = time.monotonic()
             _LOGGER.debug(
                 "Bepacom WebSocket disconnected: url=%s owner=%s/%s pushes=%s",
