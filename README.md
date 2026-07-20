@@ -1,16 +1,15 @@
 # Engelsoft Beacon BACnet/IP for Home Assistant
 
-![Version](https://img.shields.io/badge/Version-1.1.1-blue)
+![Version](https://img.shields.io/badge/Version-1.1.6-blue)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.6.0%2B-41BDF5)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 
-<img width="128" height="128" alt="logo" src="https://github.com/user-attachments/assets/a58f8ca9-9a7b-49ed-8697-7d4a40f8b6d8" />
-
+<img width="128" height="128" alt="logo" src="https://github.com/user-attachments/assets/c722be40-ec2e-41b3-b50a-8ce158d11ed9" />
 
 The Engelsoft Beacon BACnet/IP integration connects BACnet/IP data points from a Bepacom gateway to Home Assistant. It automatically discovers supported BACnet objects, creates suitable Home Assistant entities, and updates them primarily through WebSocket/COV notifications. The integrated **BACnet Explorer** provides a central interface for managing, customizing, and diagnosing BACnet points.
 
 > [!IMPORTANT]
-> This integration requires the add-on from **[Bepacom-Raalte/bepacom-HA-Addons](https://github.com/Bepacom-Raalte/bepacom-HA-Addons)**. The add-on provides the Bepacom HTTP and WebSocket API used by this integration. The integration will not work unless the add-on is installed, running, and reachable from Home Assistant.
+> This integration requires a compatible BACnet gateway add-on: either the original **[Bepacom BACnet/IP add-on](https://github.com/Bepacom-Raalte/bepacom-HA-Addons)** for legacy full-snapshot transport or **Engelsoft BACstac** for managed COV targets and optimized delta updates. The integration will not work unless a compatible add-on is installed, running, and reachable from Home Assistant.
 
 ## Features
 
@@ -250,7 +249,7 @@ During startup, the integration attempts to migrate older generated entity IDs t
 
 ## Performance
 
-Version 1.1.1 is designed for larger BACnet installations:
+Version 1.1.6 is designed for larger BACnet installations:
 
 - unchanged push values are filtered before they reach Home Assistant
 - only the affected entity writes a new Home Assistant state

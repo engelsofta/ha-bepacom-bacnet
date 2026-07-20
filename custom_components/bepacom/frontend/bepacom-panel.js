@@ -58,12 +58,20 @@ class BepacomExplorerPanel extends HTMLElement {
     this._refreshGeneration = 0;
     this._visibilityHandler = () => this._handleVisibilityChange();
     this._virtualStateUpdateQueued = false;
+    this._liveChanges = [];
+    this._liveCursor = 0;
+    this._liveTimer = null;
+    this._liveRefreshInFlight = false;
+    this._liveGeneration = 0;
+    this._livePaused = false;
+    this._dashboardTab = this._loadSetting("bepacom_dashboard_tab", "live");
+    this._liveFilters = { search: "", source: "all", object_type: "all" };
   }
 
   _versionLabel() {
     const cfg = this.panel?.config || {};
-    const version = cfg.version || "1.1.0";
-    const build = cfg.frontend_build || "0591";
+    const version = cfg.version || "1.1.6";
+    const build = cfg.frontend_build || "0613";
     return `Version ${version} · Frontend-Build ${build}`;
   }
 
@@ -76,12 +84,14 @@ class BepacomExplorerPanel extends HTMLElement {
     this.shadowRoot.addEventListener("click", this._rootClickHandler);
     this._startInitialLoad();
     this._startRefreshTimer();
+    this._startLiveTimer();
     this._render();
   }
 
   disconnectedCallback() {
     this._connected = false;
     this._stopRefreshTimer();
+    this._stopLiveTimer();
     this._refreshGeneration += 1;
     this._refreshInFlight = false;
     if (this._debounce) window.clearTimeout(this._debounce);
@@ -152,9 +162,22 @@ class BepacomExplorerPanel extends HTMLElement {
     this._refreshTimer = null;
   }
 
+  _startLiveTimer() {
+    if (!this._connected || document.hidden || this._liveTimer) return;
+    this._refreshLiveChanges();
+    this._liveTimer = window.setInterval(() => this._refreshLiveChanges(), 1000);
+  }
+
+  _stopLiveTimer() {
+    if (!this._liveTimer) return;
+    window.clearInterval(this._liveTimer);
+    this._liveTimer = null;
+  }
+
   _handleVisibilityChange() {
     if (document.hidden) {
       this._stopRefreshTimer();
+      this._stopLiveTimer();
       // Invalidate a request that may never settle while the browser suspends
       // the tab. Its late result must not overwrite the fresh visible state.
       this._refreshGeneration += 1;
@@ -164,7 +187,45 @@ class BepacomExplorerPanel extends HTMLElement {
 
     if (!this._connected) return;
     this._startRefreshTimer();
+    this._startLiveTimer();
     this._refreshPointsInPlace();
+  }
+
+  async _refreshLiveChanges() {
+    if (!this.hass || !this._entryId || !this._statusOpen || this._dashboardTab !== "live" || this._livePaused || this._liveRefreshInFlight || document.hidden) return;
+    this._liveRefreshInFlight = true;
+    const generation = this._liveGeneration;
+    try {
+      const result = await this._callWSWithTimeout({
+        type: "bepacom/explorer/changes",
+        entry_id: this._entryId,
+        after: this._liveCursor,
+        limit: 10000,
+      });
+      const latestSequence = Number(result.latest_sequence) || 0;
+      if (generation !== this._liveGeneration) return;
+      if (latestSequence < this._liveCursor) {
+        // The integration was reloaded and its in-memory sequence restarted.
+        this._liveCursor = 0;
+        this._liveChanges = [];
+        return;
+      }
+      const incoming = Array.isArray(result.changes) ? result.changes : [];
+      if (incoming.length) {
+        this._liveChanges.push(...incoming);
+        if (this._liveChanges.length > 10000) {
+          this._liveChanges.splice(0, this._liveChanges.length - 10000);
+        }
+        this._liveCursor = Number(incoming[incoming.length - 1].sequence) || this._liveCursor;
+        this._updateLiveMonitorDom();
+      } else if (!this._liveCursor) {
+        this._liveCursor = latestSequence;
+      }
+    } catch (_) {
+      // The regular dashboard connection state already exposes transport errors.
+    } finally {
+      this._liveRefreshInFlight = false;
+    }
   }
 
   async _callWSWithTimeout(message, timeoutMs = 15000) {
@@ -336,8 +397,16 @@ class BepacomExplorerPanel extends HTMLElement {
     }
     const dashboard = this.shadowRoot?.getElementById("dashboard");
     if (dashboard) {
-      dashboard.innerHTML = this._dashboardHtml();
-      this._bindDashboardToggle();
+      const active = this.shadowRoot?.activeElement;
+      const liveMonitor = this.shadowRoot?.getElementById("liveMonitorHost");
+      // The runtime refresh runs every five seconds. Replacing the complete
+      // dashboard while a live filter is focused would destroy its input node
+      // and make typing jump out of the field. Incoming changes continue to be
+      // buffered and the next refresh after blur updates the complete view.
+      if (!(active && liveMonitor?.contains(active))) {
+        dashboard.innerHTML = this._dashboardHtml();
+        this._bindDashboardToggle();
+      }
     }
   }
 
@@ -936,6 +1005,7 @@ class BepacomExplorerPanel extends HTMLElement {
     // Nur den Dashboard-Bereich neu zeichnen. Alle anderen DOM-Bereiche bleiben
     // unverändert, damit Fokus, Tabellen-Scroll und Auswahl stabil bleiben.
     this._updateHeaderDom();
+    if (this._statusOpen && this._dashboardTab === "live") this._refreshLiveChanges();
   }
 
   _clientValueChangeTotal() {
@@ -953,6 +1023,131 @@ class BepacomExplorerPanel extends HTMLElement {
     return Math.max(backend, client);
   }
 
+  _filteredLiveChanges() {
+    const search = String(this._liveFilters.search || "").trim();
+    const pointByUid = new Map(this._points.map((point) => [point.unique_id, point]));
+    return this._liveChanges.filter((item) => {
+      if (this._liveFilters.source !== "all" && String(item.source) !== this._liveFilters.source) return false;
+      if (this._liveFilters.object_type !== "all" && String(item.object_type) !== this._liveFilters.object_type) return false;
+      if (!search) return true;
+      const point = pointByUid.get(item.unique_id);
+      const haystack = [
+        item.device_id, item.object_type, item.object_id, item.object_key,
+        item.object_name, item.unique_id, point?.entity_id,
+        item.previous_value, item.value, item.source,
+      ].filter((value) => value !== null && value !== undefined).join(" ");
+      return this._matchesSearchQuery(haystack, search);
+    });
+  }
+
+  _liveMonitorHtml() {
+    const filtered = this._filteredLiveChanges();
+    const now = Date.now();
+    const bins = Array.from({ length: 60 }, () => 0);
+    for (const item of this._liveChanges) {
+      const age = Math.floor((now - Date.parse(item.ts || 0)) / 1000);
+      if (age >= 0 && age < 60) bins[59 - age] += 1;
+    }
+    const peak = Math.max(0, ...bins);
+    const lastMinute = bins.reduce((sum, count) => sum + count, 0);
+    const average = (lastMinute / 60).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const bars = bins.map((count) => {
+      const height = peak ? Math.max(2, Math.round((count / peak) * 34)) : 2;
+      return `<i style="height:${height}px" title="${count} Änderung${count === 1 ? "" : "en"}"></i>`;
+    }).join("");
+    const sources = [...new Set(this._liveChanges.map((item) => String(item.source || "unknown")))].sort();
+    const types = [...new Set(this._liveChanges.map((item) => String(item.object_type || "unknown")))].sort();
+    const options = (values, selected) => values.map((value) => `<option value="${this._escape(value)}" ${value === selected ? "selected" : ""}>${this._escape(value)}</option>`).join("");
+    const rows = filtered.slice(-120).reverse().map((item) => {
+      const point = this._points.find((candidate) => candidate.unique_id === item.unique_id);
+      const entityId = point?.entity_id || "";
+      const friendlyName = this.hass?.states?.[entityId]?.attributes?.friendly_name
+        || point?.entity_name
+        || point?.entity_original_name
+        || item.object_name
+        || item.object_key
+        || item.unique_id;
+      const secondaryLabel = entityId || item.object_key || item.unique_id;
+      return `<tr data-live-uid="${this._escape(item.unique_id)}" title="${this._escape(`${item.device_id}/${item.object_type}:${item.object_id} · Im Point Inspector öffnen`)}">
+        <td>${this._escape(this._formatTime(item.ts))}</td>
+        <td><b>${this._escape(friendlyName)}</b><small>${this._escape(secondaryLabel)}</small></td>
+        <td class="live-value">${this._escape(this._value(item.previous_value))}<span>→</span>${this._escape(this._value(item.value))}</td>
+        <td><span class="live-source">${this._escape(item.source || "-")}</span></td>
+      </tr>`;
+    }).join("");
+    return `<div class="live-monitor">
+      <div class="live-summary">
+        <span><b>${this._liveChanges.length.toLocaleString("de-DE")}</b> gespeichert</span>
+        <span><b>${filtered.length.toLocaleString("de-DE")}</b> im Filter</span>
+        <span><b>${average}/s</b> letzte Minute</span>
+        <span><b>${peak}/s</b> Spitze</span>
+        <button id="livePause" class="secondary live-small-btn">${this._livePaused ? "Fortsetzen" : "Pausieren"}</button>
+      </div>
+      <div class="live-chart" aria-label="Änderungen der letzten 60 Sekunden">${bars}</div>
+      <div class="live-filters">
+        <input id="liveSearch" value="${this._escape(this._liveFilters.search)}" placeholder="Filter / Wildcards …">
+        <select id="liveSource"><option value="all">Alle Quellen</option>${options(sources, this._liveFilters.source)}</select>
+        <select id="liveObjectType"><option value="all">Alle Typen</option>${options(types, this._liveFilters.object_type)}</select>
+        <button id="liveClear" class="secondary live-small-btn" title="Monitorverlauf leeren">Leeren</button>
+      </div>
+      <div class="live-table-wrap">
+        <table class="live-table"><thead><tr><th>Zeit</th><th>Punkt</th><th>Alt → Neu</th><th>Quelle</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="4" class="muted">Noch keine passenden Wertänderungen.</td></tr>`}</tbody></table>
+      </div>
+      <div class="live-foot">Ringpuffer: maximal 10.000 Änderungen · angezeigt werden die neuesten 120 Treffer</div>
+    </div>`;
+  }
+
+  _updateLiveMonitorDom(force = false) {
+    const host = this.shadowRoot?.getElementById("liveMonitorHost");
+    if (!host || this._dashboardTab !== "live") return;
+    const active = this.shadowRoot?.activeElement;
+    if (!force && active && host.contains(active)) return;
+    host.innerHTML = this._liveMonitorHtml();
+    this._bindLiveMonitorEvents();
+  }
+
+  _bindLiveMonitorEvents() {
+    const root = this.shadowRoot?.getElementById("liveMonitorHost");
+    if (!root) return;
+    root.querySelector("#livePause")?.addEventListener("click", () => {
+      this._livePaused = !this._livePaused;
+      // Invalidate a response that may already be in flight so no values can
+      // slip into the table after the monitor has visibly been paused.
+      this._liveGeneration += 1;
+      this._updateLiveMonitorDom(true);
+      if (!this._livePaused) this._refreshLiveChanges();
+    });
+    root.querySelector("#liveClear")?.addEventListener("click", () => {
+      this._liveChanges = [];
+      this._liveGeneration += 1;
+      this._updateLiveMonitorDom(true);
+    });
+    root.querySelector("#liveSearch")?.addEventListener("input", (ev) => {
+      this._liveFilters.search = ev.target.value || "";
+      const cursor = ev.target.selectionStart;
+      this._updateLiveMonitorDom(true);
+      const input = this.shadowRoot?.getElementById("liveSearch");
+      input?.focus();
+      input?.setSelectionRange(cursor, cursor);
+    });
+    root.querySelector("#liveSource")?.addEventListener("change", (ev) => {
+      this._liveFilters.source = ev.target.value || "all";
+      this._updateLiveMonitorDom(true);
+    });
+    root.querySelector("#liveObjectType")?.addEventListener("change", (ev) => {
+      this._liveFilters.object_type = ev.target.value || "all";
+      this._updateLiveMonitorDom(true);
+    });
+    root.querySelectorAll("tr[data-live-uid]").forEach((row) => row.addEventListener("click", () => {
+      const point = this._points.find((candidate) => candidate.unique_id === row.dataset.liveUid);
+      if (!point) return;
+      this._detailsVisible = true;
+      this._setSetting("bepacom_details_visible", "1");
+      this._selectPoint(point);
+    }));
+  }
+
   _dashboardHtml() {
     const d = this._diagnostics || {};
     const configured = [
@@ -964,13 +1159,21 @@ class BepacomExplorerPanel extends HTMLElement {
       ["Overrides", d.overrides ?? "-"],
     ];
     const valueChanges = this._dashboardValueChanges(d);
+    const pushNotificationsRaw = d.bacnet_push_notifications ?? d.websocket_updates ?? d.push_count;
+    const pushNotifications = Number(pushNotificationsRaw);
+    const averageChangesPerPush = Number.isFinite(pushNotifications) && pushNotifications > 0
+      ? (Number(valueChanges) / pushNotifications).toLocaleString("de-DE", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : "-";
+    const pushChangeValue = `${pushNotificationsRaw ?? "-"} / ${averageChangesPerPush}`;
     const runtime = [
       ["Verbunden", d.connected === undefined ? "-" : (d.connected ? "Ja" : "Nein")],
       ["Aktive Subscriptions", d.subscribed ?? d.subscriptions ?? "-"],
       ["Aktives Polling", d.fallback_polling ?? d.fallback_objects ?? "-"],
-      ["Push-Nachrichten", d.bacnet_push_notifications ?? d.websocket_updates ?? d.push_count ?? "-"],
+      ["Pushs / Ø Änderungen", pushChangeValue],
       ["Ø Push-Verarbeitung ms", d.dispatch_time_avg_ms === undefined ? "-" : Number(d.dispatch_time_avg_ms).toFixed(2)],
-      ["Echte Wertänderungen", valueChanges],
       ["Reconnects", d.reconnect_count ?? "-"],
     ];
     const developer = [
@@ -995,14 +1198,13 @@ class BepacomExplorerPanel extends HTMLElement {
       return `<div class="stat ${cls}"><div class="stat-line"><span class="stat-icon">${icon}</span><div><div class="stat-value">${this._escape(value)}</div><div class="stat-label">${this._escape(label)}</div></div></div></div>`;
     }).join("");
     const open = !!this._statusOpen;
-    const showDeveloper = !!d.push_value_logging;
+    const dashboardTab = this._dashboardTab === "developer" ? "developer" : "live";
     const summary = [
       `Punkte: ${d.objects ?? this._total ?? "-"}`,
       `aktiv: ${d.enabled ?? "-"}`,
       `Push: ${d.configured_push ?? "-"}/${d.subscribed ?? "-"}`,
       `Polling: ${d.configured_polling ?? "-"}/${d.fallback_polling ?? "-"}`,
-      `Änderungen: ${valueChanges}`,
-      `Push-Nachrichten: ${d.bacnet_push_notifications ?? d.websocket_updates ?? d.push_count ?? "-"}`,
+      `Pushs / Ø Änderungen: ${pushChangeValue}`,
     ].join(" · ");
     return `
       <section class="dashboard-shell ${open ? "open" : "closed"}">
@@ -1020,10 +1222,15 @@ class BepacomExplorerPanel extends HTMLElement {
             <div class="dashboard-title">System / Laufzeit</div>
             <div class="dashboard-cards">${renderCards(runtime)}</div>
           </section>
-          ${showDeveloper ? `<section class="dashboard-group dashboard-group-wide">
-            <div class="dashboard-title">Entwickler / Push-Diagnose</div>
-            <div class="dashboard-cards">${renderCards(developer)}</div>
-          </section>` : ""}
+          <section class="dashboard-group dashboard-group-wide dashboard-monitor-group">
+            <div class="dashboard-monitor-tabs">
+              <button class="dashboard-monitor-tab ${dashboardTab === "developer" ? "active" : ""}" data-dashboard-tab="developer">Entwickler / Push-Diagnose</button>
+              <button class="dashboard-monitor-tab ${dashboardTab === "live" ? "active" : ""}" data-dashboard-tab="live">Live-Monitor <span class="live-dot ${this._livePaused ? "paused" : ""}"></span></button>
+            </div>
+            ${dashboardTab === "developer"
+              ? `<div class="dashboard-cards">${renderCards(developer)}</div>`
+              : `<div id="liveMonitorHost">${this._liveMonitorHtml()}</div>`}
+          </section>
         </div>` : ""}
       </section>
     `;
@@ -1147,14 +1354,23 @@ class BepacomExplorerPanel extends HTMLElement {
       :host { display:block; color: var(--primary-text-color); background: var(--primary-background-color); height:100vh; overflow:hidden; }
       .wrap { height:100vh; box-sizing:border-box; padding: 12px 20px 16px; max-width: 1900px; margin: 0 auto; display:flex; flex-direction:column; overflow:hidden; }
       .header { flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:12px; }
+      .header-actions-menu { position:relative; margin:0; }
+      .mobile-actions-toggle { display:none; }
+      .header-action-buttons { display:flex; gap:8px; align-items:center; }
       h1 { margin:0; font-size:28px; font-weight:500; }
       h2 { margin:0 0 4px 0; font-size:20px; font-weight:500; }
       h3 { margin:18px 0 8px 0; font-size:15px; font-weight:600; }
       .subtitle { color: var(--secondary-text-color); margin-top:4px; }
       .frontend-version { display:inline-flex; margin-top:6px; padding:2px 8px; border-radius:999px; border:1px solid var(--divider-color); color:var(--secondary-text-color); font-size:11px; background:var(--secondary-background-color); }
-      .toolbar { flex:0 0 auto; display:grid; grid-template-columns: minmax(170px, 250px) 118px 145px 150px 118px 132px 72px; gap:8px; align-items:end; margin-bottom:8px; }
-      .toolbar .search-field input { max-width:250px; }
-      .toolbar > div { padding:6px 8px !important; }
+      .toolbar { flex:0 0 auto; display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; margin-bottom:8px; padding:8px; background:linear-gradient(135deg, color-mix(in srgb, var(--card-background-color) 96%, var(--primary-color)), var(--card-background-color)); }
+      .toolbar > div { padding:4px 6px; }
+      .toolbar .toolbar-nav { align-self:stretch; display:flex; align-items:center; padding:4px 12px 4px 4px; margin-right:2px; border-right:1px solid var(--divider-color); }
+      .toolbar .search-field { flex:1 1 280px; min-width:220px; }
+      .toolbar .filter-field { flex:0 1 145px; min-width:112px; }
+      .toolbar .check-field { flex:0 1 132px; min-width:112px; }
+      .toolbar .reset-field { flex:0 0 auto; }
+      .toolbar .search-field input { max-width:none; border-color:color-mix(in srgb, var(--primary-color) 32%, var(--divider-color)); background:color-mix(in srgb, var(--secondary-background-color) 96%, var(--primary-color)); }
+      .toolbar .search-field input:focus { outline:2px solid color-mix(in srgb, var(--primary-color) 42%, transparent); outline-offset:1px; border-color:var(--primary-color); }
       .toolbar label { margin-bottom:4px; font-size:10px; text-transform:uppercase; letter-spacing:.02em; }
       .toolbar input, .toolbar select { padding:7px 9px; font-size:12px; min-height:32px; }
       .toolbar .check { height:32px; font-size:12px; }
@@ -1167,6 +1383,34 @@ class BepacomExplorerPanel extends HTMLElement {
       .dashboard-content { display:grid; grid-template-columns: 1fr 1.25fr; gap:12px; padding:0 12px 12px 12px; }
       .dashboard-group { border-radius:12px; background: var(--secondary-background-color); border:1px solid var(--divider-color); padding:12px; }
       .dashboard-title { font-size:13px; font-weight:700; color: var(--primary-text-color); margin-bottom:10px; }
+      .dashboard-group-wide { grid-column:1 / -1; }
+      .dashboard-monitor-group { padding:10px; min-width:0; }
+      .dashboard-monitor-tabs { display:flex; align-items:center; gap:5px; margin-bottom:8px; overflow-x:auto; }
+      .dashboard-monitor-tab { flex:0 0 auto; padding:6px 10px; border-radius:14px; background:transparent; color:var(--secondary-text-color); border:1px solid transparent; font-size:11px; }
+      .dashboard-monitor-tab.active { color:var(--primary-text-color); border-color:var(--divider-color); background:color-mix(in srgb, var(--primary-color) 14%, var(--secondary-background-color)); }
+      .live-dot { display:inline-block; width:7px; height:7px; margin-left:4px; border-radius:50%; background:var(--success-color, #43a047); box-shadow:0 0 0 2px color-mix(in srgb, var(--success-color, #43a047) 20%, transparent); }
+      .live-dot.paused { background:var(--warning-color, #ffa600); }
+      .live-monitor { min-width:0; }
+      .live-summary { display:flex; align-items:center; flex-wrap:wrap; gap:6px 12px; color:var(--secondary-text-color); font-size:11px; margin-bottom:5px; }
+      .live-summary b { color:var(--primary-text-color); }
+      .live-small-btn { padding:4px 9px; min-height:26px; font-size:10px; margin-left:auto; }
+      .live-chart { height:38px; display:flex; align-items:flex-end; gap:2px; padding:3px 5px; border:1px solid var(--divider-color); border-radius:8px; background:color-mix(in srgb, var(--secondary-background-color) 88%, transparent); overflow:hidden; }
+      .live-chart i { flex:1 1 0; min-width:1px; max-width:12px; border-radius:2px 2px 0 0; background:linear-gradient(180deg, var(--primary-color), color-mix(in srgb, var(--primary-color) 55%, transparent)); }
+      .live-filters { display:grid; grid-template-columns:minmax(150px,2fr) minmax(100px,.7fr) minmax(110px,.8fr) auto; gap:6px; margin:7px 0; }
+      .live-filters input, .live-filters select { height:30px; padding:4px 8px; border-radius:7px; font-size:11px; }
+      .live-table-wrap { max-height:238px; overflow:auto; border:1px solid var(--divider-color); border-radius:8px; }
+      .live-table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:11px; }
+      .live-table th { position:sticky; top:0; z-index:1; background:var(--secondary-background-color); color:var(--secondary-text-color); text-align:left; padding:5px 7px; }
+      .live-table td { padding:5px 7px; border-top:1px solid color-mix(in srgb, var(--divider-color) 65%, transparent); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .live-table tbody tr { cursor:pointer; }
+      .live-table tbody tr:hover { background:color-mix(in srgb, var(--primary-color) 9%, transparent); }
+      .live-table th:nth-child(1), .live-table td:nth-child(1) { width:72px; }
+      .live-table th:nth-child(3), .live-table td:nth-child(3) { width:150px; }
+      .live-table th:nth-child(4), .live-table td:nth-child(4) { width:70px; }
+      .live-table td small { display:block; color:var(--secondary-text-color); overflow:hidden; text-overflow:ellipsis; }
+      .live-value span { color:var(--primary-color); padding:0 5px; }
+      .live-source { display:inline-flex; border:1px solid var(--divider-color); border-radius:10px; padding:1px 5px; font-size:10px; }
+      .live-foot { color:var(--secondary-text-color); font-size:9px; margin-top:4px; text-align:right; }
       .dashboard-cards { display:grid; grid-template-columns: repeat(3, minmax(86px, 1fr)); gap:8px; }
       .stat { padding:9px 10px; border-radius:10px; background: var(--secondary-background-color); border:1px solid var(--divider-color); min-width:0; }
       .stat-ok { border-color: color-mix(in srgb, var(--success-color, #43a047) 45%, var(--divider-color)); background: color-mix(in srgb, var(--success-color, #43a047) 10%, var(--secondary-background-color)); }
@@ -1184,7 +1428,7 @@ class BepacomExplorerPanel extends HTMLElement {
       button.secondary { background: var(--secondary-background-color); color: var(--primary-text-color); border:1px solid var(--divider-color); }
       button.danger { color: var(--error-color, #db4437); }
       button:disabled { opacity:.55; cursor:default; }
-      .view-tabs { flex:0 0 auto; display:flex; flex-wrap:wrap; gap:8px; margin:0 0 10px 0; }
+      .view-tabs { flex:0 0 auto; display:flex; flex-wrap:wrap; gap:6px; margin:0; }
       .view-tab { background:var(--secondary-background-color); color:var(--primary-text-color); border:1px solid var(--divider-color); border-radius:999px; padding:8px 14px; }
       .view-tab.active { background: color-mix(in srgb, var(--primary-color) 18%, var(--secondary-background-color)); border-color: color-mix(in srgb, var(--primary-color) 45%, var(--divider-color)); color:var(--primary-text-color); }
       .view-panel { flex:1 1 auto; min-height:0; margin-top:0; overflow:auto; }
@@ -1215,6 +1459,11 @@ class BepacomExplorerPanel extends HTMLElement {
       .side-tab.active { background:color-mix(in srgb, var(--primary-color) 18%, var(--card-background-color)); border-color:color-mix(in srgb, var(--primary-color) 45%, var(--divider-color)); }
       .side-body { flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden; padding:14px 16px 16px 16px; position:relative; }
       .side-section-head { background:var(--card-background-color); margin:-14px -16px 12px -16px; padding:14px 16px 10px 16px; border-bottom:1px solid var(--divider-color); }
+      .point-inspector-head { position:sticky; top:-14px; z-index:25; display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin:-14px -16px 12px -16px; padding:14px 16px 10px 16px; border-bottom:1px solid var(--divider-color); background:color-mix(in srgb, var(--card-background-color) 96%, transparent); box-shadow:0 2px 8px rgba(0,0,0,.16); backdrop-filter:blur(10px); }
+      .point-inspector-head h2 { font-weight:700; overflow-wrap:anywhere; }
+      .inspector-head-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; flex:0 0 auto; }
+      .inspector-head-actions button { padding:7px 11px; font-size:12px; white-space:nowrap; }
+      .save-hint { margin:8px 0 12px; }
       .point-summary { display:grid; grid-template-columns:1fr auto; gap:10px; align-items:start; border:1px solid var(--divider-color); border-radius:10px; background:var(--secondary-background-color); padding:10px; margin:0 0 12px 0; }
       .point-summary-title { font-size:16px; font-weight:700; line-height:1.2; overflow-wrap:anywhere; }
       .point-summary-sub { color:var(--secondary-text-color); font-size:12px; margin-top:3px; overflow-wrap:anywhere; }
@@ -1387,8 +1636,9 @@ class BepacomExplorerPanel extends HTMLElement {
       .write-profile-dot.glt { background:#8e24aa; box-shadow:0 0 0 3px color-mix(in srgb, #8e24aa 18%, transparent); }
       .runtime-dot { display:inline-flex; width:12px; height:12px; border-radius:50%; border:1px solid color-mix(in srgb, var(--divider-color) 70%, transparent); box-shadow:0 0 0 3px color-mix(in srgb, var(--divider-color) 20%, transparent); vertical-align:middle; }
       .runtime-off { background:#7a7a7a; }
-      .runtime-poll { background:#43a047; box-shadow:0 0 0 3px color-mix(in srgb, #43a047 18%, transparent); }
-      .runtime-push { background:#1e88e5; box-shadow:0 0 0 3px color-mix(in srgb, #1e88e5 18%, transparent); }
+      .runtime-poll { background:#f57c00; box-shadow:0 0 0 3px color-mix(in srgb, #f57c00 18%, transparent); }
+      .runtime-push { background:#43a047; box-shadow:0 0 0 3px color-mix(in srgb, #43a047 18%, transparent); }
+      .runtime-snapshot { background:#1e88e5; box-shadow:0 0 0 3px color-mix(in srgb, #1e88e5 18%, transparent); }
       .runtime-wait { background:#ffa600; box-shadow:0 0 0 3px color-mix(in srgb, #ffa600 18%, transparent); }
       .mode-chip { display:inline-flex; align-items:center; gap:6px; width:max-content; border-radius:999px; border:1px solid var(--divider-color); background:var(--secondary-background-color); color:var(--primary-text-color); padding:3px 8px; font-size:12px; font-weight:600; }
       .mode-chip::before { content:""; width:8px; height:8px; border-radius:50%; background:#7a7a7a; box-shadow:0 0 0 3px color-mix(in srgb, #7a7a7a 18%, transparent); }
@@ -1420,7 +1670,80 @@ class BepacomExplorerPanel extends HTMLElement {
       .notice { background: color-mix(in srgb, var(--primary-color) 12%, transparent); border:1px solid color-mix(in srgb, var(--primary-color) 35%, transparent); border-radius:8px; padding:10px; margin:10px 0; }
       .error { background: color-mix(in srgb, var(--error-color, #db4437) 16%, transparent); color: var(--error-color, #db4437); border: 1px solid color-mix(in srgb, var(--error-color, #db4437) 35%, transparent); border-radius:8px; padding:12px; margin-bottom:12px; }
       .empty { padding:32px; text-align:center; color: var(--secondary-text-color); }
-      @media (max-width: 1100px) { :host { height:auto; overflow:visible; } .wrap { height:auto; min-height:100vh; overflow:visible; } .toolbar { grid-template-columns: 1fr; } .dashboard-content { grid-template-columns: 1fr; } .dashboard-cards { grid-template-columns: repeat(2, 1fr); } #explorerView { overflow:visible; } .content { grid-template-columns: 1fr; overflow:visible; } .table-wrap { height:70vh; } .side { height:70vh; } }
+      @media (max-width: 1100px) { :host { height:auto; overflow:visible; } .wrap { height:auto; min-height:100vh; overflow:visible; } .toolbar { align-items:stretch; } .toolbar .toolbar-nav { flex:1 0 100%; border-right:0; border-bottom:1px solid var(--divider-color); padding:2px 2px 8px; } .dashboard-content { grid-template-columns: 1fr; } .dashboard-cards { grid-template-columns: repeat(2, 1fr); } #explorerView { overflow:visible; } .content { grid-template-columns: 1fr; overflow:visible; } .table-wrap { height:70vh; } .side { height:70vh; } }
+      @media (max-width: 700px) {
+        .dashboard-monitor-group { padding:8px; }
+        .live-summary { gap:4px 9px; }
+        .live-summary span:nth-child(2) { display:none; }
+        .live-filters { grid-template-columns:1fr 1fr; }
+        .live-filters input { grid-column:1 / -1; }
+        .live-small-btn { margin-left:0; }
+        .live-table-wrap { max-height:260px; }
+        .live-table th:nth-child(1), .live-table td:nth-child(1) { width:58px; }
+        .live-table th:nth-child(3), .live-table td:nth-child(3) { width:104px; }
+        .live-table th:nth-child(4), .live-table td:nth-child(4) { display:none; }
+        .live-foot { text-align:left; }
+        .wrap { padding:8px; }
+        .header { align-items:flex-start; gap:8px; }
+        h1 { font-size:20px; line-height:1.2; }
+        .subtitle { font-size:12px; }
+        .mobile-actions-toggle { display:flex; align-items:center; justify-content:center; width:42px; height:42px; padding:0; margin:0; border-radius:50%; border:1px solid var(--divider-color); background:var(--secondary-background-color); color:var(--primary-text-color); cursor:pointer; font-size:22px; }
+        .header-actions-menu.open > .mobile-actions-toggle { background:color-mix(in srgb, var(--primary-color) 18%, var(--secondary-background-color)); border-color:var(--primary-color); }
+        .header-actions-menu > .header-action-buttons { display:none; }
+        .header-actions-menu.open > .header-action-buttons { position:absolute; z-index:100; top:48px; right:0; width:min(280px, calc(100vw - 16px)); box-sizing:border-box; display:grid; grid-template-columns:1fr 1fr; gap:7px; padding:10px; border:1px solid var(--divider-color); border-radius:12px; background:var(--card-background-color); box-shadow:0 8px 28px rgba(0,0,0,.35); }
+        .header-action-buttons button { width:100%; padding:9px 8px; font-size:12px; }
+        .header-action-buttons #toggleDetails, .header-action-buttons #reloadIntegration { grid-column:1 / -1; }
+        .toolbar .search-field, .toolbar .filter-field, .toolbar .check-field { flex:1 1 100%; min-width:0; }
+        .toolbar .reset-field { margin-left:auto; }
+        .view-tab { flex:1 1 auto; padding:8px 10px; }
+        .dashboard-cards { grid-template-columns:1fr 1fr; }
+        .content { display:block; }
+        .table-wrap { height:72vh; border:0; background:transparent; box-shadow:none; overflow-y:auto; overflow-x:hidden; }
+        .table-wrap > table { display:block; min-width:0; width:100%; table-layout:auto; border-collapse:separate; }
+        .table-wrap > table colgroup, .table-wrap > table > thead { display:none; }
+        .table-wrap > table > tbody { display:block; }
+        .table-wrap > table > tbody > tr:not(.group-row):not(.virtual-spacer) { display:block; margin:0 0 10px; border:1px solid var(--divider-color); border-radius:12px; background:var(--card-background-color); box-shadow:var(--ha-card-box-shadow, 0 1px 3px rgba(0,0,0,.18)); overflow:hidden; }
+        .table-wrap > table > tbody > tr:not(.group-row):not(.virtual-spacer) > td { position:static !important; display:grid; grid-template-columns:86px minmax(0,1fr); gap:10px; align-items:center; width:auto; min-height:38px; padding:7px 10px; text-align:left !important; white-space:normal; overflow:visible; border-bottom:1px solid color-mix(in srgb, var(--divider-color) 65%, transparent); background:transparent !important; box-shadow:none !important; }
+        .table-wrap > table > tbody > tr:not(.group-row):not(.virtual-spacer) > td:last-child { border-bottom:0; }
+        .table-wrap td::before { color:var(--secondary-text-color); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+        .table-wrap td.select-col { display:flex !important; justify-content:flex-end; min-height:28px !important; padding:5px 10px !important; }
+        .table-wrap td.select-col::before { content:"Auswahl"; margin-right:auto; }
+        .table-wrap td[data-col='object']::before { content:"Objekt"; }
+        .table-wrap td[data-col='entity']::before { content:"HA Entität"; }
+        .table-wrap td[data-col='value']::before { content:"Wert"; }
+        .table-wrap td[data-col='unit']::before { content:"Einheit"; }
+        .table-wrap td[data-col='override']::before { content:"Override"; }
+        .table-wrap td[data-col='write-profile']::before { content:"Schreiben"; }
+        .table-wrap td[data-col='status']::before { content:"Status"; }
+        .table-wrap .group-row { display:block; margin:8px 0; }
+        .table-wrap .group-row td { display:block; position:static; padding:8px; }
+        .table-wrap .virtual-spacer { display:block; }
+        .table-wrap .virtual-spacer td { display:block; }
+        .linked-entities { margin-top:5px; }
+        .inline-select { max-width:none; }
+        .virtual-overview { padding:9px; }
+        .virtual-overview-head { align-items:flex-start; flex-direction:column; }
+        .virtual-table-wrap { overflow:visible; }
+        .virtual-table { display:block; min-width:0; width:100%; }
+        .virtual-table thead { display:none; }
+        .virtual-table tbody { display:block; }
+        .virtual-table tr { display:block; margin-bottom:10px; padding:5px 0; border:1px solid var(--divider-color); border-radius:12px; background:var(--secondary-background-color); overflow:hidden; }
+        .virtual-table td { display:grid; grid-template-columns:78px minmax(0,1fr); gap:8px; align-items:center; width:auto !important; padding:7px 10px !important; border-bottom:1px solid color-mix(in srgb, var(--divider-color) 65%, transparent); overflow:visible; }
+        .virtual-table td:last-child { border-bottom:0; }
+        .virtual-table td::before { color:var(--secondary-text-color); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+        .virtual-table td:nth-child(1)::before { content:"Quelle"; }
+        .virtual-table td:nth-child(2)::before { content:"HA Entität"; }
+        .virtual-table td:nth-child(3)::before { content:"Typ"; }
+        .virtual-table td:nth-child(4)::before { content:"Zustand"; }
+        .virtual-table td:nth-child(5)::before { content:"ON"; }
+        .virtual-table td:nth-child(6)::before { content:"OFF"; }
+        .virtual-table td:nth-child(7)::before { content:"ELSE"; }
+        .virtual-table td:nth-child(8)::before { content:"Aktionen"; }
+        .virtual-icon-actions { flex-wrap:wrap; }
+        .side { height:70vh; min-height:70vh; max-height:70vh; margin-top:10px; overflow:hidden; }
+        .point-inspector-head { flex-direction:column; }
+        .inspector-head-actions { width:100%; justify-content:flex-start; }
+      }
     `;
 
     const rows = this._rowsHtml();
@@ -1433,13 +1756,16 @@ class BepacomExplorerPanel extends HTMLElement {
             <h1>Engelsoft Beacon BACnet/IP</h1>
             <div id="subtitle" class="subtitle">Sidebar-Ansicht für gefundene BACnet-Objekte${this._total !== undefined ? ` · ${this._points.length} von ${this._total}` : ""}${this._limited ? " · Liste begrenzt" : ""}</div><div class="frontend-version">${this._versionLabel()}</div>
           </div>
-          <div style="display:flex; gap:8px; align-items:center;">
-            <button class="secondary" id="exportJson">JSON</button>
-            <button class="secondary" id="exportCsv">CSV</button>
-            <button class="secondary" id="exportExcel">Excel</button>
-            <button class="secondary ${this._detailsVisible ? "details-toggle-active" : ""}" id="toggleDetails">${this._detailsVisible ? "Details ausblenden" : "Details anzeigen"}</button>
-            <button class="secondary" id="reloadIntegration" ${(this._saving || this._manualReloadRunning || Date.now() < this._manualReloadUntil) ? "disabled" : ""}>Integration neu laden</button>
-            <button class="secondary" id="refresh">Aktualisieren${this._loading ? " …" : ""}</button>
+          <div class="header-actions-menu">
+            <button id="mobileActionsToggle" class="mobile-actions-toggle" type="button" title="Aktionen" aria-label="Aktionen öffnen" aria-expanded="false">☰</button>
+            <div class="header-action-buttons">
+              <button class="secondary" id="exportJson">JSON</button>
+              <button class="secondary" id="exportCsv">CSV</button>
+              <button class="secondary" id="exportExcel">Excel</button>
+              <button class="secondary ${this._detailsVisible ? "details-toggle-active" : ""}" id="toggleDetails">${this._detailsVisible ? "Details ausblenden" : "Details anzeigen"}</button>
+              <button class="secondary" id="reloadIntegration" ${(this._saving || this._manualReloadRunning || Date.now() < this._manualReloadUntil) ? "disabled" : ""}>Integration neu laden</button>
+              <button class="secondary" id="refresh">Aktualisieren${this._loading ? " …" : ""}</button>
+            </div>
           </div>
         </div>
 
@@ -1450,20 +1776,21 @@ class BepacomExplorerPanel extends HTMLElement {
 
         ${this._activeView === "virtual" ? `
         <div class="toolbar card virtual-filterbar">
+          <div class="toolbar-nav">${this._viewTabsHtml()}</div>
           <div class="search-field"><label>Suche virtuelle Entitäten</label><input id="virtualSearch" value="${this._escape(this._virtualSearch || "")}" placeholder="Name, ID, Quelle · * und ? möglich"></div>
-          <div><label>&nbsp;</label><button id="clearVirtualSearch" class="secondary">Reset</button></div>
+          <div class="reset-field"><label>&nbsp;</label><button id="clearVirtualSearch" class="secondary">Reset</button></div>
         </div>` : `
         <div class="toolbar card">
+          <div class="toolbar-nav">${this._viewTabsHtml()}</div>
           <div class="search-field"><label>Suche BACnet-Objekte</label><input id="search" value="${this._escape(this._filters.search)}" placeholder="820*, Rollo, multiStateInput 82*"></div>
-          <div><label>Device</label><select id="device">${this._deviceOptions()}</select></div>
-          <div><label>Objekttyp</label><select id="type">${this._typeOptions()}</select></div>
-          <div><label>Gruppierung</label><select id="groupBy">${this._groupOptions()}</select></div>
-          <div><label>Overrides</label><div class="check"><input id="onlyOverrides" type="checkbox" ${this._filters.only_overrides ? "checked" : ""}> nur Overrides</div></div>
-          <div><label>Modus</label><div class="check runtime-filter"><input id="onlySubscribe" type="checkbox" ${this._filters.only_subscribe ? "checked" : ""}> <span class="runtime-dot runtime-push"></span><span>Subscribe</span></div></div>
-          <div><label>&nbsp;</label><button id="clear" class="secondary">Reset</button></div>
+          <div class="filter-field"><label>Device</label><select id="device">${this._deviceOptions()}</select></div>
+          <div class="filter-field"><label>Objekttyp</label><select id="type">${this._typeOptions()}</select></div>
+          <div class="filter-field"><label>Gruppierung</label><select id="groupBy">${this._groupOptions()}</select></div>
+          <div class="check-field"><label>Overrides</label><div class="check"><input id="onlyOverrides" type="checkbox" ${this._filters.only_overrides ? "checked" : ""}> nur Overrides</div></div>
+          <div class="check-field"><label>Modus</label><div class="check runtime-filter"><input id="onlySubscribe" type="checkbox" ${this._filters.only_subscribe ? "checked" : ""}> <span class="runtime-dot runtime-push"></span><span>Subscribe</span></div></div>
+          <div class="reset-field"><label>&nbsp;</label><button id="clear" class="secondary">Reset</button></div>
         </div>`}
 
-        ${this._viewTabsHtml()}
         ${this._activeView === "virtual" ? this._virtualEntitiesPageHtml() : `
         <div id="explorerView">
           ${this._bulkToolbarHtml()}
@@ -1818,7 +2145,7 @@ class BepacomExplorerPanel extends HTMLElement {
 
   _inlineUnitOptions(p) {
     const current = this._triStateCurrent(p.override_unit);
-    return this._options([["__auto__", "Auto"], ["__none__", "Keine"], ["%", "%"], ["°C", "°C"], ["W", "W"], ["kW", "kW"], ["min", "min"], ["s", "s"]], current);
+    return this._options([["__auto__", "Auto"], ["__none__", "Keine"], ["%", "%"], ["°C", "°C"], ["cm", "cm"], ["W", "W"], ["kW", "kW"], ["min", "min"], ["s", "s"]], current);
   }
 
   _inlineModeOptions(p) {
@@ -1866,11 +2193,14 @@ class BepacomExplorerPanel extends HTMLElement {
     if (!items.length) return "";
 
     const viewport = this._tableViewport(items);
-    const totalHeight = items.length * this._rowHeight;
+    // Mobile rows are rendered as labelled cards and are therefore taller than
+    // desktop table rows. Keep virtual scrolling aligned with the card height.
+    const rowHeight = this._effectiveRowHeight();
+    const totalHeight = items.length * rowHeight;
     const start = Math.max(0, Math.min(items.length, viewport.start));
     const end = Math.max(start, Math.min(items.length, viewport.end));
-    const topHeight = start * this._rowHeight;
-    const bottomHeight = Math.max(0, totalHeight - end * this._rowHeight);
+    const topHeight = start * rowHeight;
+    const bottomHeight = Math.max(0, totalHeight - end * rowHeight);
     const visible = items.slice(start, end);
     const selected = this._selected;
     const rows = [];
@@ -1936,9 +2266,14 @@ class BepacomExplorerPanel extends HTMLElement {
     const scrollTop = wrap ? wrap.scrollTop : this._lastTableScrollTop || 0;
     const height = wrap ? wrap.clientHeight : 700;
     items = items || this._displayItems();
-    const start = Math.max(0, Math.floor(scrollTop / this._rowHeight) - this._overscan);
-    const visible = Math.ceil(height / this._rowHeight) + this._overscan * 2;
+    const rowHeight = this._effectiveRowHeight();
+    const start = Math.max(0, Math.floor(scrollTop / rowHeight) - this._overscan);
+    const visible = Math.ceil(height / rowHeight) + this._overscan * 2;
     return { start, end: Math.min(items.length, start + visible) };
+  }
+
+  _effectiveRowHeight() {
+    return window.matchMedia?.("(max-width: 700px)")?.matches ? 310 : this._rowHeight;
   }
 
   _groupOptions() {
@@ -2013,7 +2348,7 @@ class BepacomExplorerPanel extends HTMLElement {
       <div class="bulkbar card">
         <b>${count} ausgewählt</b>
         <label>Modus <select id="bulkUpdateMode"><option value="">Nicht ändern</option><option value="subscribe">🔵 Push / Subscribe</option><option value="polling">Polling</option><option value="disabled">Deaktiviert</option></select></label>
-        <label>Einheit <select id="bulkUnit"><option value="">Nicht ändern</option><option value="__auto__">Automatisch</option><option value="__none__">Keine Einheit</option><option value="%">%</option><option value="°C">°C</option><option value="W">W</option><option value="kW">kW</option><option value="min">min</option><option value="s">s</option></select></label>
+        <label>Einheit <select id="bulkUnit"><option value="">Nicht ändern</option><option value="__auto__">Automatisch</option><option value="__none__">Keine Einheit</option><option value="%">%</option><option value="°C">°C</option><option value="cm">cm</option><option value="W">W</option><option value="kW">kW</option><option value="min">min</option><option value="s">s</option></select></label>
         <label>Device Class <select id="bulkDeviceClass"><option value="">Nicht ändern</option><option value="__auto__">Automatisch</option><option value="__none__">Keine</option><option value="temperature">Temperatur</option><option value="power">Leistung</option><option value="duration">Dauer</option></select></label>
         <label>State Class <select id="bulkStateClass"><option value="">Nicht ändern</option><option value="__auto__">Automatisch</option><option value="__none__">Keine</option><option value="measurement">measurement</option><option value="total">total</option><option value="total_increasing">total_increasing</option></select></label>
         <button id="bulkApply">Anwenden</button>
@@ -2089,6 +2424,16 @@ class BepacomExplorerPanel extends HTMLElement {
       ev.stopPropagation();
       this._setStatusOpen(!this._statusOpen);
     };
+    this.shadowRoot?.querySelectorAll("[data-dashboard-tab]").forEach((tab) => {
+      tab.onclick = (ev) => {
+        ev.preventDefault();
+        this._dashboardTab = tab.dataset.dashboardTab || "live";
+        this._setSetting("bepacom_dashboard_tab", this._dashboardTab);
+        this._updateHeaderDom();
+        if (this._dashboardTab === "live") this._refreshLiveChanges();
+      };
+    });
+    this._bindLiveMonitorEvents();
   }
 
   _scrollSelectedIntoView() {
@@ -2103,6 +2448,18 @@ class BepacomExplorerPanel extends HTMLElement {
   _bindEvents() {
     this._bindDashboardToggle();
     this._bindDetailToggles();
+    const mobileActionsToggle = this.shadowRoot.getElementById("mobileActionsToggle");
+    mobileActionsToggle?.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const menu = mobileActionsToggle.closest(".header-actions-menu");
+      const open = menu?.classList.toggle("open") || false;
+      mobileActionsToggle.setAttribute("aria-expanded", open ? "true" : "false");
+      mobileActionsToggle.setAttribute(
+        "aria-label",
+        open ? "Aktionen schließen" : "Aktionen öffnen",
+      );
+    });
     this.shadowRoot.querySelectorAll("[data-side-tab]").forEach((button) => {
       button.addEventListener("click", (ev) => {
         ev.preventDefault();
@@ -2676,22 +3033,22 @@ class BepacomExplorerPanel extends HTMLElement {
     `;
 
     const editActions = `
-      <div class="actions">
+      <div class="inspector-head-actions">
         <button id="saveOverride" ${this._saving ? "disabled" : ""}>Speichern${this._saving ? " …" : ""}</button>
         <button id="resetOverride" class="secondary" ${this._saving ? "disabled" : ""}>Override zurücksetzen</button>
       </div>
-      <div class="muted" style="margin-top:8px;">Änderungen werden gespeichert, ohne die Integration sofort neu zu laden. Wenn du fertig bist, oben „Integration neu laden“ klicken.</div>
     `;
 
     const inspectorContent = kv.map(([k,v]) => `<div class="kv"><div class="k">${this._escape(k)}</div><div class="v">${this._escape(v)}</div></div>`).join("");
 
     return `
-      <h2>${this._escape(p.object_key)}</h2>
-      <div class="muted">${this._escape(p.object_name || "-")}</div>
+      <div class="point-inspector-head">
+        <div><h2>${this._escape(p.object_key)}</h2><div class="muted">${this._escape(p.object_name || "-")}</div></div>
+        ${editActions}
+      </div>
       ${this._detailSection("config", "Konfiguration der Entität", editContent)}
       ${this._detailSection("virtual-config", "Virtuelle Entität konfigurieren", virtualEntityContent)}
-      ${editActions}
-      ${this._detailSection("live", "Live-Monitor / Verlauf", this._historyHtml())}
+      <div class="muted save-hint">Änderungen werden gespeichert, ohne die Integration sofort neu zu laden. Wenn du fertig bist, oben „Integration neu laden“ klicken.</div>
       ${this._detailSection("inspector", "Inspector", inspectorContent)}
       ${this._detailSection("engineering", "Engineering-Properties", this._engineeringHtml())}
     `;
@@ -2709,7 +3066,7 @@ class BepacomExplorerPanel extends HTMLElement {
     const current = this._triStateCurrent(p.override_unit);
     const values = [
       ["__auto__", `Automatisch (BACnet: ${p.bacnet_unit || "keine"})`],
-      ["__none__", "Keine Einheit"], ["%", "%"], ["°C", "°C"], ["W", "W"], ["kW", "kW"],
+      ["__none__", "Keine Einheit"], ["%", "%"], ["°C", "°C"], ["cm", "cm"], ["W", "W"], ["kW", "kW"],
       ["Wh", "Wh"], ["kWh", "kWh"], ["V", "V"], ["A", "A"], ["Hz", "Hz"],
       ["lx", "lx"], ["Pa", "Pa"], ["bar", "bar"], ["min", "min"], ["s", "s"], ["h", "h"],
     ];
@@ -2735,7 +3092,7 @@ class BepacomExplorerPanel extends HTMLElement {
     return this._options([
       ["__auto__", `Automatisch (${p.device_class || "keine"})`], ["__none__", "Keine"], ["temperature", "Temperatur"], ["humidity", "Luftfeuchtigkeit"],
       ["power", "Leistung"], ["energy", "Energie"], ["voltage", "Spannung"], ["current", "Strom"],
-      ["frequency", "Frequenz"], ["pressure", "Druck"], ["illuminance", "Beleuchtungsstärke"], ["duration", "Dauer"],
+      ["frequency", "Frequenz"], ["pressure", "Druck"], ["distance", "Entfernung"], ["illuminance", "Beleuchtungsstärke"], ["duration", "Dauer"],
       ["co2", "CO₂"], ["pm25", "PM2.5"], ["pm10", "PM10"],
     ], current);
   }
@@ -2782,8 +3139,21 @@ class BepacomExplorerPanel extends HTMLElement {
   _runtimeLabel(p) {
     const dot = (cls, label) => `<span class="runtime-dot ${cls}" title="${this._escape(label)}" aria-label="${this._escape(label)}"></span>`;
     if (p.update_mode === "disabled") return dot("runtime-off", "Aus");
+    if (
+      p.update_mode === "subscribe"
+      && this._diagnostics?.snapshot_websocket_mode === true
+      && this._diagnostics?.subscriptions_initialized === true
+      && this._diagnostics?.connected === true
+      && Number(this._diagnostics?.snapshot_targets || 0) > 0
+    ) {
+      return dot(
+        "runtime-snapshot",
+        "Snapshot aktiv – Aktualisierung über die gemeinsame Snapshot-Verbindung",
+      );
+    }
     if (p.subscribed === true) return dot("runtime-push", "Push aktiv");
-    if (p.fallback_polling === true || p.update_mode === "polling") return dot("runtime-poll", "Polling aktiv");
+    if (p.fallback_polling === true) return dot("runtime-poll", "Polling-Fallback aktiv");
+    if (p.update_mode === "polling") return dot("runtime-poll", "Polling aktiv");
     return dot("runtime-wait", "Wartet");
   }
 

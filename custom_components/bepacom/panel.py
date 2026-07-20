@@ -30,7 +30,7 @@ PANEL_URL = "bepacom_explorer"
 PANEL_NAME = "bepacom-explorer-panel"
 PANEL_STATIC_URL = "/bepacom_static"
 PANEL_EVENT = "bepacom_explorer_updated"
-PANEL_VERSION = "0601"
+PANEL_VERSION = "0613"
 
 _WS_REGISTERED = "websocket_registered"
 _PANEL_REGISTERED = "panel_registered"
@@ -50,6 +50,7 @@ async def async_register_explorer_panel(hass: HomeAssistant, entry: ConfigEntry)
         websocket_api.async_register_command(hass, websocket_explorer_delete_virtual_entity)
         websocket_api.async_register_command(hass, websocket_explorer_reload_entry)
         websocket_api.async_register_command(hass, websocket_explorer_history)
+        websocket_api.async_register_command(hass, websocket_explorer_changes)
         websocket_api.async_register_command(hass, websocket_explorer_write_property)
         hass.data[DOMAIN][_WS_REGISTERED] = True
 
@@ -678,6 +679,34 @@ async def websocket_explorer_history(
             "history": registry.history(obj, limit=limit),
         },
     )
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "bepacom/explorer/changes",
+        vol.Optional("entry_id"): str,
+        vol.Optional("after", default=0): int,
+        vol.Optional("limit", default=1000): int,
+    }
+)
+@websocket_api.async_response
+async def websocket_explorer_changes(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Return recent global point changes for the live monitor."""
+    entry_id, data = _entry_data(hass, msg.get("entry_id"))
+
+    if data is None:
+        connection.send_error(msg["id"], "not_found", "No Bepacom config entry is loaded")
+        return
+
+    result = data["coordinator"].point_registry.changes_since(
+        msg.get("after", 0),
+        limit=msg.get("limit", 1000),
+    )
+    connection.send_result(msg["id"], {"entry_id": entry_id, **result})
 
 
 def _parse_write_value(value: Any) -> Any:

@@ -76,6 +76,7 @@ UNIT_LITERS_PER_SECOND = _const_value(UnitOfVolumeFlowRate, "LITERS_PER_SECOND",
 UNIT_METERS_PER_SECOND = _const_value(UnitOfSpeed, "METERS_PER_SECOND", "m/s")
 UNIT_KILOMETERS_PER_HOUR = _const_value(UnitOfSpeed, "KILOMETERS_PER_HOUR", "km/h")
 UNIT_METER = _const_value(UnitOfLength, "METERS", "m")
+UNIT_CENTIMETER = _const_value(UnitOfLength, "CENTIMETERS", "cm")
 UNIT_SECOND = _const_value(UnitOfTime, "SECONDS", "s")
 UNIT_MINUTE = _const_value(UnitOfTime, "MINUTES", "min")
 UNIT_HOUR = _const_value(UnitOfTime, "HOURS", "h")
@@ -254,6 +255,11 @@ class BacnetObjectTypeMapper:
         "m": UNIT_METER,
         "meter": UNIT_METER,
         "meters": UNIT_METER,
+        "cm": UNIT_CENTIMETER,
+        "centimeter": UNIT_CENTIMETER,
+        "centimeters": UNIT_CENTIMETER,
+        "centimetre": UNIT_CENTIMETER,
+        "centimetres": UNIT_CENTIMETER,
         "cubicmeter": UNIT_CUBIC_METER,
         "cubicmeters": UNIT_CUBIC_METER,
         "m3": UNIT_CUBIC_METER,
@@ -389,6 +395,8 @@ class BacnetObjectTypeMapper:
             UNIT_HERTZ: getattr(SensorDeviceClass, "FREQUENCY", None),
             UNIT_KILOHERTZ: getattr(SensorDeviceClass, "FREQUENCY", None),
             UNIT_LUX: getattr(SensorDeviceClass, "ILLUMINANCE", None),
+            UNIT_METER: getattr(SensorDeviceClass, "DISTANCE", None),
+            UNIT_CENTIMETER: getattr(SensorDeviceClass, "DISTANCE", None),
             UNIT_PPM: getattr(SensorDeviceClass, "CO2", None) if "co2" in obj_name_lower else None,
         }
 
