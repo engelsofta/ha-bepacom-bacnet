@@ -17,26 +17,5 @@
     "abort": {
       "already_configured": "Gateway is already configured."
     }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Engelsoft Beacon BACnet/IP options",
-        "description": "General base settings. Object management, overrides, subscribe/polling, explorer and bulk edit are handled in the “Engelsoft Beacon BACnet/IP” sidebar.",
-        "menu_options": {
-          "general": "General settings"
-        }
-      },
-      "general": {
-        "title": "General settings",
-        "description": "Only global base options remain here. BACnet objects, subscribe/polling and overrides are managed exclusively in the “Engelsoft Beacon BACnet/IP” sidebar.",
-        "data": {
-          "enable_polling": "Enable cyclic data updates",
-          "snapshot_websocket_mode": "Snapshot WebSocket mode",
-          "push_value_logging": "Log push values",
-          "heartbeat_timeout": "Heartbeat timeout"
-        }
-      }
-    }
   }
 }
