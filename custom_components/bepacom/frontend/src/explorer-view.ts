@@ -1,628 +1,9 @@
-/**
- * @license
- * Copyright 2019 Google LLC
- * SPDX-License-Identifier: BSD-3-Clause
- */
-const t$2 = globalThis, e$4 = t$2.ShadowRoot && (void 0 === t$2.ShadyCSS || t$2.ShadyCSS.nativeShadow) && "adoptedStyleSheets" in Document.prototype && "replace" in CSSStyleSheet.prototype, s$2 = Symbol(), o$4 = /* @__PURE__ */ new WeakMap();
-let n$3 = class n {
-  constructor(t2, e2, o2) {
-    if (this._$cssResult$ = true, o2 !== s$2) throw Error("CSSResult is not constructable. Use `unsafeCSS` or `css` instead.");
-    this.cssText = t2, this.t = e2;
-  }
-  get styleSheet() {
-    let t2 = this.o;
-    const s2 = this.t;
-    if (e$4 && void 0 === t2) {
-      const e2 = void 0 !== s2 && 1 === s2.length;
-      e2 && (t2 = o$4.get(s2)), void 0 === t2 && ((this.o = t2 = new CSSStyleSheet()).replaceSync(this.cssText), e2 && o$4.set(s2, t2));
-    }
-    return t2;
-  }
-  toString() {
-    return this.cssText;
-  }
-};
-const r$3 = (t2) => new n$3("string" == typeof t2 ? t2 : t2 + "", void 0, s$2), i$3 = (t2, ...e2) => {
-  const o2 = 1 === t2.length ? t2[0] : e2.reduce((e3, s2, o3) => e3 + ((t3) => {
-    if (true === t3._$cssResult$) return t3.cssText;
-    if ("number" == typeof t3) return t3;
-    throw Error("Value passed to 'css' function must be a 'css' function result: " + t3 + ". Use 'unsafeCSS' to pass non-literal values, but take care to ensure page security.");
-  })(s2) + t2[o3 + 1], t2[0]);
-  return new n$3(o2, t2, s$2);
-}, S$1 = (s2, o2) => {
-  if (e$4) s2.adoptedStyleSheets = o2.map((t2) => t2 instanceof CSSStyleSheet ? t2 : t2.styleSheet);
-  else for (const e2 of o2) {
-    const o3 = document.createElement("style"), n3 = t$2.litNonce;
-    void 0 !== n3 && o3.setAttribute("nonce", n3), o3.textContent = e2.cssText, s2.appendChild(o3);
-  }
-}, c$2 = e$4 ? (t2) => t2 : (t2) => t2 instanceof CSSStyleSheet ? ((t3) => {
-  let e2 = "";
-  for (const s2 of t3.cssRules) e2 += s2.cssText;
-  return r$3(e2);
-})(t2) : t2;
-/**
- * @license
- * Copyright 2017 Google LLC
- * SPDX-License-Identifier: BSD-3-Clause
- */
-const { is: i$2, defineProperty: e$3, getOwnPropertyDescriptor: h$1, getOwnPropertyNames: r$2, getOwnPropertySymbols: o$3, getPrototypeOf: n$2 } = Object, a$1 = globalThis, c$1 = a$1.trustedTypes, l$1 = c$1 ? c$1.emptyScript : "", p$1 = a$1.reactiveElementPolyfillSupport, d$1 = (t2, s2) => t2, u$1 = { toAttribute(t2, s2) {
-  switch (s2) {
-    case Boolean:
-      t2 = t2 ? l$1 : null;
-      break;
-    case Object:
-    case Array:
-      t2 = null == t2 ? t2 : JSON.stringify(t2);
-  }
-  return t2;
-}, fromAttribute(t2, s2) {
-  let i2 = t2;
-  switch (s2) {
-    case Boolean:
-      i2 = null !== t2;
-      break;
-    case Number:
-      i2 = null === t2 ? null : Number(t2);
-      break;
-    case Object:
-    case Array:
-      try {
-        i2 = JSON.parse(t2);
-      } catch (t3) {
-        i2 = null;
-      }
-  }
-  return i2;
-} }, f$1 = (t2, s2) => !i$2(t2, s2), b$1 = { attribute: true, type: String, converter: u$1, reflect: false, useDefault: false, hasChanged: f$1 };
-Symbol.metadata ??= Symbol("metadata"), a$1.litPropertyMetadata ??= /* @__PURE__ */ new WeakMap();
-let y$1 = class y extends HTMLElement {
-  static addInitializer(t2) {
-    this._$Ei(), (this.l ??= []).push(t2);
-  }
-  static get observedAttributes() {
-    return this.finalize(), this._$Eh && [...this._$Eh.keys()];
-  }
-  static createProperty(t2, s2 = b$1) {
-    if (s2.state && (s2.attribute = false), this._$Ei(), this.prototype.hasOwnProperty(t2) && ((s2 = Object.create(s2)).wrapped = true), this.elementProperties.set(t2, s2), !s2.noAccessor) {
-      const i2 = Symbol(), h2 = this.getPropertyDescriptor(t2, i2, s2);
-      void 0 !== h2 && e$3(this.prototype, t2, h2);
-    }
-  }
-  static getPropertyDescriptor(t2, s2, i2) {
-    const { get: e2, set: r2 } = h$1(this.prototype, t2) ?? { get() {
-      return this[s2];
-    }, set(t3) {
-      this[s2] = t3;
-    } };
-    return { get: e2, set(s3) {
-      const h2 = e2?.call(this);
-      r2?.call(this, s3), this.requestUpdate(t2, h2, i2);
-    }, configurable: true, enumerable: true };
-  }
-  static getPropertyOptions(t2) {
-    return this.elementProperties.get(t2) ?? b$1;
-  }
-  static _$Ei() {
-    if (this.hasOwnProperty(d$1("elementProperties"))) return;
-    const t2 = n$2(this);
-    t2.finalize(), void 0 !== t2.l && (this.l = [...t2.l]), this.elementProperties = new Map(t2.elementProperties);
-  }
-  static finalize() {
-    if (this.hasOwnProperty(d$1("finalized"))) return;
-    if (this.finalized = true, this._$Ei(), this.hasOwnProperty(d$1("properties"))) {
-      const t3 = this.properties, s2 = [...r$2(t3), ...o$3(t3)];
-      for (const i2 of s2) this.createProperty(i2, t3[i2]);
-    }
-    const t2 = this[Symbol.metadata];
-    if (null !== t2) {
-      const s2 = litPropertyMetadata.get(t2);
-      if (void 0 !== s2) for (const [t3, i2] of s2) this.elementProperties.set(t3, i2);
-    }
-    this._$Eh = /* @__PURE__ */ new Map();
-    for (const [t3, s2] of this.elementProperties) {
-      const i2 = this._$Eu(t3, s2);
-      void 0 !== i2 && this._$Eh.set(i2, t3);
-    }
-    this.elementStyles = this.finalizeStyles(this.styles);
-  }
-  static finalizeStyles(s2) {
-    const i2 = [];
-    if (Array.isArray(s2)) {
-      const e2 = new Set(s2.flat(1 / 0).reverse());
-      for (const s3 of e2) i2.unshift(c$2(s3));
-    } else void 0 !== s2 && i2.push(c$2(s2));
-    return i2;
-  }
-  static _$Eu(t2, s2) {
-    const i2 = s2.attribute;
-    return false === i2 ? void 0 : "string" == typeof i2 ? i2 : "string" == typeof t2 ? t2.toLowerCase() : void 0;
-  }
-  constructor() {
-    super(), this._$Ep = void 0, this.isUpdatePending = false, this.hasUpdated = false, this._$Em = null, this._$Ev();
-  }
-  _$Ev() {
-    this._$ES = new Promise((t2) => this.enableUpdating = t2), this._$AL = /* @__PURE__ */ new Map(), this._$E_(), this.requestUpdate(), this.constructor.l?.forEach((t2) => t2(this));
-  }
-  addController(t2) {
-    (this._$EO ??= /* @__PURE__ */ new Set()).add(t2), void 0 !== this.renderRoot && this.isConnected && t2.hostConnected?.();
-  }
-  removeController(t2) {
-    this._$EO?.delete(t2);
-  }
-  _$E_() {
-    const t2 = /* @__PURE__ */ new Map(), s2 = this.constructor.elementProperties;
-    for (const i2 of s2.keys()) this.hasOwnProperty(i2) && (t2.set(i2, this[i2]), delete this[i2]);
-    t2.size > 0 && (this._$Ep = t2);
-  }
-  createRenderRoot() {
-    const t2 = this.shadowRoot ?? this.attachShadow(this.constructor.shadowRootOptions);
-    return S$1(t2, this.constructor.elementStyles), t2;
-  }
-  connectedCallback() {
-    this.renderRoot ??= this.createRenderRoot(), this.enableUpdating(true), this._$EO?.forEach((t2) => t2.hostConnected?.());
-  }
-  enableUpdating(t2) {
-  }
-  disconnectedCallback() {
-    this._$EO?.forEach((t2) => t2.hostDisconnected?.());
-  }
-  attributeChangedCallback(t2, s2, i2) {
-    this._$AK(t2, i2);
-  }
-  _$ET(t2, s2) {
-    const i2 = this.constructor.elementProperties.get(t2), e2 = this.constructor._$Eu(t2, i2);
-    if (void 0 !== e2 && true === i2.reflect) {
-      const h2 = (void 0 !== i2.converter?.toAttribute ? i2.converter : u$1).toAttribute(s2, i2.type);
-      this._$Em = t2, null == h2 ? this.removeAttribute(e2) : this.setAttribute(e2, h2), this._$Em = null;
-    }
-  }
-  _$AK(t2, s2) {
-    const i2 = this.constructor, e2 = i2._$Eh.get(t2);
-    if (void 0 !== e2 && this._$Em !== e2) {
-      const t3 = i2.getPropertyOptions(e2), h2 = "function" == typeof t3.converter ? { fromAttribute: t3.converter } : void 0 !== t3.converter?.fromAttribute ? t3.converter : u$1;
-      this._$Em = e2;
-      const r2 = h2.fromAttribute(s2, t3.type);
-      this[e2] = r2 ?? this._$Ej?.get(e2) ?? r2, this._$Em = null;
-    }
-  }
-  requestUpdate(t2, s2, i2, e2 = false, h2) {
-    if (void 0 !== t2) {
-      const r2 = this.constructor;
-      if (false === e2 && (h2 = this[t2]), i2 ??= r2.getPropertyOptions(t2), !((i2.hasChanged ?? f$1)(h2, s2) || i2.useDefault && i2.reflect && h2 === this._$Ej?.get(t2) && !this.hasAttribute(r2._$Eu(t2, i2)))) return;
-      this.C(t2, s2, i2);
-    }
-    false === this.isUpdatePending && (this._$ES = this._$EP());
-  }
-  C(t2, s2, { useDefault: i2, reflect: e2, wrapped: h2 }, r2) {
-    i2 && !(this._$Ej ??= /* @__PURE__ */ new Map()).has(t2) && (this._$Ej.set(t2, r2 ?? s2 ?? this[t2]), true !== h2 || void 0 !== r2) || (this._$AL.has(t2) || (this.hasUpdated || i2 || (s2 = void 0), this._$AL.set(t2, s2)), true === e2 && this._$Em !== t2 && (this._$Eq ??= /* @__PURE__ */ new Set()).add(t2));
-  }
-  async _$EP() {
-    this.isUpdatePending = true;
-    try {
-      await this._$ES;
-    } catch (t3) {
-      Promise.reject(t3);
-    }
-    const t2 = this.scheduleUpdate();
-    return null != t2 && await t2, !this.isUpdatePending;
-  }
-  scheduleUpdate() {
-    return this.performUpdate();
-  }
-  performUpdate() {
-    if (!this.isUpdatePending) return;
-    if (!this.hasUpdated) {
-      if (this.renderRoot ??= this.createRenderRoot(), this._$Ep) {
-        for (const [t4, s3] of this._$Ep) this[t4] = s3;
-        this._$Ep = void 0;
-      }
-      const t3 = this.constructor.elementProperties;
-      if (t3.size > 0) for (const [s3, i2] of t3) {
-        const { wrapped: t4 } = i2, e2 = this[s3];
-        true !== t4 || this._$AL.has(s3) || void 0 === e2 || this.C(s3, void 0, i2, e2);
-      }
-    }
-    let t2 = false;
-    const s2 = this._$AL;
-    try {
-      t2 = this.shouldUpdate(s2), t2 ? (this.willUpdate(s2), this._$EO?.forEach((t3) => t3.hostUpdate?.()), this.update(s2)) : this._$EM();
-    } catch (s3) {
-      throw t2 = false, this._$EM(), s3;
-    }
-    t2 && this._$AE(s2);
-  }
-  willUpdate(t2) {
-  }
-  _$AE(t2) {
-    this._$EO?.forEach((t3) => t3.hostUpdated?.()), this.hasUpdated || (this.hasUpdated = true, this.firstUpdated(t2)), this.updated(t2);
-  }
-  _$EM() {
-    this._$AL = /* @__PURE__ */ new Map(), this.isUpdatePending = false;
-  }
-  get updateComplete() {
-    return this.getUpdateComplete();
-  }
-  getUpdateComplete() {
-    return this._$ES;
-  }
-  shouldUpdate(t2) {
-    return true;
-  }
-  update(t2) {
-    this._$Eq &&= this._$Eq.forEach((t3) => this._$ET(t3, this[t3])), this._$EM();
-  }
-  updated(t2) {
-  }
-  firstUpdated(t2) {
-  }
-};
-y$1.elementStyles = [], y$1.shadowRootOptions = { mode: "open" }, y$1[d$1("elementProperties")] = /* @__PURE__ */ new Map(), y$1[d$1("finalized")] = /* @__PURE__ */ new Map(), p$1?.({ ReactiveElement: y$1 }), (a$1.reactiveElementVersions ??= []).push("2.1.2");
-/**
- * @license
- * Copyright 2017 Google LLC
- * SPDX-License-Identifier: BSD-3-Clause
- */
-const t$1 = globalThis, i$1 = (t2) => t2, s$1 = t$1.trustedTypes, e$2 = s$1 ? s$1.createPolicy("lit-html", { createHTML: (t2) => t2 }) : void 0, h = "$lit$", o$2 = `lit$${Math.random().toFixed(9).slice(2)}$`, n$1 = "?" + o$2, r$1 = `<${n$1}>`, l = document, c = () => l.createComment(""), a = (t2) => null === t2 || "object" != typeof t2 && "function" != typeof t2, u = Array.isArray, d = (t2) => u(t2) || "function" == typeof t2?.[Symbol.iterator], f = "[ 	\n\f\r]", v = /<(?:(!--|\/[^a-zA-Z])|(\/?[a-zA-Z][^>\s]*)|(\/?$))/g, _ = /-->/g, m = />/g, p = RegExp(`>|${f}(?:([^\\s"'>=/]+)(${f}*=${f}*(?:[^ 	
-\f\r"'\`<>=]|("|')|))|$)`, "g"), g = /'/g, $ = /"/g, y2 = /^(?:script|style|textarea|title)$/i, x = (t2) => (i2, ...s2) => ({ _$litType$: t2, strings: i2, values: s2 }), b = x(1), E = Symbol.for("lit-noChange"), A = Symbol.for("lit-nothing"), C = /* @__PURE__ */ new WeakMap(), P = l.createTreeWalker(l, 129);
-function V(t2, i2) {
-  if (!u(t2) || !t2.hasOwnProperty("raw")) throw Error("invalid template strings array");
-  return void 0 !== e$2 ? e$2.createHTML(i2) : i2;
-}
-const N = (t2, i2) => {
-  const s2 = t2.length - 1, e2 = [];
-  let n3, l2 = 2 === i2 ? "<svg>" : 3 === i2 ? "<math>" : "", c2 = v;
-  for (let i3 = 0; i3 < s2; i3++) {
-    const s3 = t2[i3];
-    let a2, u2, d2 = -1, f2 = 0;
-    for (; f2 < s3.length && (c2.lastIndex = f2, u2 = c2.exec(s3), null !== u2); ) f2 = c2.lastIndex, c2 === v ? "!--" === u2[1] ? c2 = _ : void 0 !== u2[1] ? c2 = m : void 0 !== u2[2] ? (y2.test(u2[2]) && (n3 = RegExp("</" + u2[2], "g")), c2 = p) : void 0 !== u2[3] && (c2 = p) : c2 === p ? ">" === u2[0] ? (c2 = n3 ?? v, d2 = -1) : void 0 === u2[1] ? d2 = -2 : (d2 = c2.lastIndex - u2[2].length, a2 = u2[1], c2 = void 0 === u2[3] ? p : '"' === u2[3] ? $ : g) : c2 === $ || c2 === g ? c2 = p : c2 === _ || c2 === m ? c2 = v : (c2 = p, n3 = void 0);
-    const x2 = c2 === p && t2[i3 + 1].startsWith("/>") ? " " : "";
-    l2 += c2 === v ? s3 + r$1 : d2 >= 0 ? (e2.push(a2), s3.slice(0, d2) + h + s3.slice(d2) + o$2 + x2) : s3 + o$2 + (-2 === d2 ? i3 : x2);
-  }
-  return [V(t2, l2 + (t2[s2] || "<?>") + (2 === i2 ? "</svg>" : 3 === i2 ? "</math>" : "")), e2];
-};
-class S {
-  constructor({ strings: t2, _$litType$: i2 }, e2) {
-    let r2;
-    this.parts = [];
-    let l2 = 0, a2 = 0;
-    const u2 = t2.length - 1, d2 = this.parts, [f2, v2] = N(t2, i2);
-    if (this.el = S.createElement(f2, e2), P.currentNode = this.el.content, 2 === i2 || 3 === i2) {
-      const t3 = this.el.content.firstChild;
-      t3.replaceWith(...t3.childNodes);
-    }
-    for (; null !== (r2 = P.nextNode()) && d2.length < u2; ) {
-      if (1 === r2.nodeType) {
-        if (r2.hasAttributes()) for (const t3 of r2.getAttributeNames()) if (t3.endsWith(h)) {
-          const i3 = v2[a2++], s2 = r2.getAttribute(t3).split(o$2), e3 = /([.?@])?(.*)/.exec(i3);
-          d2.push({ type: 1, index: l2, name: e3[2], strings: s2, ctor: "." === e3[1] ? I : "?" === e3[1] ? L : "@" === e3[1] ? z : H }), r2.removeAttribute(t3);
-        } else t3.startsWith(o$2) && (d2.push({ type: 6, index: l2 }), r2.removeAttribute(t3));
-        if (y2.test(r2.tagName)) {
-          const t3 = r2.textContent.split(o$2), i3 = t3.length - 1;
-          if (i3 > 0) {
-            r2.textContent = s$1 ? s$1.emptyScript : "";
-            for (let s2 = 0; s2 < i3; s2++) r2.append(t3[s2], c()), P.nextNode(), d2.push({ type: 2, index: ++l2 });
-            r2.append(t3[i3], c());
-          }
-        }
-      } else if (8 === r2.nodeType) if (r2.data === n$1) d2.push({ type: 2, index: l2 });
-      else {
-        let t3 = -1;
-        for (; -1 !== (t3 = r2.data.indexOf(o$2, t3 + 1)); ) d2.push({ type: 7, index: l2 }), t3 += o$2.length - 1;
-      }
-      l2++;
-    }
-  }
-  static createElement(t2, i2) {
-    const s2 = l.createElement("template");
-    return s2.innerHTML = t2, s2;
-  }
-}
-function M(t2, i2, s2 = t2, e2) {
-  if (i2 === E) return i2;
-  let h2 = void 0 !== e2 ? s2._$Co?.[e2] : s2._$Cl;
-  const o2 = a(i2) ? void 0 : i2._$litDirective$;
-  return h2?.constructor !== o2 && (h2?._$AO?.(false), void 0 === o2 ? h2 = void 0 : (h2 = new o2(t2), h2._$AT(t2, s2, e2)), void 0 !== e2 ? (s2._$Co ??= [])[e2] = h2 : s2._$Cl = h2), void 0 !== h2 && (i2 = M(t2, h2._$AS(t2, i2.values), h2, e2)), i2;
-}
-class R {
-  constructor(t2, i2) {
-    this._$AV = [], this._$AN = void 0, this._$AD = t2, this._$AM = i2;
-  }
-  get parentNode() {
-    return this._$AM.parentNode;
-  }
-  get _$AU() {
-    return this._$AM._$AU;
-  }
-  u(t2) {
-    const { el: { content: i2 }, parts: s2 } = this._$AD, e2 = (t2?.creationScope ?? l).importNode(i2, true);
-    P.currentNode = e2;
-    let h2 = P.nextNode(), o2 = 0, n3 = 0, r2 = s2[0];
-    for (; void 0 !== r2; ) {
-      if (o2 === r2.index) {
-        let i3;
-        2 === r2.type ? i3 = new k(h2, h2.nextSibling, this, t2) : 1 === r2.type ? i3 = new r2.ctor(h2, r2.name, r2.strings, this, t2) : 6 === r2.type && (i3 = new Z(h2, this, t2)), this._$AV.push(i3), r2 = s2[++n3];
-      }
-      o2 !== r2?.index && (h2 = P.nextNode(), o2++);
-    }
-    return P.currentNode = l, e2;
-  }
-  p(t2) {
-    let i2 = 0;
-    for (const s2 of this._$AV) void 0 !== s2 && (void 0 !== s2.strings ? (s2._$AI(t2, s2, i2), i2 += s2.strings.length - 2) : s2._$AI(t2[i2])), i2++;
-  }
-}
-class k {
-  get _$AU() {
-    return this._$AM?._$AU ?? this._$Cv;
-  }
-  constructor(t2, i2, s2, e2) {
-    this.type = 2, this._$AH = A, this._$AN = void 0, this._$AA = t2, this._$AB = i2, this._$AM = s2, this.options = e2, this._$Cv = e2?.isConnected ?? true;
-  }
-  get parentNode() {
-    let t2 = this._$AA.parentNode;
-    const i2 = this._$AM;
-    return void 0 !== i2 && 11 === t2?.nodeType && (t2 = i2.parentNode), t2;
-  }
-  get startNode() {
-    return this._$AA;
-  }
-  get endNode() {
-    return this._$AB;
-  }
-  _$AI(t2, i2 = this) {
-    t2 = M(this, t2, i2), a(t2) ? t2 === A || null == t2 || "" === t2 ? (this._$AH !== A && this._$AR(), this._$AH = A) : t2 !== this._$AH && t2 !== E && this._(t2) : void 0 !== t2._$litType$ ? this.$(t2) : void 0 !== t2.nodeType ? this.T(t2) : d(t2) ? this.k(t2) : this._(t2);
-  }
-  O(t2) {
-    return this._$AA.parentNode.insertBefore(t2, this._$AB);
-  }
-  T(t2) {
-    this._$AH !== t2 && (this._$AR(), this._$AH = this.O(t2));
-  }
-  _(t2) {
-    this._$AH !== A && a(this._$AH) ? this._$AA.nextSibling.data = t2 : this.T(l.createTextNode(t2)), this._$AH = t2;
-  }
-  $(t2) {
-    const { values: i2, _$litType$: s2 } = t2, e2 = "number" == typeof s2 ? this._$AC(t2) : (void 0 === s2.el && (s2.el = S.createElement(V(s2.h, s2.h[0]), this.options)), s2);
-    if (this._$AH?._$AD === e2) this._$AH.p(i2);
-    else {
-      const t3 = new R(e2, this), s3 = t3.u(this.options);
-      t3.p(i2), this.T(s3), this._$AH = t3;
-    }
-  }
-  _$AC(t2) {
-    let i2 = C.get(t2.strings);
-    return void 0 === i2 && C.set(t2.strings, i2 = new S(t2)), i2;
-  }
-  k(t2) {
-    u(this._$AH) || (this._$AH = [], this._$AR());
-    const i2 = this._$AH;
-    let s2, e2 = 0;
-    for (const h2 of t2) e2 === i2.length ? i2.push(s2 = new k(this.O(c()), this.O(c()), this, this.options)) : s2 = i2[e2], s2._$AI(h2), e2++;
-    e2 < i2.length && (this._$AR(s2 && s2._$AB.nextSibling, e2), i2.length = e2);
-  }
-  _$AR(t2 = this._$AA.nextSibling, s2) {
-    for (this._$AP?.(false, true, s2); t2 !== this._$AB; ) {
-      const s3 = i$1(t2).nextSibling;
-      i$1(t2).remove(), t2 = s3;
-    }
-  }
-  setConnected(t2) {
-    void 0 === this._$AM && (this._$Cv = t2, this._$AP?.(t2));
-  }
-}
-class H {
-  get tagName() {
-    return this.element.tagName;
-  }
-  get _$AU() {
-    return this._$AM._$AU;
-  }
-  constructor(t2, i2, s2, e2, h2) {
-    this.type = 1, this._$AH = A, this._$AN = void 0, this.element = t2, this.name = i2, this._$AM = e2, this.options = h2, s2.length > 2 || "" !== s2[0] || "" !== s2[1] ? (this._$AH = Array(s2.length - 1).fill(new String()), this.strings = s2) : this._$AH = A;
-  }
-  _$AI(t2, i2 = this, s2, e2) {
-    const h2 = this.strings;
-    let o2 = false;
-    if (void 0 === h2) t2 = M(this, t2, i2, 0), o2 = !a(t2) || t2 !== this._$AH && t2 !== E, o2 && (this._$AH = t2);
-    else {
-      const e3 = t2;
-      let n3, r2;
-      for (t2 = h2[0], n3 = 0; n3 < h2.length - 1; n3++) r2 = M(this, e3[s2 + n3], i2, n3), r2 === E && (r2 = this._$AH[n3]), o2 ||= !a(r2) || r2 !== this._$AH[n3], r2 === A ? t2 = A : t2 !== A && (t2 += (r2 ?? "") + h2[n3 + 1]), this._$AH[n3] = r2;
-    }
-    o2 && !e2 && this.j(t2);
-  }
-  j(t2) {
-    t2 === A ? this.element.removeAttribute(this.name) : this.element.setAttribute(this.name, t2 ?? "");
-  }
-}
-class I extends H {
-  constructor() {
-    super(...arguments), this.type = 3;
-  }
-  j(t2) {
-    this.element[this.name] = t2 === A ? void 0 : t2;
-  }
-}
-class L extends H {
-  constructor() {
-    super(...arguments), this.type = 4;
-  }
-  j(t2) {
-    this.element.toggleAttribute(this.name, !!t2 && t2 !== A);
-  }
-}
-class z extends H {
-  constructor(t2, i2, s2, e2, h2) {
-    super(t2, i2, s2, e2, h2), this.type = 5;
-  }
-  _$AI(t2, i2 = this) {
-    if ((t2 = M(this, t2, i2, 0) ?? A) === E) return;
-    const s2 = this._$AH, e2 = t2 === A && s2 !== A || t2.capture !== s2.capture || t2.once !== s2.once || t2.passive !== s2.passive, h2 = t2 !== A && (s2 === A || e2);
-    e2 && this.element.removeEventListener(this.name, this, s2), h2 && this.element.addEventListener(this.name, this, t2), this._$AH = t2;
-  }
-  handleEvent(t2) {
-    "function" == typeof this._$AH ? this._$AH.call(this.options?.host ?? this.element, t2) : this._$AH.handleEvent(t2);
-  }
-}
-class Z {
-  constructor(t2, i2, s2) {
-    this.element = t2, this.type = 6, this._$AN = void 0, this._$AM = i2, this.options = s2;
-  }
-  get _$AU() {
-    return this._$AM._$AU;
-  }
-  _$AI(t2) {
-    M(this, t2);
-  }
-}
-const B = t$1.litHtmlPolyfillSupport;
-B?.(S, k), (t$1.litHtmlVersions ??= []).push("3.3.3");
-const D = (t2, i2, s2) => {
-  const e2 = s2?.renderBefore ?? i2;
-  let h2 = e2._$litPart$;
-  if (void 0 === h2) {
-    const t3 = s2?.renderBefore ?? null;
-    e2._$litPart$ = h2 = new k(i2.insertBefore(c(), t3), t3, void 0, s2 ?? {});
-  }
-  return h2._$AI(t2), h2;
-};
-/**
- * @license
- * Copyright 2017 Google LLC
- * SPDX-License-Identifier: BSD-3-Clause
- */
-const s = globalThis;
-class i extends y$1 {
-  constructor() {
-    super(...arguments), this.renderOptions = { host: this }, this._$Do = void 0;
-  }
-  createRenderRoot() {
-    const t2 = super.createRenderRoot();
-    return this.renderOptions.renderBefore ??= t2.firstChild, t2;
-  }
-  update(t2) {
-    const r2 = this.render();
-    this.hasUpdated || (this.renderOptions.isConnected = this.isConnected), super.update(t2), this._$Do = D(r2, this.renderRoot, this.renderOptions);
-  }
-  connectedCallback() {
-    super.connectedCallback(), this._$Do?.setConnected(true);
-  }
-  disconnectedCallback() {
-    super.disconnectedCallback(), this._$Do?.setConnected(false);
-  }
-  render() {
-    return E;
-  }
-}
-i._$litElement$ = true, i["finalized"] = true, s.litElementHydrateSupport?.({ LitElement: i });
-const o$1 = s.litElementPolyfillSupport;
-o$1?.({ LitElement: i });
-(s.litElementVersions ??= []).push("4.2.2");
-/**
- * @license
- * Copyright 2017 Google LLC
- * SPDX-License-Identifier: BSD-3-Clause
- */
-const t = (t2) => (e2, o2) => {
-  void 0 !== o2 ? o2.addInitializer(() => {
-    customElements.define(t2, e2);
-  }) : customElements.define(t2, e2);
-};
-/**
- * @license
- * Copyright 2017 Google LLC
- * SPDX-License-Identifier: BSD-3-Clause
- */
-const o = { attribute: true, type: String, converter: u$1, reflect: false, hasChanged: f$1 }, r = (t2 = o, e2, r2) => {
-  const { kind: n3, metadata: i2 } = r2;
-  let s2 = globalThis.litPropertyMetadata.get(i2);
-  if (void 0 === s2 && globalThis.litPropertyMetadata.set(i2, s2 = /* @__PURE__ */ new Map()), "setter" === n3 && ((t2 = Object.create(t2)).wrapped = true), s2.set(r2.name, t2), "accessor" === n3) {
-    const { name: o2 } = r2;
-    return { set(r3) {
-      const n4 = e2.get.call(this);
-      e2.set.call(this, r3), this.requestUpdate(o2, n4, t2, true, r3);
-    }, init(e3) {
-      return void 0 !== e3 && this.C(o2, void 0, t2, e3), e3;
-    } };
-  }
-  if ("setter" === n3) {
-    const { name: o2 } = r2;
-    return function(r3) {
-      const n4 = this[o2];
-      e2.call(this, r3), this.requestUpdate(o2, n4, t2, true, r3);
-    };
-  }
-  throw Error("Unsupported decorator location: " + n3);
-};
-function n2(t2) {
-  return (e2, o2) => "object" == typeof o2 ? r(t2, e2, o2) : ((t3, e3, o3) => {
-    const r2 = e3.hasOwnProperty(o3);
-    return e3.constructor.createProperty(o3, t3), r2 ? Object.getOwnPropertyDescriptor(e3, o3) : void 0;
-  })(t2, e2, o2);
-}
-/**
- * @license
- * Copyright 2017 Google LLC
- * SPDX-License-Identifier: BSD-3-Clause
- */
-const e$1 = (e2, t2, c2) => (c2.configurable = true, c2.enumerable = true, Reflect.decorate && "object" != typeof t2 && Object.defineProperty(e2, t2, c2), c2);
-/**
- * @license
- * Copyright 2017 Google LLC
- * SPDX-License-Identifier: BSD-3-Clause
- */
-function e(e2, r2) {
-  return (n3, s2, i2) => {
-    const o2 = (t2) => t2.renderRoot?.querySelector(e2) ?? null;
-    return e$1(n3, s2, { get() {
-      return o2(this);
-    } });
-  };
-}
-class ExplorerApi {
-  constructor(hass) {
-    this.hass = hass;
-  }
-  call(message) {
-    return this.hass.callWS(message);
-  }
-  async callWithTimeout(message, timeoutMs = 15e3) {
-    let timeoutId;
-    try {
-      return await Promise.race([
-        this.call(message),
-        new Promise((_2, reject) => {
-          timeoutId = window.setTimeout(
-            () => reject(new Error(`Zeitüberschreitung nach ${Math.round(timeoutMs / 1e3)} Sekunden`)),
-            timeoutMs
-          );
-        })
-      ]);
-    } finally {
-      if (timeoutId !== void 0) window.clearTimeout(timeoutId);
-    }
-  }
-}
-class ExplorerPreferences {
-  get(key, fallback) {
-    try {
-      return window.localStorage.getItem(key) || fallback;
-    } catch {
-      return fallback;
-    }
-  }
-  set(key, value) {
-    try {
-      window.localStorage.setItem(key, String(value));
-    } catch {
-    }
-  }
-  getBoolean(key, fallback = false) {
-    const value = this.get(key, fallback ? "1" : "0");
-    return value === "1" || value === "true";
-  }
-}
-class BepacomExplorerView extends HTMLElement {
+// @ts-nocheck
+
+import { ExplorerApi } from "./explorer-api";
+import { ExplorerPreferences } from "./explorer-state";
+
+export class BepacomExplorerView extends HTMLElement {
   constructor() {
     super();
     this._preferences = new ExplorerPreferences();
@@ -642,39 +23,43 @@ class BepacomExplorerView extends HTMLElement {
       only_overrides: false,
       only_subscribe: false,
       device_id: "all",
-      runtime: "all"
+      runtime: "all",
     };
     this._virtualSearch = this._loadSetting("bepacom_virtual_search", "");
     this._refreshTimer = null;
     this._debounce = null;
     this._diagnostics = {};
-    this._historyByUid = /* @__PURE__ */ new Map();
-    this._clientHistory = /* @__PURE__ */ new Map();
-    this._clientValueChangeCount = /* @__PURE__ */ new Map();
-    this._lastSeenValues = /* @__PURE__ */ new Map();
+    this._historyByUid = new Map();
+    this._clientHistory = new Map();
+    this._clientValueChangeCount = new Map();
+    this._lastSeenValues = new Map();
     this._writing = false;
     this._statusOpen = this._loadStatusOpen();
+    // localStorage is scoped to the current origin. A fresh access path (for
+    // example the Cloudflare hostname instead of the local HA address) must
+    // therefore start with the same useful grouping on its first visit.
     this._groupBy = this._loadSetting("bepacom_group_by", "type");
     this._sortKey = this._loadSetting("bepacom_sort_key", "object_key");
     this._sortDir = this._loadSetting("bepacom_sort_dir", "asc");
+    // Rechte Detail-/Konfigurationsspalte standardmäßig ausblenden, damit die Tabelle mehr Platz hat.
     this._detailsVisible = this._loadSetting("bepacom_details_visible", "0") === "1";
-    this._selectedIds = /* @__PURE__ */ new Set();
+    this._selectedIds = new Set();
     this._visibleStart = 0;
     this._rowHeight = 74;
     this._overscan = 8;
     this._lastTableScrollTop = 0;
-    this._recentValueChanges = /* @__PURE__ */ new Map();
-    this._recentValueDirections = /* @__PURE__ */ new Map();
+    this._recentValueChanges = new Map();
+    this._recentValueDirections = new Map();
     this._recentChangeTimer = null;
     this._keyboardHandler = (ev) => this._handleKeyboard(ev);
     this._rootClickHandler = (ev) => this._handleRootClick(ev);
     this._editorDirty = false;
     this._editorErrors = [];
-    this._pendingReloadIds = /* @__PURE__ */ new Set();
+    this._pendingReloadIds = new Set();
     this._manualReloadRunning = false;
     this._manualReloadUntil = 0;
     this._refreshInFlight = false;
-    this._sideScrollPositions = /* @__PURE__ */ new Map();
+    this._sideScrollPositions = new Map();
     this._activeView = this._loadSetting("bepacom_active_view", "explorer");
     this._sideTab = this._loadSetting("bepacom_side_tab", "inspector");
     this._connected = false;
@@ -703,12 +88,14 @@ class BepacomExplorerView extends HTMLElement {
     this._liveFilters = { search: "", source: "all", object_type: "all" };
     this._api = null;
   }
+
   _versionLabel() {
     const cfg = this.panel?.config || {};
     const version = cfg.version || "1.2.0";
     const build = cfg.frontend_build || "0642";
     return `Version ${version} · Frontend-Build ${build}`;
   }
+
   connectedCallback() {
     if (this._connected) return;
     this._connected = true;
@@ -722,6 +109,7 @@ class BepacomExplorerView extends HTMLElement {
     this._startLiveTimer();
     this._render();
   }
+
   disconnectedCallback() {
     this._connected = false;
     this._stopRefreshTimer();
@@ -738,17 +126,21 @@ class BepacomExplorerView extends HTMLElement {
     window.removeEventListener("beforeunload", this._beforeUnloadHandler);
     this.shadowRoot.removeEventListener("click", this._rootClickHandler);
   }
+
   set panel(panel) {
     this._panel = panel;
     const configuredEntryId = panel?.config?.entry_id;
     if (configuredEntryId) this._entryId = configuredEntryId;
   }
+
   get panel() {
     return this._panel;
   }
+
   _hasUnsavedChanges() {
     return this._editorDirty;
   }
+
   _discardEditorChanges() {
     if (!this._selected) return;
     this._editorDirty = false;
@@ -756,6 +148,7 @@ class BepacomExplorerView extends HTMLElement {
     this._message = "Ungespeicherte Änderungen wurden verworfen.";
     this._render();
   }
+
   _validateEditor() {
     const errors = [];
     const entityId = String(this.shadowRoot?.getElementById("editEntityId")?.value || "").trim();
@@ -764,7 +157,7 @@ class BepacomExplorerView extends HTMLElement {
         errors.push("Entity-ID: nur Kleinbuchstaben, Zahlen und Unterstriche im Format domain.name.");
       }
       const conflict = this._points.find(
-        (point) => point.unique_id !== this._selected?.unique_id && point.entity_id === entityId
+        (point) => point.unique_id !== this._selected?.unique_id && point.entity_id === entityId,
       );
       if (conflict) errors.push(`Entity-ID wird bereits von ${conflict.object_key || conflict.unique_id} verwendet.`);
     }
@@ -787,6 +180,7 @@ class BepacomExplorerView extends HTMLElement {
     if (warning) warning.hidden = !(Number.isFinite(priority) && priority >= 1 && priority <= 7);
     return errors.length === 0;
   }
+
   _updateEditorState() {
     const banner = this.shadowRoot?.getElementById("editorDirtyBanner");
     if (banner) banner.hidden = !this._editorDirty;
@@ -794,6 +188,7 @@ class BepacomExplorerView extends HTMLElement {
     if (discard) discard.disabled = !this._editorDirty || this._saving;
     this._validateEditor();
   }
+
   set hass(hass) {
     this._hass = hass;
     this._api = hass ? new ExplorerApi(hass) : null;
@@ -803,9 +198,11 @@ class BepacomExplorerView extends HTMLElement {
       this._startInitialLoad();
     }
   }
+
   get hass() {
     return this._hass;
   }
+
   _scheduleVirtualStateDomUpdate() {
     if (this._virtualStateUpdateQueued) return;
     this._virtualStateUpdateQueued = true;
@@ -815,6 +212,7 @@ class BepacomExplorerView extends HTMLElement {
       this._updateVirtualStateDom();
     });
   }
+
   _updateVirtualStateDom() {
     if (!this.shadowRoot || !this.hass?.states) return;
     this.shadowRoot.querySelectorAll("[data-virtual-state-entity-id]").forEach((badge) => {
@@ -825,49 +223,60 @@ class BepacomExplorerView extends HTMLElement {
       if (normalized === "on" || normalized === "true" || normalized === "1") cls = "on";
       else if (normalized === "off" || normalized === "false" || normalized === "0") cls = "off";
       else if (["unavailable", "unknown", "-"].includes(normalized)) cls = "unavailable";
+
       badge.classList.remove("on", "off", "unavailable", "unknown", "neutral");
       badge.classList.add(cls);
       badge.textContent = this._binaryStateLabel(state, badge.dataset.deviceClass || "");
     });
   }
+
   _startInitialLoad() {
     if (!this._connected || !this.hass || this._initialLoadStarted) return;
     this._initialLoadStarted = true;
     this._loadEntries();
     this._loadPoints(false);
   }
+
   _startRefreshTimer() {
     if (!this._connected || document.hidden || this._refreshTimer) return;
-    this._refreshTimer = window.setInterval(() => this._refreshPointsInPlace(), 5e3);
+    this._refreshTimer = window.setInterval(() => this._refreshPointsInPlace(), 5000);
   }
+
   _stopRefreshTimer() {
     if (!this._refreshTimer) return;
     window.clearInterval(this._refreshTimer);
     this._refreshTimer = null;
   }
+
   _startLiveTimer() {
     if (!this._connected || document.hidden || this._liveTimer) return;
     this._refreshLiveChanges();
-    this._liveTimer = window.setInterval(() => this._refreshLiveChanges(), 1e3);
+    this._liveTimer = window.setInterval(() => this._refreshLiveChanges(), 1000);
   }
+
   _stopLiveTimer() {
     if (!this._liveTimer) return;
     window.clearInterval(this._liveTimer);
     this._liveTimer = null;
   }
+
   _handleVisibilityChange() {
     if (document.hidden) {
       this._stopRefreshTimer();
       this._stopLiveTimer();
+      // Invalidate a request that may never settle while the browser suspends
+      // the tab. Its late result must not overwrite the fresh visible state.
       this._refreshGeneration += 1;
       this._refreshInFlight = false;
       return;
     }
+
     if (!this._connected) return;
     this._startRefreshTimer();
     this._startLiveTimer();
     this._refreshPointsInPlace();
   }
+
   async _refreshLiveChanges() {
     if (!this.hass || !this._entryId || this._mainSection !== "live" || this._dashboardTab !== "live" || this._livePaused || this._liveRefreshInFlight || document.hidden) return;
     this._liveRefreshInFlight = true;
@@ -877,11 +286,12 @@ class BepacomExplorerView extends HTMLElement {
         type: "bepacom/explorer/changes",
         entry_id: this._entryId,
         after: this._liveCursor,
-        limit: 1e4
+        limit: 10000,
       });
       const latestSequence = Number(result.latest_sequence) || 0;
       if (generation !== this._liveGeneration) return;
       if (latestSequence < this._liveCursor) {
+        // The integration was reloaded and its in-memory sequence restarted.
         this._liveCursor = 0;
         this._liveChanges = [];
         return;
@@ -889,36 +299,39 @@ class BepacomExplorerView extends HTMLElement {
       const incoming = Array.isArray(result.changes) ? result.changes : [];
       if (incoming.length) {
         this._liveChanges.push(...incoming);
-        if (this._liveChanges.length > 1e4) {
-          this._liveChanges.splice(0, this._liveChanges.length - 1e4);
+        if (this._liveChanges.length > 10000) {
+          this._liveChanges.splice(0, this._liveChanges.length - 10000);
         }
         this._liveCursor = Number(incoming[incoming.length - 1].sequence) || this._liveCursor;
         this._updateLiveMonitorDom();
       } else if (!this._liveCursor) {
         this._liveCursor = latestSequence;
       }
-    } catch (_2) {
+    } catch (_) {
+      // The regular dashboard connection state already exposes transport errors.
     } finally {
       this._liveRefreshInFlight = false;
     }
   }
-  async _callWSWithTimeout(message, timeoutMs = 15e3) {
+
+  async _callWSWithTimeout(message, timeoutMs = 15000) {
     if (!this._api) throw new Error("Home Assistant ist nicht verbunden");
     let timeoutId;
     try {
       return await Promise.race([
         this._api.call(message),
-        new Promise((_2, reject) => {
+        new Promise((_, reject) => {
           timeoutId = window.setTimeout(
             () => reject(new Error("Zeitüberschreitung bei der Verbindung zu Home Assistant")),
-            timeoutMs
+            timeoutMs,
           );
-        })
+        }),
       ]);
     } finally {
       if (timeoutId) window.clearTimeout(timeoutId);
     }
   }
+
   async _loadEntries() {
     if (!this.hass) return;
     try {
@@ -931,21 +344,23 @@ class BepacomExplorerView extends HTMLElement {
       this._render();
     }
   }
+
   async _loadPoints(showLoading = true) {
     if (!this.hass) return;
     if (showLoading) this._loading = true;
     this._error = null;
     if (showLoading) this._render();
+
     try {
       const result = await this._callWSWithTimeout({
         type: "bepacom/explorer/points",
-        entry_id: this._entryId || void 0,
+        entry_id: this._entryId || undefined,
         search: this._filters.search,
         object_type: this._filters.object_type,
         only_overrides: this._filters.only_overrides,
         only_subscribe: this._filters.only_subscribe,
         include_disabled: true,
-        limit: 2e3
+        limit: 2000,
       });
       this._entryId = result.entry_id || this._entryId;
       this._points = result.points || [];
@@ -954,7 +369,7 @@ class BepacomExplorerView extends HTMLElement {
       this._total = result.total || this._points.length;
       this._limited = !!result.limited;
       if (this._selected) {
-        const updated = this._points.find((p2) => p2.unique_id === this._selected.unique_id);
+        const updated = this._points.find((p) => p.unique_id === this._selected.unique_id);
         if (updated) this._selected = updated;
       }
     } catch (err) {
@@ -971,6 +386,7 @@ class BepacomExplorerView extends HTMLElement {
       }
     }
   }
+
   _isUserInteractingWithTable() {
     const active = this.shadowRoot?.activeElement;
     const tableWrap = this.shadowRoot?.getElementById("tableWrap");
@@ -979,31 +395,38 @@ class BepacomExplorerView extends HTMLElement {
       const tag = (active.tagName || "").toLowerCase();
       if (["select", "input", "textarea", "button"].includes(tag)) return true;
     }
+    // Beim Mouseover den Tabellen-DOM nicht ersetzen. Sonst verschwinden Tooltips/Infos
+    // und gerade geöffnete Controls klappen durch den Auto-Refresh wieder zu.
     return tableWrap.matches(":hover");
   }
+
+
   async _refreshPointsInPlace() {
     if (!this.hass || !this._entryId) return;
     if (document.hidden) return;
     if (this._refreshInFlight) return;
     const generation = ++this._refreshGeneration;
     this._refreshInFlight = true;
+    // Während der Benutzer tippt oder rechts editiert, darf der Auto-Refresh
+    // die DOM-Struktur nicht neu aufbauen. Sonst verlieren Eingabefelder den
+    // Fokus und die Tabelle springt nach oben.
     try {
       const result = await this._callWSWithTimeout({
         type: "bepacom/explorer/points_runtime",
-        entry_id: this._entryId || void 0,
-        unique_ids: this._points.map((point) => point.unique_id)
+        entry_id: this._entryId || undefined,
+        unique_ids: this._points.map((point) => point.unique_id),
       });
       if (generation !== this._refreshGeneration || document.hidden || !this._connected) return;
       this._entryId = result.entry_id || this._entryId;
       const runtimeByUid = new Map((result.points || []).map((point) => [point.unique_id, point]));
       this._points = this._points.map((point) => ({
         ...point,
-        ...runtimeByUid.get(point.unique_id) || {}
+        ...(runtimeByUid.get(point.unique_id) || {}),
       }));
       this._diagnostics = result.diagnostics || {};
       this._trackClientHistory(this._points);
       if (this._selected) {
-        const updated = this._points.find((p2) => p2.unique_id === this._selected.unique_id);
+        const updated = this._points.find((p) => p.unique_id === this._selected.unique_id);
         if (updated) {
           this._selected = { ...this._selected, ...updated };
         }
@@ -1020,28 +443,35 @@ class BepacomExplorerView extends HTMLElement {
       if (generation === this._refreshGeneration) this._refreshInFlight = false;
     }
   }
+
   _updateDetailDom() {
     if (!this._detailsVisible) return;
     const side = this.shadowRoot?.getElementById("pointInspector");
     if (!side || !this._selected) return;
+
     const active = this.shadowRoot?.activeElement;
     if (active && side.contains(active)) {
+      // Während der Benutzer im rechten Editor tippt, die Felder nicht neu zeichnen.
       return;
     }
+
     const sideScrollTop = this._rememberSideScroll();
     this._configurePointInspector();
     this._restoreSideScroll(sideScrollTop);
   }
+
   _sideScrollKey() {
     const selectedId = this._selected?.unique_id || "none";
     return `${selectedId}:${this._sideTab || "inspector"}`;
   }
+
   _rememberSideScroll() {
     const body = this.shadowRoot?.querySelector(".side-body");
     const scrollTop = body?.scrollTop ?? 0;
     this._sideScrollPositions.set(this._sideScrollKey(), scrollTop);
     return scrollTop;
   }
+
   _restoreSideScroll(fallback = null) {
     const body = this.shadowRoot?.querySelector(".side-body");
     if (!body) return;
@@ -1051,10 +481,11 @@ class BepacomExplorerView extends HTMLElement {
       body.scrollTop = scrollTop;
     });
   }
+
   _updateHeaderDom() {
     const subtitle = this.shadowRoot?.getElementById("subtitle");
     if (subtitle) {
-      subtitle.textContent = `Sidebar-Ansicht für gefundene BACnet-Objekte${this._total !== void 0 ? ` · ${this._points.length} von ${this._total}` : ""}${this._limited ? " · Liste begrenzt" : ""}`;
+      subtitle.textContent = `Sidebar-Ansicht für gefundene BACnet-Objekte${this._total !== undefined ? ` · ${this._points.length} von ${this._total}` : ""}${this._limited ? " · Liste begrenzt" : ""}`;
     }
     const mainStatus = this.shadowRoot?.querySelector(".main-status-strip");
     if (mainStatus) mainStatus.outerHTML = this._mainStatusHtml();
@@ -1062,14 +493,20 @@ class BepacomExplorerView extends HTMLElement {
     if (dashboard) {
       const active = this.shadowRoot?.activeElement;
       const liveMonitor = this.shadowRoot?.getElementById("liveMonitorHost");
+      // The runtime refresh runs every five seconds. Replacing the complete
+      // dashboard while a live filter is focused would destroy its input node
+      // and make typing jump out of the field. Incoming changes continue to be
+      // buffered and the next refresh after blur updates the complete view.
       if (!(active && liveMonitor?.contains(active))) {
         this._configureRuntimeDashboard();
       }
     }
   }
+
   _updateListDom() {
     const wrap = this.shadowRoot?.getElementById("tableWrap");
     if (!wrap) return;
+
     const scrollTop = wrap.scrollTop;
     this._lastTableScrollTop = scrollTop;
     this._configurePointTable();
@@ -1078,17 +515,27 @@ class BepacomExplorerView extends HTMLElement {
       if (nextWrap) nextWrap.scrollTop = scrollTop;
     });
   }
+
   _formatError(err) {
     if (!err) return "Unbekannter Fehler";
     return err.message || err.code || JSON.stringify(err);
   }
+
   _setFilter(key, value) {
     this._filters[key] = value;
     if (this._debounce) window.clearTimeout(this._debounce);
+    // Wichtig: beim Tippen NICHT die komplette Seite neu rendern.
+    // Sonst verliert das Suchfeld den Fokus. Nur die Datenzeilen werden
+    // nachgeladen und gezielt aktualisiert.
     this._debounce = window.setTimeout(() => this._loadPoints(false), 250);
   }
+
   _selectPoint(point) {
-    if (this._editorDirty && this._selected?.unique_id !== point?.unique_id && !window.confirm("Ungespeicherte Änderungen verwerfen und einen anderen Punkt öffnen?")) {
+    if (
+      this._editorDirty
+      && this._selected?.unique_id !== point?.unique_id
+      && !window.confirm("Ungespeicherte Änderungen verwerfen und einen anderen Punkt öffnen?")
+    ) {
       return;
     }
     this._editorDirty = false;
@@ -1099,17 +546,21 @@ class BepacomExplorerView extends HTMLElement {
     this._clientHistory.clear();
     this._historyByUid.clear();
     this._message = null;
+    // Wichtig: Der Verlauf ist je BACnet-Punkt getrennt. Beim Wechsel der
+    // Auswahl darf kein alter Verlauf einer anderen Entität übernommen werden.
     this._loadInspector(point.unique_id);
+    // Keep the table host mounted so selecting a row cannot reset scrollTop.
     this._configurePointTable();
     this._configurePointInspector();
   }
+
   async _loadInspector(uniqueId) {
     if (!this.hass) return;
     try {
       const result = await this.hass.callWS({
         type: "bepacom/explorer/point",
-        entry_id: this._entryId || void 0,
-        unique_id: uniqueId
+        entry_id: this._entryId || undefined,
+        unique_id: uniqueId,
       });
       if (this._selected?.unique_id !== uniqueId) return;
       this._selected = result.point;
@@ -1121,6 +572,7 @@ class BepacomExplorerView extends HTMLElement {
     this._configurePointTable();
     this._configurePointInspector();
   }
+
   async _saveSelected() {
     if (!this.hass || !this._selected) return;
     if (!this._validateEditor()) {
@@ -1152,15 +604,17 @@ class BepacomExplorerView extends HTMLElement {
     const virtualBinaryOnValue = this.shadowRoot.getElementById("virtualBinaryOnValue")?.value || "";
     const virtualBinaryOffValue = this.shadowRoot.getElementById("virtualBinaryOffValue")?.value || "";
     const virtualBinaryElseState = this.shadowRoot.getElementById("virtualBinaryElseState")?.value || "unavailable";
+
     this._manualReloadRunning = false;
     this._manualReloadUntil = 0;
     this._saving = true;
     this._message = null;
     this._error = null;
+
     try {
       const result = await this.hass.callWS({
         type: "bepacom/explorer/save_override",
-        entry_id: this._entryId || void 0,
+        entry_id: this._entryId || undefined,
         unique_id: this._selected.unique_id,
         unit,
         device_class: deviceClass,
@@ -1186,7 +640,7 @@ class BepacomExplorerView extends HTMLElement {
         virtual_binary_device_class: virtualBinaryDeviceClass,
         virtual_binary_on_value: virtualBinaryOnValue,
         virtual_binary_off_value: virtualBinaryOffValue,
-        virtual_binary_else_state: virtualBinaryElseState
+        virtual_binary_else_state: virtualBinaryElseState,
       });
       this._selected = result.point;
       this._editorDirty = false;
@@ -1203,11 +657,14 @@ class BepacomExplorerView extends HTMLElement {
       this._render();
     }
   }
+
+
   _findVirtualEntity(sourceUid, virtualUid) {
-    const source = (this._points || []).find((p2) => p2.unique_id === sourceUid);
-    const ent = source ? this._linkedEntities(source).find((e2) => String(e2.unique_id || "") === String(virtualUid || "")) : null;
+    const source = (this._points || []).find((p) => p.unique_id === sourceUid);
+    const ent = source ? this._linkedEntities(source).find((e) => String(e.unique_id || "") === String(virtualUid || "")) : null;
     return { source, ent };
   }
+
   _fillVirtualForm(ent, duplicate = false) {
     if (!ent) return;
     const suffix = duplicate ? " Kopie" : "";
@@ -1233,6 +690,7 @@ class BepacomExplorerView extends HTMLElement {
     this._message = duplicate ? "Virtuelle Entität wurde als Kopie in den Editor übernommen. Zum Anlegen bitte Speichern klicken." : "Virtuelle Entität wurde in den Editor übernommen. Zum Anwenden bitte Speichern klicken.";
     this._updateHeaderDom();
   }
+
   _editVirtualEntity(sourceUid, virtualUid, duplicate = false) {
     const { source, ent } = this._findVirtualEntity(sourceUid, virtualUid);
     if (!source || !ent) return;
@@ -1243,27 +701,26 @@ class BepacomExplorerView extends HTMLElement {
     this._setSetting("bepacom_side_tab", this._sideTab);
     this._setSetting("bepacom_details_visible", "1");
     this._selectPoint(source);
+    // Der Inspector wird ggf. asynchron nachgeladen; deshalb nach dem nächsten Render und noch einmal verzögert füllen.
     setTimeout(() => this._fillVirtualForm(ent, duplicate), 0);
     setTimeout(() => this._fillVirtualForm(ent, duplicate), 300);
   }
+
   async _deleteVirtualEntity(sourceUid, virtualUid, virtualName = "") {
     if (!this.hass || !sourceUid || !virtualUid) return;
     const label = virtualName || virtualUid;
-    const ok = window.confirm(`Virtuelle Entität löschen?
-
-${label}
-
-Diese Aktion entfernt die virtuelle Entität aus der Engelsoft-Beacon-Konfiguration und aus der Home-Assistant-Entity-Registry. Danach bitte die Integration neu laden.`);
+    const ok = window.confirm(`Virtuelle Entität löschen?\n\n${label}\n\nDiese Aktion entfernt die virtuelle Entität aus der Engelsoft-Beacon-Konfiguration und aus der Home-Assistant-Entity-Registry. Danach bitte die Integration neu laden.`);
     if (!ok) return;
+
     this._saving = true;
     this._message = null;
     this._error = null;
     try {
       const result = await this.hass.callWS({
         type: "bepacom/explorer/delete_virtual_entity",
-        entry_id: this._entryId || void 0,
+        entry_id: this._entryId || undefined,
         source_unique_id: sourceUid,
-        virtual_unique_id: virtualUid
+        virtual_unique_id: virtualUid,
       });
       if (this._selected?.unique_id === sourceUid) {
         this._selected = result.point;
@@ -1271,7 +728,9 @@ Diese Aktion entfernt die virtuelle Entität aus der Engelsoft-Beacon-Konfigurat
         this._setHistoryForSelected(result.history || [], sourceUid);
       }
       this._pendingReloadIds.add(sourceUid);
-      this._message = result.removed_entity_id ? `Virtuelle Entität gelöscht: ${result.removed_entity_id}. Bitte Integration neu laden.` : "Virtuelle Entität gelöscht. Bitte Integration neu laden.";
+      this._message = result.removed_entity_id
+        ? `Virtuelle Entität gelöscht: ${result.removed_entity_id}. Bitte Integration neu laden.`
+        : "Virtuelle Entität gelöscht. Bitte Integration neu laden.";
       await this._loadPoints(false);
     } catch (err) {
       this._error = this._formatError(err);
@@ -1280,6 +739,7 @@ Diese Aktion entfernt die virtuelle Entität aus der Engelsoft-Beacon-Konfigurat
       this._render();
     }
   }
+
   async _resetSelected() {
     if (!this.hass || !this._selected) return;
     this._editorDirty = false;
@@ -1288,11 +748,12 @@ Diese Aktion entfernt die virtuelle Entität aus der Engelsoft-Beacon-Konfigurat
     this._saving = true;
     this._message = null;
     this._error = null;
+
     try {
       const result = await this.hass.callWS({
         type: "bepacom/explorer/reset_override",
-        entry_id: this._entryId || void 0,
-        unique_id: this._selected.unique_id
+        entry_id: this._entryId || undefined,
+        unique_id: this._selected.unique_id,
       });
       this._selected = result.point;
       this._pendingReloadIds.add(this._selected.unique_id);
@@ -1307,6 +768,8 @@ Diese Aktion entfernt die virtuelle Entität aus der Engelsoft-Beacon-Konfigurat
       this._render();
     }
   }
+
+
   async _reloadIntegration() {
     if (!this.hass || !this._entryId) return;
     const now = Date.now();
@@ -1315,17 +778,19 @@ Diese Aktion entfernt die virtuelle Entität aus der Engelsoft-Beacon-Konfigurat
       this._render();
       return;
     }
+
     const preview = this._reloadPreview();
-    if (preview.changed > 0 && !window.confirm(
-      `Integration neu laden?
+    if (
+      preview.changed > 0
+      && !window.confirm(
+        `Integration neu laden?\n\n${preview.changed} geänderte Punkte werden angewendet.\n`
+        + `${preview.enabled} aktiv · ${preview.disabled} deaktiviert.\n\n`
+        + "Während des Reloads können Entitäten kurz nicht verfügbar sein.",
+      )
+    ) return;
 
-${preview.changed} geänderte Punkte werden angewendet.
-${preview.enabled} aktiv · ${preview.disabled} deaktiviert.
-
-Während des Reloads können Entitäten kurz nicht verfügbar sein.`
-    )) return;
     this._manualReloadRunning = true;
-    this._manualReloadUntil = now + 15e3;
+    this._manualReloadUntil = now + 15000;
     this._saving = true;
     this._message = "Integration wird neu geladen …";
     this._error = null;
@@ -1334,7 +799,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     try {
       const result = await this.hass.callWS({
         type: "bepacom/explorer/reload_entry",
-        entry_id: this._entryId || void 0
+        entry_id: this._entryId || undefined,
       });
       if (result && result.scheduled === false) {
         this._message = "Integration wird bereits neu geladen. Bitte kurz warten.";
@@ -1342,6 +807,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         this._message = "Neuladen wurde gestartet. Die Ansicht wird gleich aktualisiert.";
         this._pendingReloadIds.clear();
       }
+      // Während des Reloads keine weiteren Reloads oder Auto-Refreshes auslösen.
       window.setTimeout(async () => {
         this._manualReloadRunning = false;
         this._saving = false;
@@ -1355,7 +821,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
           this._startRefreshTimer();
           this._render();
         }
-      }, 8e3);
+      }, 8000);
     } catch (err) {
       this._manualReloadRunning = false;
       this._saving = false;
@@ -1364,8 +830,9 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       this._render();
     }
   }
+
   _comparableValue(value) {
-    if (value === null || value === void 0) return null;
+    if (value === null || value === undefined) return null;
     if (typeof value === "boolean") return value;
     const text = String(value).trim();
     if (text === "") return "";
@@ -1373,9 +840,11 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     if (Number.isFinite(num)) return Number(num.toFixed(10));
     return text;
   }
-  _sameValue(a2, b2) {
-    return this._comparableValue(a2) === this._comparableValue(b2);
+
+  _sameValue(a, b) {
+    return this._comparableValue(a) === this._comparableValue(b);
   }
+
   _changeDirection(previous, value) {
     const oldValue = this._comparableValue(previous);
     const newValue = this._comparableValue(value);
@@ -1385,8 +854,9 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     }
     return "changed";
   }
+
   _trackClientHistory(points) {
-    const now = (/* @__PURE__ */ new Date()).toISOString();
+    const now = new Date().toISOString();
     for (const point of points || []) {
       if (!point?.unique_id) continue;
       const uid = point.unique_id;
@@ -1395,6 +865,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       const hadPrevious = this._lastSeenValues.has(uid);
       const previous = this._lastSeenValues.get(uid);
       const changed = !hadPrevious || !this._sameValue(previous, value);
+
       if (changed) {
         if (this._selected?.unique_id === uid) {
           list.push({ ts: point.last_update || now, value, source: point.last_update_source || "refresh" });
@@ -1409,12 +880,15 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       }
     }
   }
+
+
   _markValueChanged(uid, direction = "changed") {
     if (!uid) return;
     this._recentValueChanges.set(uid, Date.now());
     this._recentValueDirections.set(uid, direction);
     this._scheduleRecentChangeCleanup();
   }
+
   _scheduleRecentChangeCleanup() {
     if (this._recentChangeTimer || !this._recentValueChanges.size) return;
     const nextExpiry = Math.min(...this._recentValueChanges.values()) + 4100;
@@ -1424,7 +898,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       const now = Date.now();
       let removed = false;
       for (const [uid, ts] of this._recentValueChanges.entries()) {
-        if (now - ts < 4e3) continue;
+        if (now - ts < 4000) continue;
         this._recentValueChanges.delete(uid);
         this._recentValueDirections.delete(uid);
         removed = true;
@@ -1433,22 +907,29 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       this._scheduleRecentChangeCleanup();
     }, delay);
   }
+
   _isRecentlyChanged(uid) {
     const ts = this._recentValueChanges.get(uid);
     if (!ts) return false;
-    if (Date.now() - ts > 4e3) {
+    if (Date.now() - ts > 4000) {
       this._recentValueChanges.delete(uid);
       this._recentValueDirections.delete(uid);
       return false;
     }
     return true;
   }
+
   _valueChangeClass(uid) {
     if (!this._isRecentlyChanged(uid)) return "";
     const direction = this._recentValueDirections.get(uid) || "changed";
     return `value-flash value-${direction}`;
   }
+
   _isEditableTarget(target, ev = null) {
+    // Keyboard shortcuts are registered on window. Events coming from inside
+    // this shadow DOM are retargeted to the custom element, so checking only
+    // ev.target is not enough. Use the original composed path to avoid
+    // shortcuts like Enter/Esc/Arrow keys while the user is editing fields.
     const candidates = [];
     if (ev && typeof ev.composedPath === "function") candidates.push(...ev.composedPath());
     if (target) candidates.push(target);
@@ -1457,14 +938,16 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       return ["INPUT", "SELECT", "TEXTAREA", "HA-TEXTFIELD", "HA-SELECT"].includes(tag) || !!node?.isContentEditable;
     });
   }
+
   _visiblePointItems() {
     return this._displayItems().filter((item) => item.kind === "point").map((item) => item.point);
   }
+
   _selectRelative(delta) {
     const points = this._visiblePointItems();
     if (!points.length) return;
     const currentUid = this._selected?.unique_id;
-    let idx = points.findIndex((p2) => p2.unique_id === currentUid);
+    let idx = points.findIndex((p) => p.unique_id === currentUid);
     if (idx < 0) idx = delta > 0 ? -1 : 0;
     const nextIdx = Math.max(0, Math.min(points.length - 1, idx + delta));
     const next = points[nextIdx];
@@ -1472,6 +955,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     this._selectPoint(next);
     window.setTimeout(() => this._scrollSelectedIntoView(), 0);
   }
+
   _openDetailsFor(point) {
     if (point) this._selected = point;
     if (!this._detailsVisible) {
@@ -1481,12 +965,14 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     if (this._selected) this._loadInspector(this._selected.unique_id);
     else this._render();
   }
+
   _closeDetails() {
     if (!this._detailsVisible) return;
     this._detailsVisible = false;
     this._setSetting("bepacom_details_visible", "0");
     this._render();
   }
+
   _handleRootClick(ev) {
     const path = typeof ev.composedPath === "function" ? ev.composedPath() : [];
     const save = path.find((node) => node?.id === "saveOverride");
@@ -1504,6 +990,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       return;
     }
   }
+
   _handleKeyboard(ev) {
     if (!this.isConnected || ev.defaultPrevented) return;
     if (this._isEditableTarget(ev.target, ev)) return;
@@ -1529,11 +1016,12 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       }
     }
   }
+
   async _writeSelected() {
     if (!this.hass || !this._selected) return;
     const value = this.shadowRoot.getElementById("writeValue")?.value;
     const priority = Number(this.shadowRoot.getElementById("writePriority")?.value || 8);
-    if (value === void 0 || value === null || String(value).trim() === "") {
+    if (value === undefined || value === null || String(value).trim() === "") {
       this._error = "Bitte einen Schreibwert eintragen.";
       this._render();
       return;
@@ -1545,16 +1033,19 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     try {
       const result = await this.hass.callWS({
         type: "bepacom/explorer/write_property",
-        entry_id: this._entryId || void 0,
+        entry_id: this._entryId || undefined,
         unique_id: this._selected.unique_id,
         value,
-        priority
+        priority,
       });
       this._selected = result.point;
       this._inspector = result.inspector || {};
       this._setHistoryForSelected(result.history || [], this._selected?.unique_id);
       this._message = "BACnet-Wert wurde geschrieben.";
       await this._refreshPointsInPlace();
+      // The backend confirms writes asynchronously after allowing a short COV
+      // window. Refresh once more so the displayed value follows that result
+      // without waiting for the normal Explorer interval.
       window.setTimeout(() => {
         if (this._connected && !document.hidden) {
           void this._refreshPointsInPlace();
@@ -1567,20 +1058,23 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       this._render();
     }
   }
+
   _download(filename, content, type = "text/plain;charset=utf-8") {
     const blob = new Blob([content], { type });
     const url = URL.createObjectURL(blob);
-    const a2 = document.createElement("a");
-    a2.href = url;
-    a2.download = filename;
-    this.shadowRoot.appendChild(a2);
-    a2.click();
-    a2.remove();
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    this.shadowRoot.appendChild(a);
+    a.click();
+    a.remove();
     URL.revokeObjectURL(url);
   }
+
   _exportJson() {
     this._download("bepacom_bacnet_objects.json", JSON.stringify(this._points, null, 2), "application/json;charset=utf-8");
   }
+
   _overridePayload(point) {
     return {
       unique_id: point.unique_id,
@@ -1602,35 +1096,42 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       as_delay_ms: point.as_delay_ms,
       release_delay_ms: point.release_delay_ms,
       release_priority: point.release_priority !== false,
-      virtual_entities: Array.isArray(point.virtual_binaries) ? point.virtual_binaries : []
+      virtual_entities: Array.isArray(point.virtual_binaries) ? point.virtual_binaries : [],
     };
   }
+
   _exportOverrides() {
-    const overrides = this._points.filter(
-      (point) => point.override_active || Array.isArray(point.virtual_binaries) && point.virtual_binaries.length
-    ).map((point) => this._overridePayload(point));
+    const overrides = this._points
+      .filter(
+        (point) => point.override_active
+          || (Array.isArray(point.virtual_binaries) && point.virtual_binaries.length),
+      )
+      .map((point) => this._overridePayload(point));
     this._download(
       "bepacom_overrides.json",
       JSON.stringify({ format: "bepacom-overrides", version: 1, overrides }, null, 2),
-      "application/json;charset=utf-8"
+      "application/json;charset=utf-8",
     );
   }
+
   _openOverrideImport() {
     this.shadowRoot?.getElementById("importOverridesFile")?.click();
   }
+
   async _importOverrides(file) {
     if (!file || !this.hass) return;
     try {
-      const document2 = JSON.parse(await file.text());
-      if (document2?.format !== "bepacom-overrides" || !Array.isArray(document2.overrides)) {
+      const document = JSON.parse(await file.text());
+      if (document?.format !== "bepacom-overrides" || !Array.isArray(document.overrides)) {
         throw new Error("Die Datei ist kein Bepacom-Override-Export.");
       }
-      if (document2.overrides.length > 2e3) throw new Error("Die Importdatei enthält mehr als 2000 Overrides.");
+      if (document.overrides.length > 2000) throw new Error("Die Importdatei enthält mehr als 2000 Overrides.");
       const known = new Set(this._points.map((point) => point.unique_id));
-      const items = document2.overrides.filter((item) => item && known.has(item.unique_id));
-      const skipped = document2.overrides.length - items.length;
+      const items = document.overrides.filter((item) => item && known.has(item.unique_id));
+      const skipped = document.overrides.length - items.length;
       if (!items.length) throw new Error("Keiner der importierten Punkte ist in diesem Gateway vorhanden.");
       if (!window.confirm(`${items.length} Overrides importieren${skipped ? ` (${skipped} unbekannte überspringen)` : ""}?`)) return;
+
       this._saving = true;
       this._error = null;
       this._render();
@@ -1639,14 +1140,14 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         await this.hass.callWS({
           ...override,
           type: "bepacom/explorer/save_override",
-          entry_id: this._entryId || void 0,
-          unique_id: item.unique_id
+          entry_id: this._entryId || undefined,
+          unique_id: item.unique_id,
         });
         for (const virtual of Array.isArray(virtualEntities) ? virtualEntities : []) {
           await this.hass.callWS({
             ...override,
             type: "bepacom/explorer/save_override",
-            entry_id: this._entryId || void 0,
+            entry_id: this._entryId || undefined,
             unique_id: item.unique_id,
             virtual_binary_enabled: true,
             virtual_binary_name: virtual.name || "",
@@ -1654,7 +1155,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
             virtual_binary_device_class: virtual.device_class || "",
             virtual_binary_on_value: String(virtual.on_value ?? ""),
             virtual_binary_off_value: String(virtual.off_value ?? ""),
-            virtual_binary_else_state: virtual.else_state || "unavailable"
+            virtual_binary_else_state: virtual.else_state || "unavailable",
           });
         }
         this._pendingReloadIds.add(item.unique_id);
@@ -1670,54 +1171,66 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       this._render();
     }
   }
+
   _reloadPreview() {
     const changedPoints = this._points.filter((point) => this._pendingReloadIds.has(point.unique_id));
     return {
       changed: changedPoints.length,
       enabled: changedPoints.filter((point) => point.update_mode !== "disabled").length,
-      disabled: changedPoints.filter((point) => point.update_mode === "disabled").length
+      disabled: changedPoints.filter((point) => point.update_mode === "disabled").length,
     };
   }
+
   _exportCsv() {
-    const headers = ["object_key", "object_name", "description", "entity_id", "present_value", "bacnet_unit", "ha_unit", "device_class", "state_class", "override_active", "update_mode", "subscribed", "enabled", "writable", "last_update"];
-    const esc = (v2) => `"${String(v2 ?? "").replaceAll('"', '""')}"`;
-    const rows = [headers.join(";")].concat(this._points.map((p2) => headers.map((h2) => esc(p2[h2])).join(";")));
+    const headers = ["object_key","object_name","description","entity_id","present_value","bacnet_unit","ha_unit","device_class","state_class","override_active","update_mode","subscribed","enabled","writable","last_update"];
+    const esc = (v) => `"${String(v ?? "").replaceAll('"', '""')}"`;
+    const rows = [headers.join(";")].concat(this._points.map((p) => headers.map((h) => esc(p[h])).join(";")));
     this._download("bepacom_bacnet_objects.csv", rows.join("\n"), "text/csv;charset=utf-8");
   }
+
   _exportExcel() {
-    const headers = ["Objekt", "Name", "Beschreibung", "HA Entität", "Wert", "BACnet Unit", "HA Unit", "Device Class", "State Class", "Override", "Subscribe", "Subscribed", "Aktiv", "Schreibbar", "Letztes Update"];
-    const keys = ["object_key", "object_name", "description", "entity_id", "present_value", "bacnet_unit", "ha_unit", "device_class", "state_class", "override_active", "update_mode", "subscribed", "enabled", "writable", "last_update"];
-    const rows = this._points.map((p2) => `<tr>${keys.map((k2) => `<td>${this._escape(p2[k2])}</td>`).join("")}</tr>`).join("");
-    const html = `<html><head><meta charset="utf-8"></head><body><table><thead><tr>${headers.map((h2) => `<th>${this._escape(h2)}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></body></html>`;
+    const headers = ["Objekt","Name","Beschreibung","HA Entität","Wert","BACnet Unit","HA Unit","Device Class","State Class","Override","Subscribe","Subscribed","Aktiv","Schreibbar","Letztes Update"];
+    const keys = ["object_key","object_name","description","entity_id","present_value","bacnet_unit","ha_unit","device_class","state_class","override_active","update_mode","subscribed","enabled","writable","last_update"];
+    const rows = this._points.map((p) => `<tr>${keys.map((k) => `<td>${this._escape(p[k])}</td>`).join("")}</tr>`).join("");
+    const html = `<html><head><meta charset="utf-8"></head><body><table><thead><tr>${headers.map((h) => `<th>${this._escape(h)}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></body></html>`;
     this._download("bepacom_bacnet_objects.xls", html, "application/vnd.ms-excel;charset=utf-8");
   }
+
   _loadStatusOpen() {
     try {
       const stored = window.localStorage.getItem("bepacom_status_open");
       return stored === "1" || stored === "true";
-    } catch (_2) {
+    } catch (_) {
       return false;
     }
   }
+
   _setStatusOpen(open) {
     this._statusOpen = !!open;
     try {
       window.localStorage.setItem("bepacom_status_open", this._statusOpen ? "1" : "0");
-    } catch (_2) {
-    }
+    } catch (_) {}
+    // Nur den Dashboard-Bereich neu zeichnen. Alle anderen DOM-Bereiche bleiben
+    // unverändert, damit Fokus, Tabellen-Scroll und Auswahl stabil bleiben.
     this._updateHeaderDom();
     if (this._statusOpen && this._dashboardTab === "live") this._refreshLiveChanges();
   }
+
   _clientValueChangeTotal() {
     let total = 0;
     for (const value of this._clientValueChangeCount.values()) total += Number(value) || 0;
     return total;
   }
-  _dashboardValueChanges(d2 = {}) {
-    const backend = Number(d2.value_changes ?? 0) || 0;
+
+  _dashboardValueChanges(d = {}) {
+    const backend = Number(d.value_changes ?? 0) || 0;
     const client = this._clientValueChangeTotal();
+    // Backend ist die Quelle der Wahrheit. Falls es nach einem Reload noch nicht
+    // weiterzählt, zeigt der Explorer mindestens die im Browser erkannten
+    // Änderungen seit dem Öffnen des Panels.
     return Math.max(backend, client);
   }
+
   _filteredLiveChanges() {
     const search = String(this._liveFilters.search || "").trim();
     const pointByUid = new Map(this._points.map((point) => [point.unique_id, point]));
@@ -1727,33 +1240,27 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       if (!search) return true;
       const point = pointByUid.get(item.unique_id);
       const haystack = [
-        item.device_id,
-        item.object_type,
-        item.object_id,
-        item.object_key,
-        item.object_name,
-        item.unique_id,
-        point?.entity_id,
-        item.previous_value,
-        item.value,
-        item.source
-      ].filter((value) => value !== null && value !== void 0).join(" ");
+        item.device_id, item.object_type, item.object_id, item.object_key,
+        item.object_name, item.unique_id, point?.entity_id,
+        item.previous_value, item.value, item.source,
+      ].filter((value) => value !== null && value !== undefined).join(" ");
       return this._matchesSearchQuery(haystack, search);
     });
   }
+
   _liveMonitorHtml() {
     const filtered = this._filteredLiveChanges();
     const now = Date.now();
     const bins = Array.from({ length: 60 }, () => 0);
     for (const item of this._liveChanges) {
-      const age = Math.floor((now - Date.parse(item.ts || 0)) / 1e3);
+      const age = Math.floor((now - Date.parse(item.ts || 0)) / 1000);
       if (age >= 0 && age < 60) bins[59 - age] += 1;
     }
     const peak = Math.max(0, ...bins);
     const lastMinute = bins.reduce((sum, count) => sum + count, 0);
     const average = (lastMinute / 60).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const bars = bins.map((count) => {
-      const height = peak ? Math.max(2, Math.round(count / peak * 21)) : 2;
+      const height = peak ? Math.max(2, Math.round((count / peak) * 21)) : 2;
       return `<i style="height:${height}px" title="${count} Änderung${count === 1 ? "" : "en"}"></i>`;
     }).join("");
     const sources = [...new Set(this._liveChanges.map((item) => String(item.source || "unknown")))].sort();
@@ -1762,7 +1269,12 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     const rows = filtered.slice(-120).reverse().map((item) => {
       const point = this._points.find((candidate) => candidate.unique_id === item.unique_id);
       const entityId = point?.entity_id || "";
-      const friendlyName = this.hass?.states?.[entityId]?.attributes?.friendly_name || point?.entity_name || point?.entity_original_name || item.object_name || item.object_key || item.unique_id;
+      const friendlyName = this.hass?.states?.[entityId]?.attributes?.friendly_name
+        || point?.entity_name
+        || point?.entity_original_name
+        || item.object_name
+        || item.object_key
+        || item.unique_id;
       const secondaryLabel = entityId || item.object_key || item.unique_id;
       return `<tr data-live-uid="${this._escape(item.unique_id)}" title="${this._escape(`${item.device_id}/${item.object_type}:${item.object_id} · Im Point Inspector öffnen`)}">
         <td>${this._escape(this._formatTime(item.ts))}</td>
@@ -1793,6 +1305,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       <div class="live-foot">Ringpuffer: maximal 10.000 Änderungen · angezeigt werden die neuesten 120 Treffer</div>
     </div>`;
   }
+
   _updateLiveMonitorDom(force = false) {
     const dashboard = this.shadowRoot?.getElementById("dashboard");
     if (!dashboard || this._dashboardTab !== "live") return;
@@ -1800,11 +1313,14 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     if (!force && active && dashboard.contains(active)) return;
     this._configureRuntimeDashboard();
   }
+
   _bindLiveMonitorEvents() {
     const root = this.shadowRoot?.getElementById("liveMonitorHost");
     if (!root) return;
     root.querySelector("#livePause")?.addEventListener("click", () => {
       this._livePaused = !this._livePaused;
+      // Invalidate a response that may already be in flight so no values can
+      // slip into the table after the monitor has visibly been paused.
       this._liveGeneration += 1;
       this._updateLiveMonitorDom(true);
       if (!this._livePaused) this._refreshLiveChanges();
@@ -1838,54 +1354,57 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       this._selectPoint(point);
     }));
   }
+
   _dashboardHtml() {
-    const d2 = this._diagnostics || {};
+    const d = this._diagnostics || {};
     const configured = [
-      ["BACnet-Punkte", d2.objects ?? this._total ?? "-"],
-      ["Aktive Entitäten", d2.enabled ?? "-"],
-      ["Deaktiviert", d2.configured_disabled ?? d2.disabled ?? "-"],
-      ["Push konfiguriert", d2.configured_push ?? "-"],
-      ["Polling konfiguriert", d2.configured_polling ?? "-"],
-      ["Overrides", d2.overrides ?? "-"]
+      ["BACnet-Punkte", d.objects ?? this._total ?? "-"],
+      ["Aktive Entitäten", d.enabled ?? "-"],
+      ["Deaktiviert", d.configured_disabled ?? d.disabled ?? "-"],
+      ["Push konfiguriert", d.configured_push ?? "-"],
+      ["Polling konfiguriert", d.configured_polling ?? "-"],
+      ["Overrides", d.overrides ?? "-"],
     ];
-    if (Array.isArray(d2.firmware_versions) && d2.firmware_versions.length) {
-      configured.push(["Firmware", d2.firmware_versions.join(", ")]);
+    if (Array.isArray(d.firmware_versions) && d.firmware_versions.length) {
+      configured.push(["Firmware", d.firmware_versions.join(", ")]);
     }
-    if (Array.isArray(d2.device_models) && d2.device_models.length) {
-      configured.push(["Gerätemodelle", d2.device_models.join(", ")]);
+    if (Array.isArray(d.device_models) && d.device_models.length) {
+      configured.push(["Gerätemodelle", d.device_models.join(", ")]);
     }
-    const valueChanges = this._dashboardValueChanges(d2);
-    const pushNotificationsRaw = d2.bacnet_push_notifications ?? d2.websocket_updates ?? d2.push_count;
+    const valueChanges = this._dashboardValueChanges(d);
+    const pushNotificationsRaw = d.bacnet_push_notifications ?? d.websocket_updates ?? d.push_count;
     const pushNotifications = Number(pushNotificationsRaw);
-    const averageChangesPerPush = Number.isFinite(pushNotifications) && pushNotifications > 0 ? (Number(valueChanges) / pushNotifications).toLocaleString("de-DE", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }) : "-";
+    const averageChangesPerPush = Number.isFinite(pushNotifications) && pushNotifications > 0
+      ? (Number(valueChanges) / pushNotifications).toLocaleString("de-DE", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : "-";
     const pushChangeValue = `${pushNotificationsRaw ?? "-"} / ${averageChangesPerPush}`;
     const runtime = [
-      ["Verbunden", d2.connected === void 0 ? "-" : d2.connected ? "Ja" : "Nein"],
-      ["Aktive Subscriptions", d2.subscribed ?? d2.subscriptions ?? "-"],
-      ["Aktives Polling", d2.fallback_polling ?? d2.fallback_objects ?? "-"],
+      ["Verbunden", d.connected === undefined ? "-" : (d.connected ? "Ja" : "Nein")],
+      ["Aktive Subscriptions", d.subscribed ?? d.subscriptions ?? "-"],
+      ["Aktives Polling", d.fallback_polling ?? d.fallback_objects ?? "-"],
       ["Pushs / Ø Änderungen", pushChangeValue],
-      ["Ø Push-Verarbeitung ms", d2.dispatch_time_avg_ms === void 0 ? "-" : Number(d2.dispatch_time_avg_ms).toFixed(2)],
-      ["Reconnects", d2.reconnect_count ?? "-"],
-      ["Verbindungsfehler", d2.connection_failures ?? "-"]
+      ["Ø Push-Verarbeitung ms", d.dispatch_time_avg_ms === undefined ? "-" : Number(d.dispatch_time_avg_ms).toFixed(2)],
+      ["Reconnects", d.reconnect_count ?? "-"],
+      ["Verbindungsfehler", d.connection_failures ?? "-"],
     ];
     const developer = [
-      ["Direkt-Pushs", d2.websocket_direct_messages ?? "-"],
-      ["Snapshot-Pushs", d2.websocket_snapshot_messages ?? "-"],
-      ["Fallback-Pushs", d2.websocket_fallback_messages ?? "-"],
-      ["Payload geprüft", d2.websocket_payload_objects ?? "-"],
-      ["Payload verarbeitet", d2.websocket_processed_objects ?? "-"],
-      ["Payload ignoriert", d2.websocket_ignored_objects ?? "-"],
-      ["Vor Callback gefiltert", d2.websocket_prefiltered_no_change_objects ?? "-"],
-      ["Callback-Aufrufe", d2.websocket_callback_invocations ?? "-"],
-      ["Callbacks mit Änderung", d2.websocket_callback_value_changes ?? "-"],
-      ["Callbacks ohne Änderung", d2.websocket_callback_no_changes ?? "-"],
-      ["Push-Punktupdates", d2.processed_push_updates ?? d2.push_updates ?? "-"],
-      ["Polling-Punktupdates", d2.processed_polling_updates ?? d2.polling_updates ?? "-"],
-      ["Unterdrückte gleiche Werte", d2.suppressed_updates ?? "-"],
-      ["Max Push-Verarbeitung ms", d2.dispatch_time_max_ms === void 0 ? "-" : Number(d2.dispatch_time_max_ms).toFixed(2)]
+      ["Direkt-Pushs", d.websocket_direct_messages ?? "-"],
+      ["Snapshot-Pushs", d.websocket_snapshot_messages ?? "-"],
+      ["Fallback-Pushs", d.websocket_fallback_messages ?? "-"],
+      ["Payload geprüft", d.websocket_payload_objects ?? "-"],
+      ["Payload verarbeitet", d.websocket_processed_objects ?? "-"],
+      ["Payload ignoriert", d.websocket_ignored_objects ?? "-"],
+      ["Vor Callback gefiltert", d.websocket_prefiltered_no_change_objects ?? "-"],
+      ["Callback-Aufrufe", d.websocket_callback_invocations ?? "-"],
+      ["Callbacks mit Änderung", d.websocket_callback_value_changes ?? "-"],
+      ["Callbacks ohne Änderung", d.websocket_callback_no_changes ?? "-"],
+      ["Push-Punktupdates", d.processed_push_updates ?? d.push_updates ?? "-"],
+      ["Polling-Punktupdates", d.processed_polling_updates ?? d.polling_updates ?? "-"],
+      ["Unterdrückte gleiche Werte", d.suppressed_updates ?? "-"],
+      ["Max Push-Verarbeitung ms", d.dispatch_time_max_ms === undefined ? "-" : Number(d.dispatch_time_max_ms).toFixed(2)],
     ];
     const renderCards = (cards) => cards.map(([label, value]) => {
       const icon = this._statusIcon(label, value);
@@ -1895,11 +1414,11 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     const open = !!this._statusOpen;
     const dashboardTab = this._dashboardTab === "developer" ? "developer" : "live";
     const summary = [
-      `Punkte: ${d2.objects ?? this._total ?? "-"}`,
-      `aktiv: ${d2.enabled ?? "-"}`,
-      `Push: ${d2.configured_push ?? "-"}/${d2.subscribed ?? "-"}`,
-      `Polling: ${d2.configured_polling ?? "-"}/${d2.fallback_polling ?? "-"}`,
-      `Pushs / Ø Änderungen: ${pushChangeValue}`
+      `Punkte: ${d.objects ?? this._total ?? "-"}`,
+      `aktiv: ${d.enabled ?? "-"}`,
+      `Push: ${d.configured_push ?? "-"}/${d.subscribed ?? "-"}`,
+      `Polling: ${d.configured_polling ?? "-"}/${d.fallback_polling ?? "-"}`,
+      `Pushs / Ø Änderungen: ${pushChangeValue}`,
     ].join(" · ");
     return `
       <section class="dashboard-shell ${open ? "open" : "closed"}">
@@ -1922,12 +1441,16 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
               <button class="dashboard-monitor-tab ${dashboardTab === "developer" ? "active" : ""}" data-dashboard-tab="developer">Entwickler / Push-Diagnose</button>
               <button class="dashboard-monitor-tab ${dashboardTab === "live" ? "active" : ""}" data-dashboard-tab="live">Live-Monitor <span class="live-dot ${this._livePaused ? "paused" : ""}"></span></button>
             </div>
-            ${dashboardTab === "developer" ? `<div class="dashboard-cards">${renderCards(developer)}</div>` : `<div id="liveMonitorHost">${this._liveMonitorHtml()}</div>`}
+            ${dashboardTab === "developer"
+              ? `<div class="dashboard-cards">${renderCards(developer)}</div>`
+              : `<div id="liveMonitorHost">${this._liveMonitorHtml()}</div>`}
           </section>
         </div>` : ""}
       </section>
     `;
   }
+
+
   _statusIcon(label, value) {
     if (label.includes("Verbindungsfehler")) return "⚠️";
     if (label.includes("Verbunden")) return value === "Ja" ? "🟢" : "🔴";
@@ -1944,6 +1467,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     if (label.includes("Punkte") || label.includes("Objekte")) return "🧩";
     return "ℹ️";
   }
+
   _statusClass(label, value) {
     if (label.includes("Verbunden")) return value === "Ja" ? "stat-ok" : "stat-bad";
     if (label.includes("Verbindungsfehler") && Number(value) > 0) return Number(value) > 10 ? "stat-bad" : "stat-warn";
@@ -1962,10 +1486,15 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
   _setHistoryForSelected(history, uniqueId = null) {
     const uid = uniqueId || this._selected?.unique_id;
     if (!uid) return;
+
     const incoming = Array.isArray(history) ? history : [];
     const existing = this._historyByUid.get(uid) || [];
     const merged = [];
-    const seen = /* @__PURE__ */ new Set();
+    const seen = new Set();
+
+    // Nur Verlauf für DIESE Entität zusammenführen. Keine globale _history mehr,
+    // weil sonst beim Wechsel des ausgewählten Objekts Werte anderer Entitäten
+    // in den Live-Monitor geraten.
     for (const item of [...existing, ...incoming]) {
       if (!item) continue;
       const key = `${item.ts || ""}|${String(item.value)}|${item.source || ""}`;
@@ -1973,7 +1502,9 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       seen.add(key);
       merged.push(item);
     }
-    merged.sort((a2, b2) => String(a2.ts || "").localeCompare(String(b2.ts || "")));
+
+    merged.sort((a, b) => String(a.ts || "").localeCompare(String(b.ts || "")));
+
     const compacted = [];
     for (const item of merged) {
       const previous = compacted[compacted.length - 1];
@@ -1983,12 +1514,14 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     this._historyByUid.clear();
     this._historyByUid.set(uid, compacted.slice(-100));
   }
+
   _historyHtml() {
     const uid = this._selected?.unique_id;
-    const backendHistory = uid ? this._historyByUid.get(uid) || [] : [];
-    const clientHistory = uid ? this._clientHistory.get(uid) || [] : [];
+    const backendHistory = uid ? (this._historyByUid.get(uid) || []) : [];
+    const clientHistory = uid ? (this._clientHistory.get(uid) || []) : [];
     const merged = [];
-    const seen = /* @__PURE__ */ new Set();
+    const seen = new Set();
+
     for (const item of [...backendHistory, ...clientHistory]) {
       if (!item) continue;
       const key = `${item.ts || ""}|${String(item.value)}|${item.source || ""}`;
@@ -1996,7 +1529,8 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       seen.add(key);
       merged.push(item);
     }
-    merged.sort((a2, b2) => String(a2.ts || "").localeCompare(String(b2.ts || "")));
+
+    merged.sort((a, b) => String(a.ts || "").localeCompare(String(b.ts || "")));
     const compacted = [];
     for (const item of merged) {
       const previous = compacted[compacted.length - 1];
@@ -2007,25 +1541,25 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     if (!recent.length) return `<div class="muted">Noch kein Verlauf vorhanden. Der Verlauf füllt sich mit eingehenden Wertänderungen.</div>`;
     return `<div class="history-list">${recent.map((item) => `<div class="history-row"><span>${this._escape(this._formatTime(item.ts))}</span><b>${this._escape(this._value(item.value))}</b><span>${this._escape(item.source || "")}</span></div>`).join("")}</div>`;
   }
+
   _engineeringHtml() {
     const inspector = this._inspector || {};
     const raw = inspector.raw || {};
     const rows = Object.entries(raw).length ? Object.entries(raw) : Object.entries(inspector);
     if (!rows.length) return `<div class="muted">Keine zusätzlichen Engineering-Daten vorhanden.</div>`;
-    return rows.map(([k2, v2]) => `<div class="kv"><div class="k">${this._escape(k2)}</div><div class="v"><code>${this._escape(this._value(v2))}</code></div></div>`).join("");
+    return rows.map(([k, v]) => `<div class="kv"><div class="k">${this._escape(k)}</div><div class="v"><code>${this._escape(this._value(v))}</code></div></div>`).join("");
   }
-  _writeHtml(p2) {
-    if (!p2.writable) return `<div class="muted">Dieser BACnet-Punkt ist laut Discovery nicht schreibbar.</div>`;
-    return `<div class="edit-grid"><div><label>Neuer Wert</label><input id="writeValue" value="${this._escape(this._value(p2.present_value))}"></div><div><label>BACnet Priority</label><select id="writePriority">${Array.from({ length: 16 }, (_2, i2) => i2 + 1).map((v2) => `<option value="${v2}" ${v2 === 8 ? "selected" : ""}>${v2}</option>`).join("")}</select></div></div><div class="actions"><button id="writeValueBtn" ${this._writing ? "disabled" : ""}>Wert schreiben${this._writing ? " …" : ""}</button></div>`;
+
+  _writeHtml(p) {
+    if (!p.writable) return `<div class="muted">Dieser BACnet-Punkt ist laut Discovery nicht schreibbar.</div>`;
+    return `<div class="edit-grid"><div><label>Neuer Wert</label><input id="writeValue" value="${this._escape(this._value(p.present_value))}"></div><div><label>BACnet Priority</label><select id="writePriority">${Array.from({length:16}, (_,i)=>i+1).map((v)=>`<option value="${v}" ${v===8?"selected":""}>${v}</option>`).join("")}</select></div></div><div class="actions"><button id="writeValueBtn" ${this._writing ? "disabled" : ""}>Wert schreiben${this._writing ? " …" : ""}</button></div>`;
   }
+
   _formatTime(ts) {
     if (!ts) return "-";
-    try {
-      return new Date(ts).toLocaleTimeString();
-    } catch (_2) {
-      return String(ts);
-    }
+    try { return new Date(ts).toLocaleTimeString(); } catch (_) { return String(ts); }
   }
+
   _render() {
     if (!this.shadowRoot) return;
     const sideScrollTop = this._rememberSideScroll();
@@ -2034,7 +1568,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     const tableScrollTop = this.shadowRoot.getElementById("tableWrap")?.scrollTop ?? 0;
     const selectionStart = typeof active?.selectionStart === "number" ? active.selectionStart : null;
     const selectionEnd = typeof active?.selectionEnd === "number" ? active.selectionEnd : null;
-    this._selected;
+    const selected = this._selected;
     const styles = `
       :host { display:block; color: var(--primary-text-color); background: var(--primary-background-color); height:100vh; overflow:hidden; }
       .wrap { height:100vh; box-sizing:border-box; padding: 12px 20px 16px; max-width: 1900px; margin: 0 auto; display:flex; flex-direction:column; overflow:hidden; }
@@ -3105,13 +2639,14 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         .inspector-head-actions { width:100%; justify-content:flex-start; }
       }
     `;
+
     this.shadowRoot.innerHTML = `
       <style>${styles}</style>
       <div class="wrap">
         <div class="header">
           <div>
             <h1>Engelsoft Beacon BACnet/IP</h1>
-            <div id="subtitle" class="subtitle">Sidebar-Ansicht für gefundene BACnet-Objekte${this._total !== void 0 ? ` · ${this._points.length} von ${this._total}` : ""}${this._limited ? " · Liste begrenzt" : ""}</div><div class="frontend-version">${this._versionLabel()}</div>
+            <div id="subtitle" class="subtitle">Sidebar-Ansicht für gefundene BACnet-Objekte${this._total !== undefined ? ` · ${this._points.length} von ${this._total}` : ""}${this._limited ? " · Liste begrenzt" : ""}</div><div class="frontend-version">${this._versionLabel()}</div>
           </div>
           <div class="header-actions-menu">
             <button id="mobileActionsToggle" class="mobile-actions-toggle" type="button" title="Aktionen" aria-label="Aktionen öffnen" aria-expanded="false">☰</button>
@@ -3123,7 +2658,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
               <button class="secondary" id="importOverrides">Overrides importieren</button>
               <input id="importOverridesFile" type="file" accept="application/json,.json" hidden>
               ${this._pendingReloadIds.size ? `<span class="pending-reload">${this._pendingReloadIds.size} Änderungen warten</span>` : ""}
-              <button class="secondary" id="reloadIntegration" ${this._saving || this._manualReloadRunning || Date.now() < this._manualReloadUntil ? "disabled" : ""}>Integration neu laden${this._pendingReloadIds.size ? ` (${this._pendingReloadIds.size})` : ""}</button>
+              <button class="secondary" id="reloadIntegration" ${(this._saving || this._manualReloadRunning || Date.now() < this._manualReloadUntil) ? "disabled" : ""}>Integration neu laden${this._pendingReloadIds.size ? ` (${this._pendingReloadIds.size})` : ""}</button>
               <button class="secondary" id="refresh">Aktualisieren${this._loading ? " …" : ""}</button>
             </div>
           </div>
@@ -3155,6 +2690,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         ` : `<bepacom-runtime-dashboard id="dashboard" class="dashboard main-dashboard"></bepacom-runtime-dashboard>`}
       </div>
     `;
+
     this._bindEvents();
     const tableWrap = this.shadowRoot.getElementById("tableWrap");
     if (tableWrap) tableWrap.scrollTop = tableScrollTop;
@@ -3169,11 +2705,15 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       }
     }
   }
+
+
+
   _viewTabsHtml() {
     const count = this._allVirtualEntities().length;
     const tab = (id, label) => `<button class="view-tab ${this._activeView === id ? "active" : ""}" data-view-tab="${id}" type="button">${label}</button>`;
     return `<div class="view-tabs">${tab("explorer", "Explorer")}${tab("virtual", `Virtuelle Entitäten${count ? ` (${count})` : ""}`)}</div>`;
   }
+
   _mainNavigationHtml() {
     const item = (id, icon, label, description) => `
       <button class="main-nav-item ${this._mainSection === id ? "active" : ""}" data-main-section="${id}" type="button">
@@ -3186,13 +2726,14 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       ${item("diagnostics", "◇", "Diagnose", "Status, Laufzeit und Push-Werte")}
     </nav>`;
   }
+
   _mainStatusHtml() {
     const diagnostics = this._diagnostics || {};
     const cards = [
       ["BACnet-Punkte", diagnostics.objects ?? this._total ?? "-", ""],
       ["Aktive Entitäten", diagnostics.enabled ?? "-", ""],
-      ["Verbunden", diagnostics.connected === void 0 ? "-" : diagnostics.connected ? "Ja" : "Nein", diagnostics.connected ? "stat-ok" : "stat-bad"],
-      ["Verbindungsfehler", diagnostics.connection_failures ?? 0, Number(diagnostics.connection_failures || 0) > 0 ? "stat-warn" : ""]
+      ["Verbunden", diagnostics.connected === undefined ? "-" : (diagnostics.connected ? "Ja" : "Nein"), diagnostics.connected ? "stat-ok" : "stat-bad"],
+      ["Verbindungsfehler", diagnostics.connection_failures ?? 0, Number(diagnostics.connection_failures || 0) > 0 ? "stat-warn" : ""],
     ];
     return `<section class="main-status-strip" aria-label="Systemstatus">${cards.map(([label, value, tone]) => `
       <div class="dashboard-headline-card ${tone}">
@@ -3200,69 +2741,53 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         <span><small>${this._escape(label)}</small><strong>${this._escape(value)}</strong></span>
       </div>`).join("")}</section>`;
   }
+
   _virtualEntitiesPageHtml() {
     return `<div class="view-panel">${this._virtualEntitiesOverviewHtml(true)}</div>`;
   }
+
   _allVirtualEntities() {
     const rows = [];
     const q = this._normalizeSearch(this._virtualSearch || "");
-    for (const p2 of this._points || []) {
-      for (const ent of this._linkedEntities(p2)) {
+    for (const p of this._points || []) {
+      for (const ent of this._linkedEntities(p)) {
         const haystack = [
-          ent.name,
-          ent.friendly_name,
-          ent.entity_name,
-          ent.entity_id,
-          ent.unique_id,
-          ent.entity_type,
-          ent.device_class,
-          ent.on_value,
-          ent.off_value,
-          ent.else_state,
-          p2.object_key,
-          p2.object_name,
-          p2.unique_id,
-          p2.device_id,
-          p2.object_type,
-          p2.instance
-        ].map((x2) => x2 === void 0 || x2 === null ? "" : String(x2)).join(" ");
-        if (!q || this._matchesSearchQuery(haystack, q)) rows.push({ source: p2, ent });
+          ent.name, ent.friendly_name, ent.entity_name, ent.entity_id, ent.unique_id,
+          ent.entity_type, ent.device_class, ent.on_value, ent.off_value, ent.else_state,
+          p.object_key, p.object_name, p.unique_id, p.device_id, p.object_type, p.instance
+        ].map((x) => x === undefined || x === null ? "" : String(x)).join(" ");
+        if (!q || this._matchesSearchQuery(haystack, q)) rows.push({ source: p, ent });
       }
     }
     return rows;
   }
-  _compactSourceLabel(p2) {
-    const type = String(p2?.object_type || p2?.object_key || "").toLowerCase();
-    const inst = p2?.instance ?? "";
+
+  _compactSourceLabel(p) {
+    const type = String(p?.object_type || p?.object_key || "").toLowerCase();
+    const inst = p?.instance ?? "";
     const map = {
-      analoginput: "AI",
-      "analog-input": "AI",
-      analogvalue: "AV",
-      "analog-value": "AV",
-      binaryinput: "BI",
-      "binary-input": "BI",
-      binaryvalue: "BV",
-      "binary-value": "BV",
-      multistateinput: "MSI",
-      "multi-state-input": "MSI",
-      multistateoutput: "MSO",
-      "multi-state-output": "MSO",
-      device: "DEV",
-      file: "FILE"
+      analoginput: "AI", "analog-input": "AI", analogvalue: "AV", "analog-value": "AV",
+      binaryinput: "BI", "binary-input": "BI", binaryvalue: "BV", "binary-value": "BV",
+      multistateinput: "MSI", "multi-state-input": "MSI", multistateoutput: "MSO", "multi-state-output": "MSO",
+      device: "DEV", file: "FILE"
     };
     const key = type.replace(/[^a-z]/g, "");
-    const prefix = map[type] || map[key] || String(p2?.object_type || "OBJ").toUpperCase();
+    const prefix = map[type] || map[key] || String(p?.object_type || "OBJ").toUpperCase();
     return `${prefix} ${inst || ""}`.trim();
   }
-  _sourceTooltip(p2) {
-    return [p2?.object_key, p2?.object_name, p2?.unique_id].filter(Boolean).join(" · ");
+
+  _sourceTooltip(p) {
+    return [p?.object_key, p?.object_name, p?.unique_id].filter(Boolean).join(" · ");
   }
+
   _virtualDisplayName(ent) {
     return ent?.name || ent?.friendly_name || ent?.entity_name || ent?.entity_id || ent?.unique_id || "Virtuelle Entität";
   }
+
   _binaryStateLabel(state, deviceClass = "") {
     const value = String(state ?? "-").toLowerCase();
     if (value !== "on" && value !== "off") return String(state ?? "-");
+
     const labels = {
       battery: ["Batterie schwach", "Batterie in Ordnung"],
       battery_charging: ["Lädt", "Lädt nicht"],
@@ -3291,11 +2816,12 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       tamper: ["Manipulation erkannt", "Keine Manipulation"],
       update: ["Update verfügbar", "Aktuell"],
       vibration: ["Vibration erkannt", "Keine Vibration"],
-      window: ["Geöffnet", "Geschlossen"]
+      window: ["Geöffnet", "Geschlossen"],
     };
     const pair = labels[String(deviceClass || "").toLowerCase()];
     return pair ? pair[value === "on" ? 0 : 1] : value.toUpperCase();
   }
+
   _virtualStateBadge(state, ent = null, entityId = "") {
     const st = String(state ?? "-").toLowerCase();
     let cls = "unknown";
@@ -3303,9 +2829,12 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     else if (st === "off" || st === "false" || st === "0") cls = "off";
     else if (st === "unavailable" || st === "unknown" || st === "-") cls = "unavailable";
     const deviceClass = ent?.device_class || ent?.deviceClass || "";
-    const liveAttrs = entityId ? ` data-virtual-state-entity-id="${this._escape(entityId)}" data-device-class="${this._escape(deviceClass)}"` : "";
+    const liveAttrs = entityId
+      ? ` data-virtual-state-entity-id="${this._escape(entityId)}" data-device-class="${this._escape(deviceClass)}"`
+      : "";
     return `<span class="virtual-state-badge ${cls}"${liveAttrs}>${this._escape(this._binaryStateLabel(state, deviceClass))}</span>`;
   }
+
   _virtualTypeBadge(ent) {
     const type = ent?.entity_type || "binary_sensor";
     const dc = String(ent?.device_class || "").toLowerCase();
@@ -3313,15 +2842,19 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     const label = type === "binary_sensor" ? "Binary" : type.replace("_", " ");
     return `<span class="virtual-type-badge" title="${this._escape(type)}">${icon} ${this._escape(label)}</span>`;
   }
+
+
   _virtualLiveState(ent) {
-    const entityId = typeof ent === "string" ? ent : ent?.entity_id || ent?.entityId || "";
+    const entityId = typeof ent === "string" ? ent : (ent?.entity_id || ent?.entityId || "");
     if (!entityId || !this.hass || !this.hass.states) {
       return { state: "unavailable", label: "unavailable", cls: "unavailable" };
     }
+
     const st = this.hass.states[entityId];
     if (!st) {
       return { state: "unavailable", label: "unavailable", cls: "unavailable" };
     }
+
     const value = String(st.state ?? "unknown");
     if (value === "on") return { state: value, label: "ON", cls: "on" };
     if (value === "off") return { state: value, label: "OFF", cls: "off" };
@@ -3330,6 +2863,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     }
     return { state: value, label: value, cls: "neutral" };
   }
+
   _virtualActionsHtml(source, ent, name, entityId) {
     const sourceUid = this._escape(source?.unique_id || "");
     const virtualUid = this._escape(ent?.unique_id || "");
@@ -3343,12 +2877,18 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       <button class="icon-action danger virtual-delete-btn" data-source-uid="${sourceUid}" data-virtual-uid="${virtualUid}" data-virtual-name="${safeName}" title="Löschen" aria-label="Löschen" type="button">🗑️</button>
     </div>`;
   }
+
   _virtualEntitiesOverviewHtml(fullPage = false, sourcePoint = null) {
-    const rows = sourcePoint ? this._linkedEntities(sourcePoint).map((ent) => ({ source: sourcePoint, ent })) : this._allVirtualEntities();
+    const rows = sourcePoint
+      ? this._linkedEntities(sourcePoint).map((ent) => ({ source: sourcePoint, ent }))
+      : this._allVirtualEntities();
     if (!rows.length) {
-      const emptyText = sourcePoint ? "Für diesen BACnet-Punkt ist noch keine virtuelle Entität angelegt." : "Noch keine virtuellen Entitäten angelegt. Öffne im Explorer einen BACnet-Datenpunkt und erstelle dort unter „Virtuelle Entität“ einen neuen Eintrag.";
+      const emptyText = sourcePoint
+        ? "Für diesen BACnet-Punkt ist noch keine virtuelle Entität angelegt."
+        : "Noch keine virtuellen Entitäten angelegt. Öffne im Explorer einen BACnet-Datenpunkt und erstelle dort unter „Virtuelle Entität“ einen neuen Eintrag.";
       return `<div class="card virtual-overview"><div class="virtual-overview-head"><div><div class="virtual-overview-title">Virtuelle Entitäten</div><div class="muted">${emptyText}</div></div></div></div>`;
     }
+
     if (!fullPage) {
       const cards = rows.map(({ source, ent }) => {
         const entityId = ent.entity_id || "";
@@ -3372,6 +2912,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       }).join("");
       return `<div class="virtual-overview"><div class="virtual-overview-head"><div><div class="virtual-overview-title">Virtuelle Entitäten</div></div><div class="muted">${rows.length} verknüpfte Entität${rows.length === 1 ? "" : "en"}</div></div><div class="side-virtual-cards">${cards}</div></div>`;
     }
+
     const body = rows.map(({ source, ent }) => {
       const entityId = ent.entity_id || "";
       const live = this._virtualLiveState({ entity_id: entityId });
@@ -3395,24 +2936,30 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       <div class="virtual-table-wrap"><table class="virtual-table"><thead><tr><th>Quelle</th><th>HA Entität</th><th>Typ</th><th>Zustand</th><th>ON</th><th>OFF</th><th>ELSE</th><th>Aktionen</th></tr></thead><tbody>${body}</tbody></table></div>
     </div>`;
   }
-  _displayEntityName(p2) {
-    return p2.entity_name || p2.entity_original_name || p2.object_name || p2.object_key || p2.entity_id || "-";
+
+  _displayEntityName(p) {
+    return p.entity_name || p.entity_original_name || p.object_name || p.object_key || p.entity_id || "-";
   }
-  _linkedEntities(p2) {
-    return Array.isArray(p2?.linked_virtual_entities) ? p2.linked_virtual_entities : [];
+
+  _linkedEntities(p) {
+    return Array.isArray(p?.linked_virtual_entities) ? p.linked_virtual_entities : [];
   }
+
   _linkedEntityLive(link) {
     const entityId = link?.entity_id || "";
     return entityId && this.hass?.states ? this.hass.states[entityId] : null;
   }
+
   _linkedEntityState(link) {
     const live = this._linkedEntityLive(link);
     return live?.state ?? link?.state ?? "-";
   }
+
   _linkedEntityName(link) {
     const live = this._linkedEntityLive(link);
     return live?.attributes?.friendly_name || link?.name || link?.friendly_name || link?.entity_name || link?.entity_id || link?.unique_id || "Virtuelle Entität";
   }
+
   _linkedEntityIcon(link) {
     const dc = String(link?.device_class || "").toLowerCase();
     const entityId = String(link?.entity_id || "").toLowerCase();
@@ -3422,8 +2969,9 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     if (dc === "power") return "⚡";
     return "🔗";
   }
-  _linkedEntitiesHtml(p2) {
-    const links = this._linkedEntities(p2);
+
+  _linkedEntitiesHtml(p) {
+    const links = this._linkedEntities(p);
     if (!links.length) return "";
     return `<div class="linked-entities"><span class="virtual-badge" title="${links.length} virtuelle Entität${links.length === 1 ? "" : "en"}">🔗 ${links.length}</span>${links.map((link) => {
       const entityId = link.entity_id || "";
@@ -3435,14 +2983,18 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       return `<button class="linked-entity-link" data-entity-id="${this._escape(entityId)}" title="${this._escape(title)}"${disabled}>↳ <span class="linked-icon">${this._escape(icon)}</span> <span class="linked-name">${this._escape(label)}</span> <span class="linked-state">${this._escape(this._binaryStateLabel(state, link.device_class))}</span></button>`;
     }).join("")}</div>`;
   }
+
   _openMoreInfo(entityId) {
     if (!entityId) return;
     this.dispatchEvent(new CustomEvent("hass-more-info", {
       bubbles: true,
       composed: true,
-      detail: { entityId }
+      detail: { entityId },
     }));
   }
+
+
+
   _tableColgroupHtml() {
     return `<colgroup>
       <col class="select-col-col">
@@ -3455,6 +3007,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       <col class="runtime-col-col">
     </colgroup>`;
   }
+
   _tableHeaderHtml() {
     const cols = [
       ["object_key", "Objekt", "object-col"],
@@ -3463,66 +3016,69 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       ["unit", "Einheit", ""],
       ["override", "Override", ""],
       ["write_profile", "Schreiben", "write-profile-head"],
-      ["runtime", "", "runtime-head"]
+      ["runtime", "", "runtime-head"],
     ];
     return `<th class="select-col"><input id="selectVisible" type="checkbox" title="Sichtbare auswählen"></th>` + cols.map(([key, label, cls]) => {
-      const marker = this._sortKey === key ? this._sortDir === "asc" ? " ▲" : " ▼" : "";
+      const marker = this._sortKey === key ? (this._sortDir === "asc" ? " ▲" : " ▼") : "";
       return `<th class="sortable ${cls}" data-sort="${this._escape(key)}"><button class="sort-btn" data-sort="${this._escape(key)}">${this._escape(label)}${marker}</button></th>`;
     }).join("");
   }
+
   _sortPoints(points) {
     const key = this._sortKey || "object_key";
     const dir = this._sortDir === "desc" ? -1 : 1;
-    const val = (p2) => {
-      if (key === "entity") return this._displayEntityName(p2);
-      if (key === "unit") return this._displayUnit(p2);
-      if (key === "override") return p2.override_active ? 1 : 0;
-      if (key === "write_profile") return p2.write_profile === "direct" ? "direct" : "glt";
-      if (key === "runtime") return p2.last_update || "";
-      return p2[key] ?? "";
+    const val = (p) => {
+      if (key === "entity") return this._displayEntityName(p);
+      if (key === "unit") return this._displayUnit(p);
+      if (key === "override") return p.override_active ? 1 : 0;
+      if (key === "write_profile") return p.write_profile === "direct" ? "direct" : "glt";
+      if (key === "runtime") return p.last_update || "";
+      return p[key] ?? "";
     };
-    return [...points].sort((a2, b2) => {
-      const av = val(a2), bv = val(b2);
+    return [...points].sort((a, b) => {
+      const av = val(a), bv = val(b);
       const an = Number(av), bn = Number(bv);
       if (Number.isFinite(an) && Number.isFinite(bn)) return (an - bn) * dir;
-      return String(av).localeCompare(String(bv), void 0, { numeric: true, sensitivity: "base" }) * dir;
+      return String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" }) * dir;
     });
   }
+
   _setSort(key) {
     if (this._sortKey === key) this._sortDir = this._sortDir === "asc" ? "desc" : "asc";
-    else {
-      this._sortKey = key;
-      this._sortDir = "asc";
-    }
+    else { this._sortKey = key; this._sortDir = "asc"; }
     this._setSetting("bepacom_sort_key", this._sortKey);
     this._setSetting("bepacom_sort_dir", this._sortDir);
     this._updateListDom();
   }
-  _displayUnit(p2) {
-    if (this._triStateCurrent(p2?.override_unit) === "__none__") return "-";
-    return p2?.ha_unit || p2?.bacnet_unit || "-";
+
+  _displayUnit(p) {
+    if (this._triStateCurrent(p?.override_unit) === "__none__") return "-";
+    return p?.ha_unit || p?.bacnet_unit || "-";
   }
-  _inlineUnitOptions(p2) {
-    const current = this._triStateCurrent(p2.override_unit);
+
+  _inlineUnitOptions(p) {
+    const current = this._triStateCurrent(p.override_unit);
     return this._options([["__auto__", "Auto"], ["__none__", "Keine"], ["%", "%"], ["°C", "°C"], ["cm", "cm"], ["W", "W"], ["kW", "kW"], ["min", "min"], ["s", "s"]], current);
   }
-  _inlineModeOptions(p2) {
-    return this._options([["disabled", "Aus"], ["subscribe", "Push"], ["polling", "Polling"]], p2.update_mode || "disabled");
+
+  _inlineModeOptions(p) {
+    return this._options([["disabled", "Aus"], ["subscribe", "Push"], ["polling", "Polling"]], p.update_mode || "disabled");
   }
+
   async _saveInline(uniqueId, field, value) {
     if (!this.hass || !uniqueId) return;
-    const p2 = this._points.find((point) => point.unique_id === uniqueId);
-    if (!p2) return;
+    const p = this._points.find((point) => point.unique_id === uniqueId);
+    if (!p) return;
     const payload = {
       type: "bepacom/explorer/save_override",
-      entry_id: this._entryId || void 0,
+      entry_id: this._entryId || undefined,
       unique_id: uniqueId,
-      unit: p2.override_unit || "__auto__",
-      device_class: p2.override_device_class || "__auto__",
-      state_class: p2.override_state_class || "__auto__",
-      update_mode: p2.update_mode || "disabled",
-      entity_id: p2.entity_id || "",
-      entity_name: p2.entity_name || ""
+      unit: p.override_unit || "__auto__",
+      device_class: p.override_device_class || "__auto__",
+      state_class: p.override_state_class || "__auto__",
+      update_mode: p.update_mode || "disabled",
+      entity_id: p.entity_id || "",
+      entity_name: p.entity_name || "",
     };
     if (field === "unit") payload.unit = value || "__auto__";
     if (field === "mode") payload.update_mode = value || "disabled";
@@ -3545,10 +3101,14 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       this._saving = false;
     }
   }
+
   _rowsHtml() {
     const items = this._displayItems();
     if (!items.length) return "";
+
     const viewport = this._tableViewport(items);
+    // Mobile rows are rendered as labelled cards and are therefore taller than
+    // desktop table rows. Keep virtual scrolling aligned with the card height.
     const rowHeight = this._effectiveRowHeight();
     const totalHeight = items.length * rowHeight;
     const start = Math.max(0, Math.min(items.length, viewport.start));
@@ -3558,36 +3118,41 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     const visible = items.slice(start, end);
     const selected = this._selected;
     const rows = [];
+
     if (topHeight) rows.push(`<tr class="virtual-spacer"><td colspan="8" style="height:${topHeight}px"></td></tr>`);
+
     for (const item of visible) {
       if (item.kind === "group") {
         rows.push(`<tr class="group-row" data-group="${this._escape(item.key)}"><td colspan="8"><button class="group-toggle" data-group="${this._escape(item.key)}">${item.open ? "▾" : "▸"} ${this._escape(item.label)} <span class="muted">(${item.count})</span></button></td></tr>`);
         continue;
       }
-      const p2 = item.point;
+      const p = item.point;
       rows.push(`
-        <tr class="${selected?.unique_id === p2.unique_id ? "selected" : ""} ${this._valueChangeClass(p2.unique_id)}" data-uid="${this._escape(p2.unique_id)}">
-          <td class="select-col"><input class="row-select" type="checkbox" data-uid="${this._escape(p2.unique_id)}" ${this._selectedIds.has(p2.unique_id) ? "checked" : ""}></td>
-          <td data-col="object"><div class="object-main"><bepacom-object-badge kind="${this._escape(this._typeClass(p2.object_type).replace("type-", ""))}" label="${this._escape(this._objectIcon(p2.object_type))}" description="${this._escape(p2.object_type || "")}"></bepacom-object-badge><div><div class="name">${this._escape(p2.object_key)}</div><div class="muted">Device ${this._escape(p2.device_id)}</div></div></div></td>
-          <td data-col="entity"><div class="entity-stack"><button class="link-cell entity-link" data-entity-id="${this._escape(p2.entity_id || "")}">${this._escape(this._displayEntityName(p2))}</button>${this._linkedEntitiesHtml(p2)}</div></td>
-          <td data-col="value"><button class="link-cell value-link" data-entity-id="${this._escape(p2.entity_id || "")}">${this._escape(this._value(p2.present_value))}</button></td>
-          <td data-col="unit"><div class="unit-stack"><span class="unit-display">${this._escape(this._displayUnit(p2))}</span></div></td>
-          <td data-col="override">${p2.override_active ? '<span class="pill ok">Override</span>' : '<span class="pill">Standard</span>'}</td>
-          <td data-col="write-profile" class="write-profile-cell">${this._writeProfileDot(p2)}</td>
-          <td data-col="status">${this._runtimeLabel(p2)}</td>
+        <tr class="${selected?.unique_id === p.unique_id ? "selected" : ""} ${this._valueChangeClass(p.unique_id)}" data-uid="${this._escape(p.unique_id)}">
+          <td class="select-col"><input class="row-select" type="checkbox" data-uid="${this._escape(p.unique_id)}" ${this._selectedIds.has(p.unique_id) ? "checked" : ""}></td>
+          <td data-col="object"><div class="object-main"><bepacom-object-badge kind="${this._escape(this._typeClass(p.object_type).replace("type-", ""))}" label="${this._escape(this._objectIcon(p.object_type))}" description="${this._escape(p.object_type || "")}"></bepacom-object-badge><div><div class="name">${this._escape(p.object_key)}</div><div class="muted">Device ${this._escape(p.device_id)}</div></div></div></td>
+          <td data-col="entity"><div class="entity-stack"><button class="link-cell entity-link" data-entity-id="${this._escape(p.entity_id || "")}">${this._escape(this._displayEntityName(p))}</button>${this._linkedEntitiesHtml(p)}</div></td>
+          <td data-col="value"><button class="link-cell value-link" data-entity-id="${this._escape(p.entity_id || "")}">${this._escape(this._value(p.present_value))}</button></td>
+          <td data-col="unit"><div class="unit-stack"><span class="unit-display">${this._escape(this._displayUnit(p))}</span></div></td>
+          <td data-col="override">${p.override_active ? '<span class="pill ok">Override</span>' : '<span class="pill">Standard</span>'}</td>
+          <td data-col="write-profile" class="write-profile-cell">${this._writeProfileDot(p)}</td>
+          <td data-col="status">${this._runtimeLabel(p)}</td>
         </tr>
       `);
     }
+
     if (bottomHeight) rows.push(`<tr class="virtual-spacer"><td colspan="8" style="height:${bottomHeight}px"></td></tr>`);
     return rows.join("");
   }
-  _writeProfileDot(p2) {
-    const viaGlt = ["glt_set_as", "glt_set_stage"].includes(p2?.write_profile);
+
+  _writeProfileDot(p) {
+    const viaGlt = ["glt_set_as", "glt_set_stage"].includes(p?.write_profile);
     return `<bepacom-write-profile-indicator ${viaGlt ? "glt" : ""}></bepacom-write-profile-indicator>`;
   }
+
   _displayItems() {
     let points = this._points || [];
-    if (this._filters.device_id && this._filters.device_id !== "all") points = points.filter((p2) => String(p2.device_id) === String(this._filters.device_id));
+    if (this._filters.device_id && this._filters.device_id !== "all") points = points.filter((p) => String(p.device_id) === String(this._filters.device_id));
     if (this._filters.runtime && this._filters.runtime !== "all") {
       points = points.filter((point) => {
         if (this._filters.runtime === "enabled") return point.update_mode !== "disabled";
@@ -3600,14 +3165,16 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     }
     points = this._sortPoints(points);
     if (this._groupBy === "none") return points.map((point) => ({ kind: "point", point }));
-    const groups = /* @__PURE__ */ new Map();
+
+    const groups = new Map();
     for (const point of points) {
       const key = this._groupBy === "device" ? `Device ${point.device_id ?? "-"}` : this._objectTypeLabel(point.object_type || "-");
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(point);
     }
+
     const items = [];
-    for (const key of Array.from(groups.keys()).sort((a2, b2) => a2.localeCompare(b2, void 0, { numeric: true }))) {
+    for (const key of Array.from(groups.keys()).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))) {
       const groupPoints = groups.get(key) || [];
       const open = this._groupOpen(key);
       items.push({ kind: "group", key, label: key, count: groupPoints.length, open });
@@ -3615,6 +3182,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     }
     return items;
   }
+
   _tableViewport(items = null) {
     const wrap = this.shadowRoot?.getElementById("tableWrap");
     const scrollTop = wrap ? wrap.scrollTop : this._lastTableScrollTop || 0;
@@ -3625,61 +3193,64 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     const visible = Math.ceil(height / rowHeight) + this._overscan * 2;
     return { start, end: Math.min(items.length, start + visible) };
   }
+
   _effectiveRowHeight() {
     return window.matchMedia?.("(max-width: 700px)")?.matches ? 310 : this._rowHeight;
   }
+
   _groupOptions() {
     return this._options([["none", "Keine"], ["type", "Nach BACnet-Typ"], ["device", "Nach Device"]], this._groupBy || "none");
   }
+
   _loadSetting(key, fallback) {
     return this._preferences.get(key, fallback);
   }
+
   _setSetting(key, value) {
     this._preferences.set(key, value);
   }
-  _groupStorageKey(key) {
-    return `bepacom_group_open_${this._groupBy}_${key}`;
-  }
+
+  _groupStorageKey(key) { return `bepacom_group_open_${this._groupBy}_${key}`; }
+
   _groupOpen(key) {
     try {
       const stored = window.localStorage.getItem(this._groupStorageKey(key));
       return stored === null ? true : stored === "1";
-    } catch (_2) {
-      return true;
-    }
+    } catch (_) { return true; }
   }
+
   _toggleGroup(key) {
     const open = !this._groupOpen(key);
-    try {
-      window.localStorage.setItem(this._groupStorageKey(key), open ? "1" : "0");
-    } catch (_2) {
-    }
+    try { window.localStorage.setItem(this._groupStorageKey(key), open ? "1" : "0"); } catch (_) {}
     this._updateListDom();
   }
+
   _objectTypeLabel(type) {
-    const t2 = String(type || "").toLowerCase();
-    if (t2.includes("analoginput")) return "Analog Inputs";
-    if (t2.includes("analogoutput")) return "Analog Outputs";
-    if (t2.includes("analogvalue")) return "Analog Values";
-    if (t2.includes("binaryinput")) return "Binary Inputs";
-    if (t2.includes("binaryoutput")) return "Binary Outputs";
-    if (t2.includes("binaryvalue")) return "Binary Values";
-    if (t2.includes("multistateinput")) return "Multi State Inputs";
-    if (t2.includes("multistateoutput")) return "Multi State Outputs";
-    if (t2.includes("multistatevalue")) return "Multi State Values";
+    const t = String(type || "").toLowerCase();
+    if (t.includes("analoginput")) return "Analog Inputs";
+    if (t.includes("analogoutput")) return "Analog Outputs";
+    if (t.includes("analogvalue")) return "Analog Values";
+    if (t.includes("binaryinput")) return "Binary Inputs";
+    if (t.includes("binaryoutput")) return "Binary Outputs";
+    if (t.includes("binaryvalue")) return "Binary Values";
+    if (t.includes("multistateinput")) return "Multi State Inputs";
+    if (t.includes("multistateoutput")) return "Multi State Outputs";
+    if (t.includes("multistatevalue")) return "Multi State Values";
     return type || "Andere";
   }
+
   _typeClass(type) {
-    const t2 = String(type || "").toLowerCase();
-    if (t2.includes("analoginput")) return "type-ai";
-    if (t2.includes("analogoutput")) return "type-ao";
-    if (t2.includes("analogvalue")) return "type-av";
-    if (t2.includes("binaryinput")) return "type-bi";
-    if (t2.includes("binaryoutput")) return "type-bo";
-    if (t2.includes("binaryvalue")) return "type-bv";
-    if (t2.includes("multistate")) return "type-ms";
+    const t = String(type || "").toLowerCase();
+    if (t.includes("analoginput")) return "type-ai";
+    if (t.includes("analogoutput")) return "type-ao";
+    if (t.includes("analogvalue")) return "type-av";
+    if (t.includes("binaryinput")) return "type-bi";
+    if (t.includes("binaryoutput")) return "type-bo";
+    if (t.includes("binaryvalue")) return "type-bv";
+    if (t.includes("multistate")) return "type-ms";
     return "type-other";
   }
+
   _objectIcon(type) {
     const cls = this._typeClass(type);
     if (cls === "type-ai") return "AI";
@@ -3691,6 +3262,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     if (cls === "type-ms") return "MS";
     return "?";
   }
+
   _bulkToolbarHtml() {
     const count = this._selectedIds.size;
     if (!count) return `<div class="bulkbar bulkbar-empty"><span>Mehrfachbearbeitung: Wähle links Objekte aus.</span></div>`;
@@ -3706,31 +3278,32 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         <button id="bulkClear" class="secondary">Auswahl leeren</button>
       </div>`;
   }
+
   async _bulkApply() {
     if (!this.hass || !this._selectedIds.size) return;
     const updateMode = this.shadowRoot.getElementById("bulkUpdateMode")?.value || "";
     const unit = this.shadowRoot.getElementById("bulkUnit")?.value || "";
     const deviceClass = this.shadowRoot.getElementById("bulkDeviceClass")?.value || "";
     const stateClass = this.shadowRoot.getElementById("bulkStateClass")?.value || "";
-    const targets = this._points.filter((p2) => this._selectedIds.has(p2.unique_id));
+    const targets = this._points.filter((p) => this._selectedIds.has(p.unique_id));
     this._saving = true;
     this._message = null;
     this._error = null;
     this._render();
     try {
-      for (const p2 of targets) {
+      for (const p of targets) {
         await this.hass.callWS({
           type: "bepacom/explorer/save_override",
-          entry_id: this._entryId || void 0,
-          unique_id: p2.unique_id,
-          unit: unit || p2.override_unit || "__auto__",
-          device_class: deviceClass || p2.override_device_class || "__auto__",
-          state_class: stateClass || p2.override_state_class || "__auto__",
-          update_mode: updateMode || p2.update_mode || "disabled",
-          entity_id: p2.entity_id || "",
-          entity_name: p2.entity_name || ""
+          entry_id: this._entryId || undefined,
+          unique_id: p.unique_id,
+          unit: unit || p.override_unit || "__auto__",
+          device_class: deviceClass || p.override_device_class || "__auto__",
+          state_class: stateClass || p.override_state_class || "__auto__",
+          update_mode: updateMode || p.update_mode || "disabled",
+          entity_id: p.entity_id || "",
+          entity_name: p.entity_name || "",
         });
-        this._pendingReloadIds.add(p2.unique_id);
+        this._pendingReloadIds.add(p.unique_id);
       }
       this._message = `${targets.length} Objekte wurden aktualisiert. Wenn du fertig bist, bitte Integration neu laden.`;
       await this._loadPoints(false);
@@ -3741,17 +3314,18 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       this._render();
     }
   }
+
   async _bulkReset() {
     if (!this.hass || !this._selectedIds.size) return;
-    const targets = this._points.filter((p2) => this._selectedIds.has(p2.unique_id));
+    const targets = this._points.filter((p) => this._selectedIds.has(p.unique_id));
     this._saving = true;
     this._message = null;
     this._error = null;
     this._render();
     try {
-      for (const p2 of targets) {
-        await this.hass.callWS({ type: "bepacom/explorer/reset_override", entry_id: this._entryId || void 0, unique_id: p2.unique_id });
-        this._pendingReloadIds.add(p2.unique_id);
+      for (const p of targets) {
+        await this.hass.callWS({ type: "bepacom/explorer/reset_override", entry_id: this._entryId || undefined, unique_id: p.unique_id });
+        this._pendingReloadIds.add(p.unique_id);
       }
       this._message = `${targets.length} Overrides wurden zurückgesetzt.`;
       await this._loadPoints(false);
@@ -3762,9 +3336,13 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       this._render();
     }
   }
+
   _bindDashboardToggle() {
     const button = this.shadowRoot?.getElementById("toggleDashboard");
     if (!button) return;
+    // onclick bewusst jedes Mal setzen. Der Dashboard-HTML-Block wird beim
+    // Auf-/Zuklappen ersetzt; dataset-bound kann dabei zu verlorenen Listenern
+    // führen. Mit onclick bleibt der Toggle zuverlässig anklickbar.
     button.onclick = (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
@@ -3781,6 +3359,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     });
     this._bindLiveMonitorEvents();
   }
+
   _scrollSelectedIntoView() {
     if (!this._selected) return;
     const row = this.shadowRoot?.querySelector(`tr[data-uid="${this._cssEscape(this._selected.unique_id)}"]`);
@@ -3789,6 +3368,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     row.classList.add("source-jump-highlight");
     window.setTimeout(() => row.classList.remove("source-jump-highlight"), 2200);
   }
+
   _configureExplorerToolbar() {
     const toolbar = this.shadowRoot?.getElementById("explorerToolbar");
     if (!toolbar) return;
@@ -3797,11 +3377,13 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     toolbar.filters = { ...this._filters };
     toolbar.devices = Array.from(
       new Set(
-        (this._points || []).map((point) => String(point.device_id ?? "-")).filter(Boolean)
-      )
-    ).sort((a2, b2) => a2.localeCompare(b2, void 0, { numeric: true }));
+        (this._points || [])
+          .map((point) => String(point.device_id ?? "-"))
+          .filter(Boolean),
+      ),
+    ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
     toolbar.objectTypes = Array.from(
-      new Set((this._points || []).map((point) => String(point.object_type || "")).filter(Boolean))
+      new Set((this._points || []).map((point) => String(point.object_type || "")).filter(Boolean)),
     ).sort();
     toolbar.groupBy = this._groupBy || "none";
     toolbar.addEventListener("bepacom-toolbar-action", (event) => {
@@ -3839,17 +3421,21 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
           only_overrides: false,
           only_subscribe: false,
           device_id: "all",
-          runtime: "all"
+          runtime: "all",
         };
         this._loadPoints();
       }
     });
   }
+
   _configurePointTable() {
     const table = this.shadowRoot?.getElementById("tableWrap");
     if (!table) return;
     const items = this._displayItems();
     const rows = [];
+    // Render the filtered rows as one stable Lit list. Replacing virtual
+    // spacer rows during the native scroll event caused some browsers to
+    // restore scrollTop=0, making the list appear glued to its first row.
     for (const item of items) {
       if (item.kind === "group") {
         rows.push({ ...item });
@@ -3864,7 +3450,9 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
           icon: this._linkedEntityIcon(link),
           name,
           state: this._binaryStateLabel(this._linkedEntityState(link), link.device_class),
-          title: entityId ? `${name} · ${entityId} · HA Dialog öffnen` : "Nach dem Neuladen der Integration verfügbar"
+          title: entityId
+            ? `${name} · ${entityId} · HA Dialog öffnen`
+            : "Nach dem Neuladen der Integration verfügbar",
         };
       });
       let runtimeState = "wait";
@@ -3872,7 +3460,13 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       if (point.update_mode === "disabled") {
         runtimeState = "off";
         runtimeLabel = "Aus";
-      } else if (point.update_mode === "subscribe" && this._diagnostics?.snapshot_websocket_mode === true && this._diagnostics?.subscriptions_initialized === true && this._diagnostics?.connected === true && Number(this._diagnostics?.snapshot_targets || 0) > 0) {
+      } else if (
+        point.update_mode === "subscribe"
+        && this._diagnostics?.snapshot_websocket_mode === true
+        && this._diagnostics?.subscriptions_initialized === true
+        && this._diagnostics?.connected === true
+        && Number(this._diagnostics?.snapshot_targets || 0) > 0
+      ) {
         runtimeState = "snapshot";
         runtimeLabel = "Snapshot aktiv – Aktualisierung über die gemeinsame Snapshot-Verbindung";
       } else if (point.subscribed === true) {
@@ -3904,7 +3498,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         overrideActive: !!point.override_active,
         writeViaGlt: ["glt_set_as", "glt_set_stage"].includes(point.write_profile),
         runtimeState,
-        runtimeLabel
+        runtimeLabel,
       });
     }
     table.rows = rows;
@@ -3932,75 +3526,80 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       } else if (action === "select-visible") {
         for (const candidate of this._displayItems()) {
           if (candidate.kind !== "point") continue;
-          checked ? this._selectedIds.add(candidate.point.unique_id) : this._selectedIds.delete(candidate.point.unique_id);
+          checked
+            ? this._selectedIds.add(candidate.point.unique_id)
+            : this._selectedIds.delete(candidate.point.unique_id);
         }
         this._render();
       }
     });
   }
+
   _configureRuntimeDashboard() {
     const dashboard = this.shadowRoot?.getElementById("dashboard");
     if (!dashboard) return;
-    const d2 = this._diagnostics || {};
-    const valueChanges = this._dashboardValueChanges(d2);
-    const pushNotificationsRaw = d2.bacnet_push_notifications ?? d2.websocket_updates ?? d2.push_count;
+    const d = this._diagnostics || {};
+    const valueChanges = this._dashboardValueChanges(d);
+    const pushNotificationsRaw = d.bacnet_push_notifications ?? d.websocket_updates ?? d.push_count;
     const pushNotifications = Number(pushNotificationsRaw);
-    const averageChangesPerPush = Number.isFinite(pushNotifications) && pushNotifications > 0 ? (Number(valueChanges) / pushNotifications).toLocaleString("de-DE", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }) : "-";
+    const averageChangesPerPush = Number.isFinite(pushNotifications) && pushNotifications > 0
+      ? (Number(valueChanges) / pushNotifications).toLocaleString("de-DE", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : "-";
     const pushChangeValue = `${pushNotificationsRaw ?? "-"} / ${averageChangesPerPush}`;
     const configured = [
-      ["BACnet-Punkte", d2.objects ?? this._total ?? "-"],
-      ["Aktive Entitäten", d2.enabled ?? "-"],
-      ["Deaktiviert", d2.configured_disabled ?? d2.disabled ?? "-"],
-      ["Push konfiguriert", d2.configured_push ?? "-"],
-      ["Polling konfiguriert", d2.configured_polling ?? "-"],
-      ["Overrides", d2.overrides ?? "-"]
+      ["BACnet-Punkte", d.objects ?? this._total ?? "-"],
+      ["Aktive Entitäten", d.enabled ?? "-"],
+      ["Deaktiviert", d.configured_disabled ?? d.disabled ?? "-"],
+      ["Push konfiguriert", d.configured_push ?? "-"],
+      ["Polling konfiguriert", d.configured_polling ?? "-"],
+      ["Overrides", d.overrides ?? "-"],
     ];
-    if (Array.isArray(d2.firmware_versions) && d2.firmware_versions.length) configured.push(["Firmware", d2.firmware_versions.join(", ")]);
-    if (Array.isArray(d2.device_models) && d2.device_models.length) configured.push(["Gerätemodelle", d2.device_models.join(", ")]);
+    if (Array.isArray(d.firmware_versions) && d.firmware_versions.length) configured.push(["Firmware", d.firmware_versions.join(", ")]);
+    if (Array.isArray(d.device_models) && d.device_models.length) configured.push(["Gerätemodelle", d.device_models.join(", ")]);
     const runtime = [
-      ["Verbunden", d2.connected === void 0 ? "-" : d2.connected ? "Ja" : "Nein"],
-      ["Aktive Subscriptions", d2.subscribed ?? d2.subscriptions ?? "-"],
-      ["Aktives Polling", d2.fallback_polling ?? d2.fallback_objects ?? "-"],
+      ["Verbunden", d.connected === undefined ? "-" : (d.connected ? "Ja" : "Nein")],
+      ["Aktive Subscriptions", d.subscribed ?? d.subscriptions ?? "-"],
+      ["Aktives Polling", d.fallback_polling ?? d.fallback_objects ?? "-"],
       ["Pushs / Ø Änderungen", pushChangeValue],
-      ["Ø Push-Verarbeitung ms", d2.dispatch_time_avg_ms === void 0 ? "-" : Number(d2.dispatch_time_avg_ms).toFixed(2)],
-      ["Reconnects", d2.reconnect_count ?? "-"],
-      ["Verbindungsfehler", d2.connection_failures ?? "-"]
+      ["Ø Push-Verarbeitung ms", d.dispatch_time_avg_ms === undefined ? "-" : Number(d.dispatch_time_avg_ms).toFixed(2)],
+      ["Reconnects", d.reconnect_count ?? "-"],
+      ["Verbindungsfehler", d.connection_failures ?? "-"],
     ];
     const developer = [
-      ["Direkt-Pushs", d2.websocket_direct_messages ?? "-"],
-      ["Snapshot-Pushs", d2.websocket_snapshot_messages ?? "-"],
-      ["Fallback-Pushs", d2.websocket_fallback_messages ?? "-"],
-      ["Payload geprüft", d2.websocket_payload_objects ?? "-"],
-      ["Payload verarbeitet", d2.websocket_processed_objects ?? "-"],
-      ["Payload ignoriert", d2.websocket_ignored_objects ?? "-"],
-      ["Vor Callback gefiltert", d2.websocket_prefiltered_no_change_objects ?? "-"],
-      ["Callback-Aufrufe", d2.websocket_callback_invocations ?? "-"],
-      ["Callbacks mit Änderung", d2.websocket_callback_value_changes ?? "-"],
-      ["Callbacks ohne Änderung", d2.websocket_callback_no_changes ?? "-"],
-      ["Push-Punktupdates", d2.processed_push_updates ?? d2.push_updates ?? "-"],
-      ["Polling-Punktupdates", d2.processed_polling_updates ?? d2.polling_updates ?? "-"],
-      ["Unterdrückte gleiche Werte", d2.suppressed_updates ?? "-"],
-      ["Max Push-Verarbeitung ms", d2.dispatch_time_max_ms === void 0 ? "-" : Number(d2.dispatch_time_max_ms).toFixed(2)]
+      ["Direkt-Pushs", d.websocket_direct_messages ?? "-"],
+      ["Snapshot-Pushs", d.websocket_snapshot_messages ?? "-"],
+      ["Fallback-Pushs", d.websocket_fallback_messages ?? "-"],
+      ["Payload geprüft", d.websocket_payload_objects ?? "-"],
+      ["Payload verarbeitet", d.websocket_processed_objects ?? "-"],
+      ["Payload ignoriert", d.websocket_ignored_objects ?? "-"],
+      ["Vor Callback gefiltert", d.websocket_prefiltered_no_change_objects ?? "-"],
+      ["Callback-Aufrufe", d.websocket_callback_invocations ?? "-"],
+      ["Callbacks mit Änderung", d.websocket_callback_value_changes ?? "-"],
+      ["Callbacks ohne Änderung", d.websocket_callback_no_changes ?? "-"],
+      ["Push-Punktupdates", d.processed_push_updates ?? d.push_updates ?? "-"],
+      ["Polling-Punktupdates", d.processed_polling_updates ?? d.polling_updates ?? "-"],
+      ["Unterdrückte gleiche Werte", d.suppressed_updates ?? "-"],
+      ["Max Push-Verarbeitung ms", d.dispatch_time_max_ms === undefined ? "-" : Number(d.dispatch_time_max_ms).toFixed(2)],
     ];
     const cards = (items) => items.map(([label, value]) => ({
       label,
       value,
       icon: this._statusIcon(label, value),
-      tone: this._statusClass(label, value)
+      tone: this._statusClass(label, value),
     }));
     const pointByUid = new Map(this._points.map((point) => [point.unique_id, point]));
     dashboard.model = {
       open: !!this._statusOpen,
       tab: ["configuration", "developer"].includes(this._dashboardTab) ? this._dashboardTab : "live",
       summary: [
-        `Punkte: ${d2.objects ?? this._total ?? "-"}`,
-        `aktiv: ${d2.enabled ?? "-"}`,
-        `Push: ${d2.configured_push ?? "-"}/${d2.subscribed ?? "-"}`,
-        `Polling: ${d2.configured_polling ?? "-"}/${d2.fallback_polling ?? "-"}`,
-        `Pushs / Ø Änderungen: ${pushChangeValue}`
+        `Punkte: ${d.objects ?? this._total ?? "-"}`,
+        `aktiv: ${d.enabled ?? "-"}`,
+        `Push: ${d.configured_push ?? "-"}/${d.subscribed ?? "-"}`,
+        `Polling: ${d.configured_polling ?? "-"}/${d.fallback_polling ?? "-"}`,
+        `Pushs / Ø Änderungen: ${pushChangeValue}`,
       ].join(" · "),
       configured: cards(configured),
       runtime: cards(runtime),
@@ -4013,9 +3612,14 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         return {
           ...item,
           entity_id: entityId,
-          friendly_name: this.hass?.states?.[entityId]?.attributes?.friendly_name || point?.entity_name || point?.entity_original_name || item.object_name || item.object_key || item.unique_id
+          friendly_name: this.hass?.states?.[entityId]?.attributes?.friendly_name
+            || point?.entity_name
+            || point?.entity_original_name
+            || item.object_name
+            || item.object_key
+            || item.unique_id,
         };
-      })
+      }),
     };
     if (dashboard.dataset.actionsBound === "1") return;
     dashboard.dataset.actionsBound = "1";
@@ -4049,6 +3653,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       }
     });
   }
+
   _configurePointInspector() {
     const inspector = this.shadowRoot?.getElementById("pointInspector");
     if (!inspector) return;
@@ -4057,7 +3662,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       try {
         const stored = window.localStorage.getItem(`bepacom_section_${id}_open`);
         sectionOpen[id] = stored === "1" || stored === "true";
-      } catch (_2) {
+      } catch (_) {
         sectionOpen[id] = false;
       }
     }
@@ -4070,7 +3675,9 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       dirty: this._editorDirty,
       errors: [...this._editorErrors],
       sectionOpen,
-      preview: this._selected ? this._virtualRulePreviewData(this._selected) : { sourceValue: "-", result: "unavailable", tone: "unav" }
+      preview: this._selected
+        ? this._virtualRulePreviewData(this._selected)
+        : { sourceValue: "-", result: "unavailable", tone: "unav" },
     };
     if (inspector.dataset.actionsBound !== "1") {
       inspector.dataset.actionsBound = "1";
@@ -4100,6 +3707,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       this._restoreSideScroll();
     }, { once: true });
   }
+
   _bindEvents() {
     this._configureExplorerToolbar();
     this._configurePointTable();
@@ -4109,7 +3717,11 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       button.addEventListener("click", (event) => {
         event.preventDefault();
         const section = button.getAttribute("data-main-section") || "configuration";
-        if (section !== "configuration" && this._editorDirty && !window.confirm("Ungespeicherte Änderungen verwerfen und den Bereich wechseln?")) return;
+        if (
+          section !== "configuration"
+          && this._editorDirty
+          && !window.confirm("Ungespeicherte Änderungen verwerfen und den Bereich wechseln?")
+        ) return;
         this._editorDirty = false;
         this._editorErrors = [];
         this._mainSection = ["live", "diagnostics"].includes(section) ? section : "configuration";
@@ -4132,7 +3744,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       mobileActionsToggle.setAttribute("aria-expanded", open ? "true" : "false");
       mobileActionsToggle.setAttribute(
         "aria-label",
-        open ? "Aktionen schließen" : "Aktionen öffnen"
+        open ? "Aktionen schließen" : "Aktionen öffnen",
       );
     });
     this.shadowRoot.querySelectorAll("[data-view-tab]").forEach((button) => {
@@ -4177,17 +3789,8 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       this._visibleStart = 0;
       this._updateListDom();
     });
-    this.shadowRoot.getElementById("groupBy")?.addEventListener("change", (ev) => {
-      this._groupBy = ev.target.value || "none";
-      this._setSetting("bepacom_group_by", this._groupBy);
-      this._visibleStart = 0;
-      this._render();
-    });
-    this.shadowRoot.querySelectorAll("[data-sort]").forEach((el) => el.addEventListener("click", (ev) => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      this._setSort(el.getAttribute("data-sort"));
-    }));
+    this.shadowRoot.getElementById("groupBy")?.addEventListener("change", (ev) => { this._groupBy = ev.target.value || "none"; this._setSetting("bepacom_group_by", this._groupBy); this._visibleStart = 0; this._render(); });
+    this.shadowRoot.querySelectorAll("[data-sort]").forEach((el) => el.addEventListener("click", (ev) => { ev.preventDefault(); ev.stopPropagation(); this._setSort(el.getAttribute("data-sort")); }));
     this.shadowRoot.getElementById("onlyOverrides")?.addEventListener("change", (ev) => this._setFilter("only_overrides", ev.target.checked));
     this.shadowRoot.getElementById("onlySubscribe")?.addEventListener("change", (ev) => this._setFilter("only_subscribe", ev.target.checked));
     this.shadowRoot.getElementById("clear")?.addEventListener("click", () => {
@@ -4196,17 +3799,10 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     });
     this.shadowRoot.getElementById("bulkApply")?.addEventListener("click", () => this._bulkApply());
     this.shadowRoot.getElementById("bulkReset")?.addEventListener("click", () => this._bulkReset());
-    this.shadowRoot.getElementById("bulkClear")?.addEventListener("click", () => {
-      this._selectedIds.clear();
-      this._render();
-    });
+    this.shadowRoot.getElementById("bulkClear")?.addEventListener("click", () => { this._selectedIds.clear(); this._render(); });
     this.shadowRoot.getElementById("selectVisible")?.addEventListener("change", (ev) => {
       const checked = ev.target.checked;
-      for (const item of this._displayItems()) {
-        if (item.kind === "point") {
-          checked ? this._selectedIds.add(item.point.unique_id) : this._selectedIds.delete(item.point.unique_id);
-        }
-      }
+      for (const item of this._displayItems()) { if (item.kind === "point") { checked ? this._selectedIds.add(item.point.unique_id) : this._selectedIds.delete(item.point.unique_id); } }
       this._render();
     });
     const wrap = this.shadowRoot.getElementById("tableWrap");
@@ -4217,6 +3813,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     }
     this._bindRowEvents();
   }
+
   _bindInspectorEvents() {
     this._bindDetailToggles();
     this.shadowRoot.querySelectorAll("[data-side-tab]").forEach((button) => {
@@ -4305,7 +3902,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         this._deleteVirtualEntity(
           button.dataset.sourceUid,
           button.dataset.virtualUid,
-          button.dataset.virtualName || ""
+          button.dataset.virtualName || "",
         );
       });
     });
@@ -4316,6 +3913,9 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       };
     }
   }
+
+
+
   _bindRowEvents() {
     this.shadowRoot.querySelectorAll(".row-select").forEach((checkbox) => {
       checkbox.addEventListener("click", (ev) => {
@@ -4327,17 +3927,12 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       });
     });
     this.shadowRoot.querySelectorAll(".group-toggle").forEach((button) => {
-      button.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        this._toggleGroup(button.getAttribute("data-group"));
-      });
+      button.addEventListener("click", (ev) => { ev.preventDefault(); ev.stopPropagation(); this._toggleGroup(button.getAttribute("data-group")); });
     });
     this.shadowRoot.querySelectorAll(".virtual-source-btn").forEach((button) => {
       button.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        const point = this._points.find((p2) => p2.unique_id === button.dataset.sourceUid);
+        ev.preventDefault(); ev.stopPropagation();
+        const point = this._points.find((p) => p.unique_id === button.dataset.sourceUid);
         if (point) {
           this._activeView = "explorer";
           this._sideTab = "inspector";
@@ -4352,29 +3947,25 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     });
     this.shadowRoot.querySelectorAll(".virtual-edit-btn").forEach((button) => {
       button.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
+        ev.preventDefault(); ev.stopPropagation();
         this._editVirtualEntity(button.dataset.sourceUid, button.dataset.virtualUid, false);
       });
     });
     this.shadowRoot.querySelectorAll(".virtual-duplicate-btn").forEach((button) => {
       button.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
+        ev.preventDefault(); ev.stopPropagation();
         this._editVirtualEntity(button.dataset.sourceUid, button.dataset.virtualUid, true);
       });
     });
     this.shadowRoot.querySelectorAll(".virtual-delete-btn").forEach((button) => {
       button.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
+        ev.preventDefault(); ev.stopPropagation();
         this._deleteVirtualEntity(button.dataset.sourceUid, button.dataset.virtualUid, button.dataset.virtualName || "");
       });
     });
     this.shadowRoot.querySelectorAll(".linked-entity-link").forEach((button) => {
       button.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
+        ev.preventDefault(); ev.stopPropagation();
         this._openMoreInfo(button.dataset.entityId);
       });
     });
@@ -4388,7 +3979,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
           return;
         }
         const uid = row.getAttribute("data-uid");
-        const point = this._points.find((p2) => p2.unique_id === uid);
+        const point = this._points.find((p) => p.unique_id === uid);
         if (point) this._selectPoint(point);
       };
       row.ondblclick = (ev) => {
@@ -4396,62 +3987,83 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         ev.preventDefault();
         ev.stopPropagation();
         const uid = row.getAttribute("data-uid");
-        const point = this._points.find((p2) => p2.unique_id === uid);
+        const point = this._points.find((p) => p.unique_id === uid);
         if (point) this._openDetailsFor(point);
       };
     });
   }
+
+
   _deviceOptions() {
-    const devices = Array.from(new Set((this._points || []).map((p2) => String(p2.device_id ?? "-")).filter(Boolean))).sort((a2, b2) => a2.localeCompare(b2, void 0, { numeric: true }));
+    const devices = Array.from(new Set((this._points || []).map((p) => String(p.device_id ?? "-")).filter(Boolean))).sort((a,b)=>a.localeCompare(b, undefined, {numeric:true}));
     const current = String(this._filters.device_id || "all");
     const all = [`<option value="all" ${current === "all" ? "selected" : ""}>Alle Devices</option>`];
-    return all.concat(devices.map((d2) => `<option value="${this._escape(d2)}" ${current === d2 ? "selected" : ""}>Device ${this._escape(d2)}</option>`)).join("");
+    return all.concat(devices.map((d) => `<option value="${this._escape(d)}" ${current === d ? "selected" : ""}>Device ${this._escape(d)}</option>`)).join("");
   }
+
   _typeOptions() {
-    const types = Array.from(new Set(this._points.map((p2) => p2.object_type))).filter(Boolean).sort();
+    const types = Array.from(new Set(this._points.map((p) => p.object_type))).filter(Boolean).sort();
     const all = [`<option value="all" ${this._filters.object_type === "all" ? "selected" : ""}>Alle Objekttypen</option>`];
-    return all.concat(types.map((t2) => `<option value="${this._escape(t2)}" ${this._filters.object_type === t2 ? "selected" : ""}>${this._escape(t2)}</option>`)).join("");
+    return all.concat(types.map((t) => `<option value="${this._escape(t)}" ${this._filters.object_type === t ? "selected" : ""}>${this._escape(t)}</option>`)).join("");
   }
+
+
   _virtualRuleNormalize(value) {
     return String(value ?? "").trim().replace(/^['\"]|['\"]$/g, "").toLowerCase();
   }
+
   _virtualRuleNumber(value) {
-    if (value === null || value === void 0) return null;
+    if (value === null || value === undefined) return null;
     const raw = String(value).trim().replace(/^['\"]|['\"]$/g, "").replace(",", ".");
     if (!raw) return null;
     const num = Number(raw);
     return Number.isFinite(num) ? num : null;
   }
+
   _virtualRuleEqual(value, expr) {
-    const a2 = this._virtualRuleNumber(value);
-    const b2 = this._virtualRuleNumber(expr);
-    if (a2 !== null && b2 !== null) return a2 === b2;
+    const a = this._virtualRuleNumber(value);
+    const b = this._virtualRuleNumber(expr);
+    if (a !== null && b !== null) return a === b;
     return this._virtualRuleNormalize(value) === this._virtualRuleNormalize(expr);
   }
+
   _virtualRuleAdvancedMatches(value, expression) {
     let expr = String(expression || "").trim();
     if (!expr) return null;
     expr = expr.replaceAll("&&", " && ").replaceAll("||", " || ");
+
+    // Safe mini evaluator for live preview only. Backend remains authoritative.
+    // Allowed characters/operators: value, numbers, quotes, (), + - * / % & | ^,
+    // comparisons and && / || / !. Anything else disables the preview result.
     if (!/^[a-zA-Z0-9_\s()<>!=&|^+*\/%.,'"-]+$/.test(expr)) return null;
+
     const valueNum = this._virtualRuleNumber(value);
     const preparedValue = valueNum !== null ? String(valueNum) : JSON.stringify(this._virtualRuleNormalize(value));
-    let jsExpr = expr.replace(/\bvalue\b/g, preparedValue).replace(/([^=!])=([^=])/g, "$1==$2");
+    let jsExpr = expr
+      .replace(/\bvalue\b/g, preparedValue)
+      .replace(/([^=!])=([^=])/g, "$1==$2");
+
     try {
+      // eslint-disable-next-line no-new-func
       return !!Function(`"use strict"; return (${jsExpr});`)();
     } catch (_err) {
       return null;
     }
   }
+
   _virtualRuleMatches(value, condition) {
     const raw = String(condition ?? "").trim();
     if (!raw) return false;
+
     if (raw.includes("value") || raw.includes("&&") || raw.includes("||")) {
       const advanced = this._virtualRuleAdvancedMatches(value, raw);
       if (advanced !== null) return advanced;
     }
+
     if (raw.includes(",")) {
       return raw.split(",").some((part) => this._virtualRuleMatches(value, part.trim()));
     }
+
     const valueNum = this._virtualRuleNumber(value);
     const ops = [">=", "<=", "!=", "==", ">", "<"];
     for (const op of ops) {
@@ -4470,6 +4082,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       if (op === "==") return this._virtualRuleEqual(value, rhs);
       return false;
     }
+
     const dashIndex = raw.slice(1).indexOf("-");
     if (dashIndex >= 0) {
       const splitAt = dashIndex + 1;
@@ -4483,16 +4096,19 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         return valueNum >= low && valueNum <= high;
       }
     }
+
     return this._virtualRuleEqual(value, raw);
   }
-  _virtualRulePreviewHtml(p2) {
+
+  _virtualRulePreviewHtml(p) {
     const onEl = this.shadowRoot?.getElementById("virtualBinaryOnValue");
     const offEl = this.shadowRoot?.getElementById("virtualBinaryOffValue");
     const elseEl = this.shadowRoot?.getElementById("virtualBinaryElseState");
-    const sourceValue = p2?.present_value;
-    const onRule = onEl ? onEl.value : p2?.virtual_binary?.on_value ?? "2";
-    const offRule = offEl ? offEl.value : p2?.virtual_binary?.off_value ?? "1";
-    const elseState = elseEl ? elseEl.value : p2?.virtual_binary?.else_state || "unavailable";
+    const sourceValue = p?.present_value;
+    const onRule = onEl ? onEl.value : (p?.virtual_binary?.on_value ?? "2");
+    const offRule = offEl ? offEl.value : (p?.virtual_binary?.off_value ?? "1");
+    const elseState = elseEl ? elseEl.value : (p?.virtual_binary?.else_state || "unavailable");
+
     let result = "unavailable";
     let cls = "unav";
     if (this._virtualRuleMatches(sourceValue, onRule)) {
@@ -4505,11 +4121,13 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       result = "OFF";
       cls = "off";
     }
+
     return `<div class="rule-preview">
       <div><span class="muted">Aktueller BACnet-Wert</span><strong>${this._escape(this._value(sourceValue))}</strong></div>
       <div><span class="muted">Regelergebnis</span><strong class="rule-result ${cls}">${this._escape(result)}</strong></div>
     </div>`;
   }
+
   _refreshVirtualRulePreview() {
     const box = this.shadowRoot?.getElementById("virtualRulePreview");
     if (!box || !this._selected) return;
@@ -4521,14 +4139,15 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       values[1].className = `rule-result ${preview.tone}`;
     }
   }
-  _virtualRulePreviewData(p2) {
+
+  _virtualRulePreviewData(p) {
     const onEl = this.shadowRoot?.getElementById("virtualBinaryOnValue");
     const offEl = this.shadowRoot?.getElementById("virtualBinaryOffValue");
     const elseEl = this.shadowRoot?.getElementById("virtualBinaryElseState");
-    const sourceValue = p2?.present_value;
-    const onRule = onEl ? onEl.value : p2?.virtual_binary?.on_value ?? "2";
-    const offRule = offEl ? offEl.value : p2?.virtual_binary?.off_value ?? "1";
-    const elseState = elseEl ? elseEl.value : p2?.virtual_binary?.else_state || "unavailable";
+    const sourceValue = p?.present_value;
+    const onRule = onEl ? onEl.value : (p?.virtual_binary?.on_value ?? "2");
+    const offRule = offEl ? offEl.value : (p?.virtual_binary?.off_value ?? "1");
+    const elseState = elseEl ? elseEl.value : (p?.virtual_binary?.else_state || "unavailable");
     let result = "unavailable";
     let tone = "unav";
     if (this._virtualRuleMatches(sourceValue, onRule)) {
@@ -4540,16 +4159,17 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     }
     return { sourceValue: this._value(sourceValue), result, tone };
   }
+
   _detailSection(id, title, content) {
     const key = `bepacom_section_${id}_open`;
     let open = false;
     try {
       const stored = window.localStorage.getItem(key);
       open = stored === "1" || stored === "true";
-    } catch (_2) {
-    }
+    } catch (_) {}
     return `<details class="detail-section" data-section="${this._escape(id)}" ${open ? "open" : ""}><summary>${this._escape(title)}</summary><div class="detail-section-body">${content}</div></details>`;
   }
+
   _bindDetailToggles() {
     this.shadowRoot.querySelectorAll("details.detail-section[data-section]").forEach((details) => {
       details.addEventListener("toggle", () => {
@@ -4557,35 +4177,55 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         if (!id) return;
         try {
           window.localStorage.setItem(`bepacom_section_${id}_open`, details.open ? "1" : "0");
-        } catch (_2) {
-        }
+        } catch (_) {}
       });
     });
   }
+
+
   _normalizeSearch(value) {
-    return String(value || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").trim();
+    return String(value || "")
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/ä/g, "ae")
+      .replace(/ö/g, "oe")
+      .replace(/ü/g, "ue")
+      .replace(/ß/g, "ss")
+      .trim();
   }
+
   _matchesSearchQuery(haystack, query) {
     const normalizedHaystack = this._normalizeSearch(haystack || "");
     const terms = this._normalizeSearch(query || "").split(/\s+/).filter(Boolean);
+
     return terms.every((term) => {
       if (!term.includes("*") && !term.includes("?")) {
         return normalizedHaystack.includes(term);
       }
+
       const escaped = term.replace(/[.+^${}()|[\]\\]/g, "\\$&");
       const pattern = escaped.replace(/\*/g, ".*").replace(/\?/g, ".");
       try {
         return new RegExp(pattern, "s").test(normalizedHaystack);
-      } catch (_2) {
+      } catch (_) {
         return normalizedHaystack.includes(term);
       }
     });
   }
+
   _slugify(value) {
-    return String(value || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    return String(value || "")
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
   }
-  _objectAssistantHtml(p2) {
-    const rec = p2?.object_assistant;
+
+  _objectAssistantHtml(p) {
+    const rec = p?.object_assistant;
     if (!rec || rec.kind !== "virtual_binary") return "";
     return `<div class="assistant-card">
       <div class="assistant-title">Objekt-Assistent: ${this._escape(rec.title || "Vorschlag")}</div>
@@ -4599,6 +4239,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       <button id="applyObjectAssistant" class="secondary" type="button">Vorschlag übernehmen</button>
     </div>`;
   }
+
   _applyObjectAssistantSuggestion() {
     const rec = this._selected?.object_assistant;
     if (!rec || rec.kind !== "virtual_binary") return;
@@ -4621,12 +4262,15 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     this._message = "Objekt-Assistent: Vorschlag übernommen. Zum Anwenden bitte Speichern klicken.";
     this._updateHeaderDom();
   }
+
+
   _sidePanelHtml(selected) {
     const count = selected ? this._linkedEntities(selected).length : 0;
     const tab = (id, label) => `<button class="side-tab ${this._sideTab === id ? "active" : ""}" data-side-tab="${id}" type="button">${label}</button>`;
-    const body = this._sideTab === "virtual" ? this._sideVirtualHtml(selected) : selected ? this._detailHtml(selected) : `<div class="side-section-head"><h2>Point Inspector</h2><div class="muted">Wähle links ein Objekt aus.</div></div>`;
+    const body = this._sideTab === "virtual" ? this._sideVirtualHtml(selected) : (selected ? this._detailHtml(selected) : `<div class="side-section-head"><h2>Point Inspector</h2><div class="muted">Wähle links ein Objekt aus.</div></div>`);
     return `<div class="side-tabs">${tab("inspector", "Point Inspector")}${tab("virtual", `Virtuelle Entitäten${count ? ` (${count})` : ""}`)}</div><div class="side-body">${body}</div>`;
   }
+
   _sideVirtualHtml(selected) {
     if (selected) {
       const linkedCount = this._linkedEntities(selected).length;
@@ -4642,48 +4286,55 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     }
     return `<div class="side-section-head"><h2>Virtuelle Entitäten</h2><div class="muted">Wähle links einen BACnet-Punkt aus. Anschließend werden hier nur dessen zugeordnete virtuelle Entitäten angezeigt.</div></div>`;
   }
-  _detailHtml(p2) {
+
+  _detailHtml(p) {
     const inspector = this._inspector || {};
     const kv = [
-      ["Objekt", p2.object_key],
-      ["Name", p2.object_name || "-"],
-      ["HA Entity ID", p2.entity_id || "-"],
-      ["HA Entity Name", p2.entity_name || p2.entity_original_name || "-"],
-      ["Device", p2.device_id],
-      ["Present Value", this._value(p2.present_value)],
-      ["BACnet Unit", p2.bacnet_unit || "-"],
-      ["HA Unit", p2.ha_unit || "-"],
-      ["Device Class", p2.device_class || "-"],
-      ["State Class", p2.state_class || "-"],
-      ["Override", p2.override_active ? "Ja" : "Nein"],
-      ["Modus", this._plainModeLabel(p2)],
-      ["Subscribed", p2.subscribed === null || p2.subscribed === void 0 ? "-" : p2.subscribed ? "Ja" : "Nein"],
-      ["Aktives Polling", p2.fallback_polling ? "Ja" : "Nein"],
-      ["Schreibbar", p2.writable ? "Ja" : "Nein"],
-      ["Aktiv", p2.enabled ? "Ja" : "Nein"],
-      ["Letztes Update", p2.last_update || "-"],
-      ["Quelle", p2.last_update_source || "-"],
+      ["Objekt", p.object_key],
+      ["Name", p.object_name || "-"],
+      ["HA Entity ID", p.entity_id || "-"],
+      ["HA Entity Name", p.entity_name || p.entity_original_name || "-"],
+      ["Device", p.device_id],
+      ["Present Value", this._value(p.present_value)],
+      ["BACnet Unit", p.bacnet_unit || "-"],
+      ["HA Unit", p.ha_unit || "-"],
+      ["Device Class", p.device_class || "-"],
+      ["State Class", p.state_class || "-"],
+      ["Override", p.override_active ? "Ja" : "Nein"],
+      ["Modus", this._plainModeLabel(p)],
+      ["Subscribed", p.subscribed === null || p.subscribed === undefined ? "-" : (p.subscribed ? "Ja" : "Nein")],
+      ["Aktives Polling", p.fallback_polling ? "Ja" : "Nein"],
+      ["Schreibbar", p.writable ? "Ja" : "Nein"],
+      ["Aktiv", p.enabled ? "Ja" : "Nein"],
+      ["Letztes Update", p.last_update || "-"],
+      ["Quelle", p.last_update_source || "-"],
       ["Reliability", inspector.reliability || "-"],
       ["Status Flags", inspector.status_flags || "-"],
       ["COV Increment", inspector.cov_increment || "-"],
-      ["Push Updates", p2.push_updates ?? inspector.push_updates ?? "-"],
-      ["Polling Updates", p2.polling_updates ?? inspector.polling_updates ?? "-"],
-      ["Value Changes", p2.value_changes ?? inspector.value_changes ?? "-"]
+      ["Push Updates", p.push_updates ?? inspector.push_updates ?? "-"],
+      ["Polling Updates", p.polling_updates ?? inspector.polling_updates ?? "-"],
+      ["Value Changes", p.value_changes ?? inspector.value_changes ?? "-"],
     ];
-    const vb = p2.virtual_binary || {};
-    const vbEnabled = !!p2.virtual_binary;
+
+    const vb = p.virtual_binary || {};
+    const vbEnabled = !!p.virtual_binary;
     const vbName = vb.name || "";
-    const vbUniqueId = vb.unique_id || `${p2.unique_id}_binary`;
+    const vbUniqueId = vb.unique_id || `${p.unique_id}_binary`;
     const vbDeviceClass = vb.device_class || "plug";
     const vbOn = vb.on_value ?? "2";
     const vbOff = vb.off_value ?? "1";
     const vbElse = vb.else_state || "unavailable";
-    const normalizedObjectType = String(p2.object_type || "").toLowerCase().replace(/[^a-z]/g, "");
+
+    const normalizedObjectType = String(p.object_type || "").toLowerCase().replace(/[^a-z]/g, "");
     const isAnalogValue = normalizedObjectType === "analogvalue";
     const isMultiStateOutput = normalizedObjectType === "multistateoutput";
-    const allowedWriteProfiles = isAnalogValue ? ["direct", "glt_set_as"] : isMultiStateOutput ? ["direct", "glt_set_stage"] : ["direct"];
-    const writeProfile = allowedWriteProfiles.includes(p2.write_profile) ? p2.write_profile : "direct";
-    const multistateRepresentation = p2.multistate_representation === "switch" ? "switch" : "number";
+    const allowedWriteProfiles = isAnalogValue
+      ? ["direct", "glt_set_as"]
+      : isMultiStateOutput
+        ? ["direct", "glt_set_stage"]
+        : ["direct"];
+    const writeProfile = allowedWriteProfiles.includes(p.write_profile) ? p.write_profile : "direct";
+    const multistateRepresentation = p.multistate_representation === "switch" ? "switch" : "number";
     const multistateEntitySettings = isMultiStateOutput ? `
       <h3 style="margin-top:14px;">Darstellung in Home Assistant</h3>
       <div class="muted" style="margin-bottom:8px;">Als Schalter wird nur der konfigurierte AUS- bzw. EIN-Wert geschrieben. Andere aktuelle Werte werden als unbekannt angezeigt.</div>
@@ -4693,19 +4344,21 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
           <option value="switch" ${multistateRepresentation === "switch" ? "selected" : ""}>Schalter</option>
         </select></div>
         <div id="multistateSwitchValues" class="edit-grid" style="display:${multistateRepresentation === "switch" ? "contents" : "none"}">
-          <div><label>AUS-Wert</label><input id="editMultistateOffValue" type="number" step="any" value="${this._escape(p2.multistate_off_value ?? 1)}"></div>
-          <div><label>EIN-Wert</label><input id="editMultistateOnValue" type="number" step="any" value="${this._escape(p2.multistate_on_value ?? 2)}"></div>
+          <div><label>AUS-Wert</label><input id="editMultistateOffValue" type="number" step="any" value="${this._escape(p.multistate_off_value ?? 1)}"></div>
+          <div><label>EIN-Wert</label><input id="editMultistateOnValue" type="number" step="any" value="${this._escape(p.multistate_on_value ?? 2)}"></div>
         </div>
       </div>` : "";
-    const profileDescription = isMultiStateOutput ? "Beim GLT/Stufe-Profil wird zuerst das binaryValue mit derselben Objekt-ID aktiviert und danach der Multi-State Output geschrieben. Beide Schreibvorgänge erfolgen fest auf BACnet-Priorität 8." : "Beim GLT/SET/AS-Profil wird das binaryValue mit derselben Objekt-ID verwendet. Alle Schreib- und Freigabevorgänge erfolgen fest auf BACnet-Priorität 8.";
-    const numberSettings = isAnalogValue || isMultiStateOutput ? `
+    const profileDescription = isMultiStateOutput
+      ? "Beim GLT/Stufe-Profil wird zuerst das binaryValue mit derselben Objekt-ID aktiviert und danach der Multi-State Output geschrieben. Beide Schreibvorgänge erfolgen fest auf BACnet-Priorität 8."
+      : "Beim GLT/SET/AS-Profil wird das binaryValue mit derselben Objekt-ID verwendet. Alle Schreib- und Freigabevorgänge erfolgen fest auf BACnet-Priorität 8.";
+    const numberSettings = (isAnalogValue || isMultiStateOutput) ? `
       <h3 style="margin-top:14px;">Stellbereich</h3>
       <div class="muted" style="margin-bottom:8px;">Grenzen und Schrittweite der Home-Assistant-Number sowie die BACnet-Schreibpriorität für direktes Schreiben.</div>
       <div class="edit-grid">
-        <div><label>Mindestwert</label><input id="editNumberMin" type="number" step="any" value="${this._escape(p2.number_min ?? -1e6)}"></div>
-        <div><label>Höchstwert</label><input id="editNumberMax" type="number" step="any" value="${this._escape(p2.number_max ?? 1e6)}"></div>
-        <div><label>Schrittweite</label><input id="editNumberStep" type="number" min="0.000001" step="any" value="${this._escape(p2.number_step ?? 0.01)}"></div>
-        <div><label>BACnet-Priorität</label><input id="editWritePriority" type="number" min="1" max="16" step="1" value="${this._escape(p2.write_priority ?? 8)}"></div>
+        <div><label>Mindestwert</label><input id="editNumberMin" type="number" step="any" value="${this._escape(p.number_min ?? -1000000)}"></div>
+        <div><label>Höchstwert</label><input id="editNumberMax" type="number" step="any" value="${this._escape(p.number_max ?? 1000000)}"></div>
+        <div><label>Schrittweite</label><input id="editNumberStep" type="number" min="0.000001" step="any" value="${this._escape(p.number_step ?? 0.01)}"></div>
+        <div><label>BACnet-Priorität</label><input id="editWritePriority" type="number" min="1" max="16" step="1" value="${this._escape(p.write_priority ?? 8)}"></div>
       </div>
       <h3 style="margin-top:14px;">Schreibprofil</h3>
       <div class="muted" style="margin-bottom:8px;">${profileDescription}</div>
@@ -4715,32 +4368,34 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
           ${isAnalogValue ? `<option value="glt_set_as" ${writeProfile === "glt_set_as" ? "selected" : ""}>GLT → Wert setzen → AS</option>` : ""}
           ${isMultiStateOutput ? `<option value="glt_set_stage" ${writeProfile === "glt_set_stage" ? "selected" : ""}>GLT → Stufe setzen</option>` : ""}
         </select></div>
-        <div><label>Wartezeit nach GLT aktivieren (ms)</label><input id="editGltDelayMs" type="number" min="0" max="60000" step="1" value="${this._escape(p2.glt_delay_ms ?? (isMultiStateOutput ? 2e3 : 1200))}"></div>
+        <div><label>Wartezeit nach GLT aktivieren (ms)</label><input id="editGltDelayMs" type="number" min="0" max="60000" step="1" value="${this._escape(p.glt_delay_ms ?? (isMultiStateOutput ? 2000 : 1200))}"></div>
         ${isAnalogValue ? `
-          <div><label>Wartezeit nach Wert schreiben (ms)</label><input id="editAsDelayMs" type="number" min="0" max="60000" step="1" value="${this._escape(p2.as_delay_ms ?? 1200)}"></div>
-          <div><label>Wartezeit vor Freigabe (ms)</label><input id="editReleaseDelayMs" type="number" min="0" max="60000" step="1" value="${this._escape(p2.release_delay_ms ?? 200)}"></div>
-          <div><label>Priorität 8 anschließend freigeben</label><div class="check"><input id="editReleasePriority" type="checkbox" ${p2.release_priority !== false ? "checked" : ""}> analogValue und binaryValue freigeben</div></div>
+          <div><label>Wartezeit nach Wert schreiben (ms)</label><input id="editAsDelayMs" type="number" min="0" max="60000" step="1" value="${this._escape(p.as_delay_ms ?? 1200)}"></div>
+          <div><label>Wartezeit vor Freigabe (ms)</label><input id="editReleaseDelayMs" type="number" min="0" max="60000" step="1" value="${this._escape(p.release_delay_ms ?? 200)}"></div>
+          <div><label>Priorität 8 anschließend freigeben</label><div class="check"><input id="editReleasePriority" type="checkbox" ${p.release_priority !== false ? "checked" : ""}> analogValue und binaryValue freigeben</div></div>
         ` : ""}
       </div>` : "";
+
     const editContent = `
       <div class="edit-grid">
-        <div><label>HA Entity ID</label><input id="editEntityId" value="${this._escape(p2.entity_id || "")}" placeholder="z.B. sensor.rollostellung_eg_speis"></div>
-        <div><label>HA Entitätsname</label><input id="editEntityName" value="${this._escape(p2.entity_name || "")}" placeholder="leer = Standardname"></div>
-        <div><label>Einheit</label><select id="editUnit">${this._unitOptions(p2)}</select></div>
-        <div><label>Device Class</label><select id="editDeviceClass">${this._deviceClassOptions(p2)}</select></div>
-        <div><label>State Class</label><select id="editStateClass">${this._stateClassOptions(p2)}</select></div>
-        <div><label>Aktualisierungsmodus</label><select id="editUpdateMode">${this._updateModeOptions(p2)}</select></div>
+        <div><label>HA Entity ID</label><input id="editEntityId" value="${this._escape(p.entity_id || "")}" placeholder="z.B. sensor.rollostellung_eg_speis"></div>
+        <div><label>HA Entitätsname</label><input id="editEntityName" value="${this._escape(p.entity_name || "")}" placeholder="leer = Standardname"></div>
+        <div><label>Einheit</label><select id="editUnit">${this._unitOptions(p)}</select></div>
+        <div><label>Device Class</label><select id="editDeviceClass">${this._deviceClassOptions(p)}</select></div>
+        <div><label>State Class</label><select id="editStateClass">${this._stateClassOptions(p)}</select></div>
+        <div><label>Aktualisierungsmodus</label><select id="editUpdateMode">${this._updateModeOptions(p)}</select></div>
       </div>
       ${multistateEntitySettings}
       ${numberSettings}
     `;
+
     const virtualEntityContent = `
       <div class="muted" style="margin-bottom:8px;">Erzeugt zusätzlich eine neue Binary-Sensor-Entität aus diesem Rohwert. Die vorhandene BACnet-Entität bleibt bestehen. Für mehrere virtuelle Entitäten einfach eine andere Unique ID verwenden und erneut speichern.</div>
       <div class="rule-help">
         <strong>Regel-Hilfe:</strong>
         <code>2</code> bedeutet <code>value == 2</code>, <code>&gt;2</code>, <code>&gt;=2</code>, <code>&lt;5</code>, <code>&lt;=10</code>, <code>!=0</code>, <code>1,2,5</code>, <code>2-5</code>, <code>active</code>, <code>inactive</code>, <code>alarm,fault</code>, <code>value &gt; 10 &amp;&amp; value &lt; 20</code>, <code>value == 2 || value == 5</code>, <code>(value &amp; 4096) != 0</code>, <code>((value - 1) &amp; 4) != 0</code>
       </div>
-      ${this._objectAssistantHtml(p2)}
+      ${this._objectAssistantHtml(p)}
       <div class="edit-grid">
         <div><label>Virtuellen Binary Sensor erzeugen</label><div class="check"><input id="virtualBinaryEnabled" type="checkbox" ${vbEnabled ? "checked" : ""}> aktiv</div></div>
         <div><label>Name</label><input id="virtualBinaryName" value="${this._escape(vbName)}" placeholder="z.B. Steckdose Wohnen/Terrasse"></div>
@@ -4754,24 +4409,27 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
           <option value="unknown" ${vbElse === "unknown" ? "selected" : ""}>unknown</option>
         </select></div>
       </div>
-      <div id="virtualRulePreview">${this._virtualRulePreviewHtml(p2)}</div>
+      <div id="virtualRulePreview">${this._virtualRulePreviewHtml(p)}</div>
     `;
+
     const editActions = `
       <div class="inspector-head-actions">
         <button id="saveOverride" ${this._saving ? "disabled" : ""}>Speichern${this._saving ? " …" : ""}</button>
-        <button id="discardEditor" class="secondary" ${!this._editorDirty || this._saving ? "disabled" : ""}>Änderungen verwerfen</button>
+        <button id="discardEditor" class="secondary" ${(!this._editorDirty || this._saving) ? "disabled" : ""}>Änderungen verwerfen</button>
         <button id="resetOverride" class="secondary" ${this._saving ? "disabled" : ""}>Override zurücksetzen</button>
       </div>
     `;
-    const inspectorContent = kv.map(([k2, v2]) => `<div class="kv"><div class="k">${this._escape(k2)}</div><div class="v">${this._escape(v2)}</div></div>`).join("");
+
+    const inspectorContent = kv.map(([k,v]) => `<div class="kv"><div class="k">${this._escape(k)}</div><div class="v">${this._escape(v)}</div></div>`).join("");
+
     return `
       <div class="point-inspector-head">
-        <div><h2>${this._escape(p2.object_key)}</h2><div class="muted">${this._escape(p2.object_name || "-")}</div></div>
+        <div><h2>${this._escape(p.object_key)}</h2><div class="muted">${this._escape(p.object_name || "-")}</div></div>
         ${editActions}
       </div>
       <div id="editorDirtyBanner" class="dirty-banner" ${this._editorDirty ? "" : "hidden"}><strong>Ungespeicherte Änderungen</strong> – bitte speichern oder verwerfen.</div>
       <div id="editorValidation" class="validation-errors" ${this._editorErrors.length ? "" : "hidden"}>${this._editorErrors.map((error) => `<div>${this._escape(error)}</div>`).join("")}</div>
-      <div id="priorityWarning" class="priority-warning" ${Number(p2.write_priority) >= 1 && Number(p2.write_priority) <= 7 ? "" : "hidden"}><strong>Achtung:</strong> Eine BACnet-Priorität zwischen 1 und 7 übersteuert den üblichen Bedienwert auf Priorität 8.</div>
+      <div id="priorityWarning" class="priority-warning" ${(Number(p.write_priority) >= 1 && Number(p.write_priority) <= 7) ? "" : "hidden"}><strong>Achtung:</strong> Eine BACnet-Priorität zwischen 1 und 7 übersteuert den üblichen Bedienwert auf Priorität 8.</div>
       ${this._detailSection("config", "Konfiguration der Entität", editContent)}
       ${this._detailSection("virtual-config", "Virtuelle Entität konfigurieren", virtualEntityContent)}
       <div class="muted save-hint">Änderungen werden gespeichert, ohne die Integration sofort neu zu laden. Wenn du fertig bist, oben „Integration neu laden“ klicken.</div>
@@ -4779,1580 +4437,131 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       ${this._detailSection("engineering", "Engineering-Properties", this._engineeringHtml())}
     `;
   }
+
   _triStateCurrent(value) {
-    if (value === null || value === void 0 || value === "" || value === "auto") return "__auto__";
+    if (value === null || value === undefined || value === "" || value === "auto") return "__auto__";
     const normalized = String(value).trim().toLowerCase();
     if (["__auto__", "automatic", "automatisch"].includes(normalized)) return "__auto__";
     if (["__none__", "none", "null", "keine", "no", "false"].includes(normalized)) return "__none__";
     return String(value);
   }
-  _unitOptions(p2) {
-    const current = this._triStateCurrent(p2.override_unit);
+
+  _unitOptions(p) {
+    const current = this._triStateCurrent(p.override_unit);
     const values = [
-      ["__auto__", `Automatisch (BACnet: ${p2.bacnet_unit || "keine"})`],
-      ["__none__", "Keine Einheit"],
-      ["%", "%"],
-      ["°C", "°C"],
-      ["cm", "cm"],
-      ["W", "W"],
-      ["kW", "kW"],
-      ["Wh", "Wh"],
-      ["kWh", "kWh"],
-      ["V", "V"],
-      ["A", "A"],
-      ["Hz", "Hz"],
-      ["lx", "lx"],
-      ["Pa", "Pa"],
-      ["bar", "bar"],
-      ["min", "min"],
-      ["s", "s"],
-      ["h", "h"]
+      ["__auto__", `Automatisch (BACnet: ${p.bacnet_unit || "keine"})`],
+      ["__none__", "Keine Einheit"], ["%", "%"], ["°C", "°C"], ["cm", "cm"], ["W", "W"], ["kW", "kW"],
+      ["Wh", "Wh"], ["kWh", "kWh"], ["V", "V"], ["A", "A"], ["Hz", "Hz"],
+      ["lx", "lx"], ["Pa", "Pa"], ["bar", "bar"], ["min", "min"], ["s", "s"], ["h", "h"],
     ];
     return this._options(values, current);
   }
+
   _binaryDeviceClassOptions(current) {
     return this._options([
-      ["", "Keine"],
-      ["battery", "Batterie"],
-      ["battery_charging", "Batterie lädt"],
-      ["carbon_monoxide", "Kohlenmonoxid"],
-      ["cold", "Kälte"],
-      ["connectivity", "Verbindung"],
-      ["door", "Tür"],
-      ["garage_door", "Garagentor"],
-      ["gas", "Gas"],
-      ["heat", "Hitze"],
-      ["light", "Licht"],
-      ["lock", "Schloss"],
-      ["moisture", "Feuchtigkeit"],
-      ["motion", "Bewegung"],
-      ["moving", "Bewegung / Stillstand"],
-      ["occupancy", "Belegung"],
-      ["opening", "Öffnung"],
-      ["plug", "Steckdose / Plug"],
-      ["power", "Strom"],
-      ["presence", "Anwesenheit"],
-      ["problem", "Problem"],
-      ["running", "Läuft"],
-      ["safety", "Sicherheit"],
-      ["smoke", "Rauch"],
-      ["sound", "Geräusch"],
-      ["tamper", "Manipulation"],
-      ["update", "Update"],
-      ["vibration", "Vibration"],
-      ["window", "Fenster"]
+      ["", "Keine"], ["battery", "Batterie"], ["battery_charging", "Batterie lädt"],
+      ["carbon_monoxide", "Kohlenmonoxid"], ["cold", "Kälte"], ["connectivity", "Verbindung"],
+      ["door", "Tür"], ["garage_door", "Garagentor"], ["gas", "Gas"], ["heat", "Hitze"],
+      ["light", "Licht"], ["lock", "Schloss"], ["moisture", "Feuchtigkeit"], ["motion", "Bewegung"],
+      ["moving", "Bewegung / Stillstand"], ["occupancy", "Belegung"], ["opening", "Öffnung"],
+      ["plug", "Steckdose / Plug"], ["power", "Strom"], ["presence", "Anwesenheit"],
+      ["problem", "Problem"], ["running", "Läuft"], ["safety", "Sicherheit"],
+      ["smoke", "Rauch"], ["sound", "Geräusch"], ["tamper", "Manipulation"],
+      ["update", "Update"], ["vibration", "Vibration"], ["window", "Fenster"],
     ], current || "");
   }
-  _deviceClassOptions(p2) {
-    const current = this._triStateCurrent(p2.override_device_class);
+
+  _deviceClassOptions(p) {
+    const current = this._triStateCurrent(p.override_device_class);
     return this._options([
-      ["__auto__", `Automatisch (${p2.device_class || "keine"})`],
-      ["__none__", "Keine"],
-      ["temperature", "Temperatur"],
-      ["humidity", "Luftfeuchtigkeit"],
-      ["power", "Leistung"],
-      ["energy", "Energie"],
-      ["voltage", "Spannung"],
-      ["current", "Strom"],
-      ["frequency", "Frequenz"],
-      ["pressure", "Druck"],
-      ["distance", "Entfernung"],
-      ["illuminance", "Beleuchtungsstärke"],
-      ["duration", "Dauer"],
-      ["co2", "CO₂"],
-      ["pm25", "PM2.5"],
-      ["pm10", "PM10"]
+      ["__auto__", `Automatisch (${p.device_class || "keine"})`], ["__none__", "Keine"], ["temperature", "Temperatur"], ["humidity", "Luftfeuchtigkeit"],
+      ["power", "Leistung"], ["energy", "Energie"], ["voltage", "Spannung"], ["current", "Strom"],
+      ["frequency", "Frequenz"], ["pressure", "Druck"], ["distance", "Entfernung"], ["illuminance", "Beleuchtungsstärke"], ["duration", "Dauer"],
+      ["co2", "CO₂"], ["pm25", "PM2.5"], ["pm10", "PM10"],
     ], current);
   }
-  _stateClassOptions(p2) {
-    const current = this._triStateCurrent(p2.override_state_class);
+
+  _stateClassOptions(p) {
+    const current = this._triStateCurrent(p.override_state_class);
     return this._options([
-      ["__auto__", `Automatisch (${p2.state_class || "keine"})`],
-      ["__none__", "Keine"],
-      ["measurement", "measurement"],
-      ["total", "total"],
-      ["total_increasing", "total_increasing"]
+      ["__auto__", `Automatisch (${p.state_class || "keine"})`], ["__none__", "Keine"], ["measurement", "measurement"], ["total", "total"], ["total_increasing", "total_increasing"],
     ], current);
   }
-  _updateModeOptions(p2) {
-    const current = p2.update_mode || (p2.enabled === false ? "disabled" : p2.subscribe === true ? "subscribe" : "disabled");
+
+  _updateModeOptions(p) {
+    const current = p.update_mode || (p.enabled === false ? "disabled" : (p.subscribe === true ? "subscribe" : "disabled"));
     return this._options([
       ["disabled", "Deaktiviert / keine Aktualisierung"],
       ["subscribe", "🔵 Push / Subscribe"],
-      ["polling", "Polling"]
+      ["polling", "Polling"],
     ], current);
   }
+
   _options(values, current) {
     const hasCurrent = values.some(([value]) => value === current);
     const list = hasCurrent || current === "auto" ? values : [[current, `${current} (aktuell)`], ...values];
     return list.map(([value, label]) => `<option value="${this._escape(value)}" ${value === current ? "selected" : ""}>${this._escape(label)}</option>`).join("");
   }
-  _modeLabel(p2) {
-    const label = this._plainModeLabel(p2);
-    const cls = p2.update_mode === "subscribe" ? "ok" : p2.update_mode === "polling" ? "warn" : "bad";
+
+  _modeLabel(p) {
+    const label = this._plainModeLabel(p);
+    const cls = p.update_mode === "subscribe" ? "ok" : (p.update_mode === "polling" ? "warn" : "bad");
     return `<span class="pill ${cls}">${this._escape(label)}</span>`;
   }
-  _modeChipHtml(p2) {
-    const mode = p2.update_mode === "subscribe" ? "push" : p2.update_mode === "polling" ? "polling" : "off";
-    return `<span class="mode-chip ${mode}">${this._escape(this._plainModeLabel(p2))}</span>`;
+
+  _modeChipHtml(p) {
+    const mode = p.update_mode === "subscribe" ? "push" : (p.update_mode === "polling" ? "polling" : "off");
+    return `<span class="mode-chip ${mode}">${this._escape(this._plainModeLabel(p))}</span>`;
   }
-  _plainModeLabel(p2) {
-    if (p2.update_mode === "subscribe") return "Push / Subscribe";
-    if (p2.update_mode === "polling") return "Polling";
+
+  _plainModeLabel(p) {
+    if (p.update_mode === "subscribe") return "Push / Subscribe";
+    if (p.update_mode === "polling") return "Polling";
     return "Deaktiviert";
   }
-  _runtimeLabel(p2) {
+
+  _runtimeLabel(p) {
     const dot = (state, label) => `<bepacom-runtime-indicator state="${state}" label="${this._escape(label)}"></bepacom-runtime-indicator>`;
-    if (p2.update_mode === "disabled") return dot("off", "Aus");
-    if (p2.update_mode === "subscribe" && this._diagnostics?.snapshot_websocket_mode === true && this._diagnostics?.subscriptions_initialized === true && this._diagnostics?.connected === true && Number(this._diagnostics?.snapshot_targets || 0) > 0) {
+    if (p.update_mode === "disabled") return dot("off", "Aus");
+    if (
+      p.update_mode === "subscribe"
+      && this._diagnostics?.snapshot_websocket_mode === true
+      && this._diagnostics?.subscriptions_initialized === true
+      && this._diagnostics?.connected === true
+      && Number(this._diagnostics?.snapshot_targets || 0) > 0
+    ) {
       return dot(
         "snapshot",
-        "Snapshot aktiv – Aktualisierung über die gemeinsame Snapshot-Verbindung"
+        "Snapshot aktiv – Aktualisierung über die gemeinsame Snapshot-Verbindung",
       );
     }
-    if (p2.subscribed === true) return dot("push", "Push aktiv");
-    if (p2.fallback_polling === true) return dot("poll", "Polling-Fallback aktiv");
-    if (p2.update_mode === "polling") return dot("poll", "Polling aktiv");
+    if (p.subscribed === true) return dot("push", "Push aktiv");
+    if (p.fallback_polling === true) return dot("poll", "Polling-Fallback aktiv");
+    if (p.update_mode === "polling") return dot("poll", "Polling aktiv");
     return dot("wait", "Wartet");
   }
+
   _value(value) {
-    if (value === null || value === void 0 || value === "") return "-";
+    if (value === null || value === undefined || value === "") return "-";
     if (typeof value === "object") return JSON.stringify(value);
     return String(value);
   }
+
   _cssEscape(value) {
     if (window.CSS && typeof window.CSS.escape === "function") return window.CSS.escape(String(value));
     return String(value).replace(/[^a-zA-Z0-9_-]/g, "\\$&");
   }
+
   _escape(value) {
-    return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
   }
 }
+
 if (!customElements.get("bepacom-explorer-view")) {
   customElements.define("bepacom-explorer-view", BepacomExplorerView);
 }
-var __defProp$6 = Object.defineProperty;
-var __getOwnPropDesc$6 = Object.getOwnPropertyDescriptor;
-var __decorateClass$6 = (decorators, target, key, kind) => {
-  var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc$6(target, key) : target;
-  for (var i2 = decorators.length - 1, decorator; i2 >= 0; i2--)
-    if (decorator = decorators[i2])
-      result = (kind ? decorator(target, key, result) : decorator(result)) || result;
-  if (kind && result) __defProp$6(target, key, result);
-  return result;
-};
-let BepacomStatusMetric = class extends i {
-  constructor() {
-    super(...arguments);
-    this.label = "";
-    this.value = "-";
-    this.icon = "ℹ️";
-    this.tone = "";
-  }
-  render() {
-    return b`
-      <span class="icon" aria-hidden="true">${this.icon}</span>
-      <span class="text">
-        <strong title=${this.value}>${this.value}</strong>
-        <small title=${this.label}>${this.label}</small>
-      </span>
-    `;
-  }
-};
-BepacomStatusMetric.styles = i$3`
-    :host {
-      box-sizing: border-box;
-      display: flex;
-      align-items: center;
-      min-width: 0;
-      min-height: 48px;
-      gap: 10px;
-      padding: 9px 11px;
-      border: 0;
-      border-radius: 11px;
-      background: rgba(255,255,255,.055);
-      color: var(--primary-text-color);
-      font-family: Inter, "SF Pro Display", "Segoe UI Variable", "Segoe UI", sans-serif;
-    }
-
-    :host([tone="stat-ok"]) {
-      border-color: color-mix(
-        in srgb,
-        var(--success-color, #43a047) 45%,
-        var(--divider-color)
-      );
-      background: color-mix(
-        in srgb,
-        var(--success-color, #43a047) 10%,
-        var(--secondary-background-color)
-      );
-    }
-
-    :host([tone="stat-warn"]) {
-      border-color: color-mix(
-        in srgb,
-        var(--warning-color, #ffa600) 55%,
-        var(--divider-color)
-      );
-      background: color-mix(
-        in srgb,
-        var(--warning-color, #ffa600) 12%,
-        var(--secondary-background-color)
-      );
-    }
-
-    :host([tone="stat-bad"]) {
-      border-color: color-mix(
-        in srgb,
-        var(--error-color, #db4437) 55%,
-        var(--divider-color)
-      );
-      background: color-mix(
-        in srgb,
-        var(--error-color, #db4437) 12%,
-        var(--secondary-background-color)
-      );
-    }
-
-    :host([tone="stat-muted"]) {
-      opacity: 0.78;
-    }
-
-    .icon {
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      flex: 0 0 28px;
-      width: 28px;
-      height:28px;
-      border-radius:50%;
-      background:rgba(255,255,255,.075);
-      text-align: center;
-      font-size: 14px;
-    }
-
-    .text {
-      display: block;
-      min-width: 0;
-    }
-
-    strong,
-    small {
-      display: block;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    strong {
-      color:#f7f4ee;
-      font-size: 15px;
-      line-height: 1.15;
-      letter-spacing:-.02em;
-    }
-
-    small {
-      margin-top: 2px;
-      color: #aaa398;
-      font-size: 11px;
-      line-height: 1.2;
-    }
-  `;
-__decorateClass$6([
-  n2()
-], BepacomStatusMetric.prototype, "label", 2);
-__decorateClass$6([
-  n2()
-], BepacomStatusMetric.prototype, "value", 2);
-__decorateClass$6([
-  n2()
-], BepacomStatusMetric.prototype, "icon", 2);
-__decorateClass$6([
-  n2({ reflect: true })
-], BepacomStatusMetric.prototype, "tone", 2);
-BepacomStatusMetric = __decorateClass$6([
-  t("bepacom-status-metric")
-], BepacomStatusMetric);
-var __defProp$5 = Object.defineProperty;
-var __getOwnPropDesc$5 = Object.getOwnPropertyDescriptor;
-var __decorateClass$5 = (decorators, target, key, kind) => {
-  var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc$5(target, key) : target;
-  for (var i2 = decorators.length - 1, decorator; i2 >= 0; i2--)
-    if (decorator = decorators[i2])
-      result = (kind ? decorator(target, key, result) : decorator(result)) || result;
-  if (kind && result) __defProp$5(target, key, result);
-  return result;
-};
-let BepacomRuntimeIndicator = class extends i {
-  constructor() {
-    super(...arguments);
-    this.state = "wait";
-    this.label = "Wartet";
-  }
-  render() {
-    return b`<span class=${this.state} role="img" aria-label=${this.label} title=${this.label}></span>`;
-  }
-};
-BepacomRuntimeIndicator.styles = i$3`
-    :host { display:inline-flex; align-items:center; justify-content:center; }
-    span { display:inline-block; width:11px; height:11px; border:1px solid color-mix(in srgb,currentColor 35%,transparent); border-radius:50%; background:var(--secondary-text-color); box-shadow:0 0 0 3px color-mix(in srgb,currentColor 10%,transparent); }
-    .off { color:var(--secondary-text-color); opacity:.55; }
-    .snapshot { color:#7e57c2; background:currentColor; }
-    .push { color:var(--success-color,#43a047); background:currentColor; }
-    .poll { color:var(--warning-color,#ffa600); background:currentColor; }
-    .wait { color:var(--info-color,#039be5); background:transparent; }
-  `;
-__decorateClass$5([
-  n2()
-], BepacomRuntimeIndicator.prototype, "state", 2);
-__decorateClass$5([
-  n2()
-], BepacomRuntimeIndicator.prototype, "label", 2);
-BepacomRuntimeIndicator = __decorateClass$5([
-  t("bepacom-runtime-indicator")
-], BepacomRuntimeIndicator);
-let BepacomObjectBadge = class extends i {
-  constructor() {
-    super(...arguments);
-    this.kind = "other";
-    this.label = "?";
-    this.description = "";
-  }
-  render() {
-    return b`<span class=${this.kind} title=${this.description}>${this.label}</span>`;
-  }
-};
-BepacomObjectBadge.styles = i$3`
-    :host { display:inline-flex; flex:0 0 auto; }
-    span { box-sizing:border-box; display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border:1px solid var(--divider-color); border-radius:10px; background:var(--secondary-background-color); color:var(--primary-text-color); font-size:11px; font-weight:800; letter-spacing:.2px; }
-    .ai,.ao,.av { color:#64b5f6; border-color:color-mix(in srgb,#64b5f6 50%,var(--divider-color)); }
-    .bi,.bo,.bv { color:#81c784; border-color:color-mix(in srgb,#81c784 50%,var(--divider-color)); }
-    .ms { color:#ffb74d; border-color:color-mix(in srgb,#ffb74d 50%,var(--divider-color)); }
-  `;
-__decorateClass$5([
-  n2()
-], BepacomObjectBadge.prototype, "kind", 2);
-__decorateClass$5([
-  n2()
-], BepacomObjectBadge.prototype, "label", 2);
-__decorateClass$5([
-  n2()
-], BepacomObjectBadge.prototype, "description", 2);
-BepacomObjectBadge = __decorateClass$5([
-  t("bepacom-object-badge")
-], BepacomObjectBadge);
-let BepacomWriteProfileIndicator = class extends i {
-  constructor() {
-    super(...arguments);
-    this.glt = false;
-  }
-  render() {
-    const label = this.glt ? "Über GLT schreiben" : "Direkt schreiben";
-    return b`<span class=${this.glt ? "glt" : "direct"} role="img" aria-label=${label} title=${label}></span>`;
-  }
-};
-BepacomWriteProfileIndicator.styles = i$3`
-    :host { display:inline-flex; align-items:center; justify-content:center; }
-    span { display:inline-block; width:10px; height:10px; border-radius:50%; border:1px solid color-mix(in srgb,currentColor 45%,transparent); box-shadow:0 0 0 3px color-mix(in srgb,currentColor 10%,transparent); }
-    .direct { color:var(--primary-color); background:currentColor; }
-    .glt { color:#ab47bc; background:currentColor; }
-  `;
-__decorateClass$5([
-  n2({ type: Boolean })
-], BepacomWriteProfileIndicator.prototype, "glt", 2);
-BepacomWriteProfileIndicator = __decorateClass$5([
-  t("bepacom-write-profile-indicator")
-], BepacomWriteProfileIndicator);
-var __defProp$4 = Object.defineProperty;
-var __getOwnPropDesc$4 = Object.getOwnPropertyDescriptor;
-var __decorateClass$4 = (decorators, target, key, kind) => {
-  var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc$4(target, key) : target;
-  for (var i2 = decorators.length - 1, decorator; i2 >= 0; i2--)
-    if (decorator = decorators[i2])
-      result = (kind ? decorator(target, key, result) : decorator(result)) || result;
-  if (kind && result) __defProp$4(target, key, result);
-  return result;
-};
-let BepacomExplorerToolbar = class extends i {
-  constructor() {
-    super(...arguments);
-    this.activeView = "explorer";
-    this.virtualCount = 0;
-    this.filters = {
-      search: "",
-      device_id: "all",
-      object_type: "all",
-      runtime: "all",
-      only_overrides: false,
-      only_subscribe: false
-    };
-    this.devices = [];
-    this.objectTypes = [];
-    this.groupBy = "type";
-  }
-  _emit(action, key, value) {
-    this.dispatchEvent(
-      new CustomEvent("bepacom-toolbar-action", {
-        bubbles: true,
-        composed: true,
-        detail: { action, key, value }
-      })
-    );
-  }
-  render() {
-    return b`
-      <div class="nav">
-        <button
-          class=${this.activeView === "explorer" ? "tab active" : "tab"}
-          @click=${() => this._emit("view", "activeView", "explorer")}
-        >Explorer</button>
-        <button
-          class=${this.activeView === "virtual" ? "tab active" : "tab"}
-          @click=${() => this._emit("view", "activeView", "virtual")}
-        >Virtuelle Entitäten${this.virtualCount ? ` (${this.virtualCount})` : ""}</button>
-      </div>
-
-      <div class="field search">
-        <label for="search">Suche BACnet-Objekte</label>
-        <input
-          id="search"
-          .value=${this.filters.search || ""}
-          placeholder="820*, Rollo, multiStateInput 82*"
-          @input=${(event) => this._emit("filter", "search", event.target.value)}
-        >
-      </div>
-
-      <div class="field">
-        <label for="device">Device</label>
-        <select
-          id="device"
-          .value=${this.filters.device_id || "all"}
-          @change=${(event) => this._emit("filter", "device_id", event.target.value)}
-        >
-          <option value="all">Alle Devices</option>
-          ${this.devices.map((device) => b`<option value=${device}>Device ${device}</option>`)}
-        </select>
-      </div>
-
-      <div class="field">
-        <label for="type">Objekttyp</label>
-        <select
-          id="type"
-          .value=${this.filters.object_type || "all"}
-          @change=${(event) => this._emit("filter", "object_type", event.target.value)}
-        >
-          <option value="all">Alle Objekttypen</option>
-          ${this.objectTypes.map((type) => b`<option value=${type}>${type}</option>`)}
-        </select>
-      </div>
-
-      <div class="field">
-        <label for="runtime">Status / Transport</label>
-        <select
-          id="runtime"
-          .value=${this.filters.runtime || "all"}
-          @change=${(event) => this._emit("runtime", "runtime", event.target.value)}
-        >
-          <option value="all">Alle</option>
-          <option value="enabled">Aktiv</option>
-          <option value="disabled">Deaktiviert</option>
-          <option value="subscribe">Push / Subscribe</option>
-          <option value="polling">Polling</option>
-          <option value="fallback">Polling-Fallback</option>
-        </select>
-      </div>
-
-      <div class="field">
-        <label for="group">Gruppierung</label>
-        <select
-          id="group"
-          .value=${this.groupBy || "none"}
-          @change=${(event) => this._emit("group", "groupBy", event.target.value)}
-        >
-          <option value="none">Keine</option>
-          <option value="type">Nach BACnet-Typ</option>
-          <option value="device">Nach Device</option>
-        </select>
-      </div>
-
-      <label class="check">
-        <input
-          type="checkbox"
-          .checked=${Boolean(this.filters.only_overrides)}
-          @change=${(event) => this._emit("filter", "only_overrides", event.target.checked)}
-        >
-        nur Overrides
-      </label>
-
-      <label class="check">
-        <input
-          type="checkbox"
-          .checked=${Boolean(this.filters.only_subscribe)}
-          @change=${(event) => this._emit("filter", "only_subscribe", event.target.checked)}
-        >
-        <bepacom-runtime-indicator state="push" label="Subscribe"></bepacom-runtime-indicator>
-        Subscribe
-      </label>
-
-      <button class="reset" @click=${() => this._emit("reset")}>Reset</button>
-    `;
-  }
-};
-BepacomExplorerToolbar.styles = i$3`
-    :host {
-      box-sizing: border-box;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: flex-end;
-      gap: 9px;
-      margin-bottom: 10px;
-      padding: 10px;
-      border: 1px solid rgba(255,255,255,.1);
-      border-radius: 13px;
-      background: rgba(72,70,67,.7);
-      box-shadow: 0 12px 34px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.035);
-      backdrop-filter:blur(22px);
-      font-family:Inter,"SF Pro Display","Segoe UI Variable","Segoe UI",sans-serif;
-    }
-
-    .nav {
-      align-self: stretch;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 12px 4px 4px;
-      border-right: 1px solid var(--divider-color);
-    }
-
-    button {
-      min-height: 32px;
-      padding: 7px 12px;
-      border: 1px solid rgba(255,255,255,.1);
-      border-radius: 999px;
-      background: rgba(255,255,255,.055);
-      color: var(--primary-text-color);
-      cursor: pointer;
-      font: inherit;
-      font-size: 12px;
-      font-weight: 650;
-    }
-
-    .tab.active {
-      color:#fff;
-      border-color: rgba(255,255,255,.3);
-      background: rgba(255,255,255,.095);
-    }
-
-    .field {
-      flex: 0 1 145px;
-      min-width: 112px;
-      padding: 4px 6px;
-    }
-
-    .field.search {
-      flex: 1 1 280px;
-      min-width: 220px;
-    }
-
-    label {
-      display: block;
-      margin-bottom: 4px;
-      color: #aaa398;
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.02em;
-    }
-
-    input,
-    select {
-      box-sizing: border-box;
-      width: 100%;
-      min-height: 32px;
-      padding: 7px 9px;
-      border: 1px solid rgba(255,255,255,.1);
-      border-radius: 9px;
-      background: rgba(30,29,28,.28);
-      color: var(--primary-text-color);
-      font: inherit;
-      font-size: 12px;
-    }
-
-    select {
-      color-scheme: dark;
-      accent-color: #d88c39;
-    }
-
-    select option,
-    select optgroup {
-      color: #f3f0ea;
-      background: #45433f;
-    }
-
-    select option:checked {
-      color: #fff7ec;
-      background: #7a5732;
-    }
-
-    .search input {
-      border-color: rgba(255,255,255,.1);
-      background: rgba(30,29,28,.32);
-    }
-
-    .check {
-      align-self: center;
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      min-height: 32px;
-      margin: 17px 4px 0;
-      color: var(--primary-text-color);
-      font-size: 12px;
-      text-transform: none;
-    }
-
-    .check input {
-      width: auto;
-      min-height: 0;
-    }
-
-    .reset {
-      margin: 17px 4px 0;
-    }
-
-    @media (max-width: 1100px) {
-      .nav {
-        flex: 1 0 100%;
-        padding: 2px 2px 8px;
-        border-right: 0;
-        border-bottom: 1px solid var(--divider-color);
-      }
-    }
-  `;
-__decorateClass$4([
-  n2()
-], BepacomExplorerToolbar.prototype, "activeView", 2);
-__decorateClass$4([
-  n2({ type: Number })
-], BepacomExplorerToolbar.prototype, "virtualCount", 2);
-__decorateClass$4([
-  n2({ attribute: false })
-], BepacomExplorerToolbar.prototype, "filters", 2);
-__decorateClass$4([
-  n2({ attribute: false })
-], BepacomExplorerToolbar.prototype, "devices", 2);
-__decorateClass$4([
-  n2({ attribute: false })
-], BepacomExplorerToolbar.prototype, "objectTypes", 2);
-__decorateClass$4([
-  n2()
-], BepacomExplorerToolbar.prototype, "groupBy", 2);
-BepacomExplorerToolbar = __decorateClass$4([
-  t("bepacom-explorer-toolbar")
-], BepacomExplorerToolbar);
-var __defProp$3 = Object.defineProperty;
-var __getOwnPropDesc$3 = Object.getOwnPropertyDescriptor;
-var __decorateClass$3 = (decorators, target, key, kind) => {
-  var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc$3(target, key) : target;
-  for (var i2 = decorators.length - 1, decorator; i2 >= 0; i2--)
-    if (decorator = decorators[i2])
-      result = (kind ? decorator(target, key, result) : decorator(result)) || result;
-  if (kind && result) __defProp$3(target, key, result);
-  return result;
-};
-let BepacomPointTable = class extends i {
-  constructor() {
-    super(...arguments);
-    this.rows = [];
-    this.emptyMessage = "Keine BACnet-Objekte gefunden.";
-    this.sortKey = "object_key";
-    this.sortDirection = "asc";
-  }
-  createRenderRoot() {
-    return this;
-  }
-  _action(action, detail = {}) {
-    this.dispatchEvent(
-      new CustomEvent("bepacom-table-action", {
-        detail: { action, ...detail },
-        bubbles: true,
-        composed: true
-      })
-    );
-  }
-  _header(key, label, className = "") {
-    const marker = this.sortKey === key ? this.sortDirection === "asc" ? " ▲" : " ▼" : "";
-    return b`
-      <th class=${`sortable ${className}`}>
-        <button class="sort-btn" @click=${() => this._action("sort", { key })}>${label}${marker}</button>
-      </th>
-    `;
-  }
-  _pointRow(row) {
-    return b`
-      <tr
-        class=${`${row.selected ? "selected" : ""} ${row.changeClass}`}
-        data-uid=${row.uniqueId}
-        @click=${() => this._action("select-point", { uniqueId: row.uniqueId })}
-        @dblclick=${(event) => {
-      if (event.target?.closest("input, select, button")) return;
-      this._action("open-details", { uniqueId: row.uniqueId });
-    }}
-      >
-        <td class="select-col">
-          <input
-            class="row-select"
-            type="checkbox"
-            .checked=${row.checked}
-            @click=${(event) => {
-      event.stopPropagation();
-      this._action("select-row", {
-        uniqueId: row.uniqueId,
-        checked: event.currentTarget.checked
-      });
-    }}
-          >
-        </td>
-        <td data-col="object">
-          <div class="object-main">
-            <bepacom-object-badge
-              .kind=${row.objectKind}
-              .label=${row.objectIcon}
-              .description=${row.objectType}
-            ></bepacom-object-badge>
-            <div><div class="name">${row.objectKey}</div><div class="muted">Device ${row.deviceId}</div></div>
-          </div>
-        </td>
-        <td data-col="entity">
-          <div class="entity-stack">
-            <button
-              class="link-cell entity-link"
-              @click=${(event) => {
-      event.stopPropagation();
-      this._action("more-info", { entityId: row.entityId });
-    }}
-            >${row.entityName}</button>
-            ${row.linkedEntities.length ? b`
-                  <div class="linked-entities">
-                    <span class="virtual-badge" title=${`${row.linkedEntities.length} virtuelle Entität${row.linkedEntities.length === 1 ? "" : "en"}`}>
-                      🔗 ${row.linkedEntities.length}
-                    </span>
-                    ${row.linkedEntities.map(
-      (link) => b`
-                        <button
-                          class="linked-entity-link"
-                          title=${link.title}
-                          ?disabled=${!link.entityId}
-                          @click=${(event) => {
-        event.stopPropagation();
-        this._action("more-info", { entityId: link.entityId });
-      }}
-                        >↳ <span class="linked-icon">${link.icon}</span> <span class="linked-name">${link.name}</span> <span class="linked-state">${link.state}</span></button>
-                      `
-    )}
-                  </div>
-                ` : ""}
-          </div>
-        </td>
-        <td data-col="value">
-          <button
-            class="link-cell value-link"
-            @click=${(event) => {
-      event.stopPropagation();
-      this._action("more-info", { entityId: row.entityId });
-    }}
-          >${row.value}</button>
-        </td>
-        <td data-col="unit"><div class="unit-stack"><span class="unit-display">${row.unit}</span></div></td>
-        <td data-col="override">${row.overrideActive ? b`<span class="pill ok">Override</span>` : b`<span class="pill">Standard</span>`}</td>
-        <td data-col="write-profile" class="write-profile-cell">
-          <bepacom-write-profile-indicator .glt=${row.writeViaGlt}></bepacom-write-profile-indicator>
-        </td>
-        <td data-col="status">
-          <bepacom-runtime-indicator .state=${row.runtimeState} .label=${row.runtimeLabel}></bepacom-runtime-indicator>
-        </td>
-      </tr>
-    `;
-  }
-  render() {
-    if (!this.rows.length) return b`<div class="empty">${this.emptyMessage}</div>`;
-    return b`
-      <table>
-        <colgroup>
-          <col class="select-col-col"><col class="object-col-col"><col class="entity-col-col"><col class="value-col-col">
-          <col class="unit-col-col"><col class="override-col-col"><col class="write-profile-col-col"><col class="runtime-col-col">
-        </colgroup>
-        <thead>
-          <tr>
-            <th class="select-col">
-              <input type="checkbox" title="Sichtbare auswählen" @change=${(event) => this._action("select-visible", { checked: event.currentTarget.checked })}>
-            </th>
-            ${this._header("object_key", "Objekt", "object-col")}
-            ${this._header("entity", "HA Entität")}
-            ${this._header("present_value", "Wert")}
-            ${this._header("unit", "Einheit")}
-            ${this._header("override", "Override")}
-            ${this._header("write_profile", "Schreiben", "write-profile-head")}
-            ${this._header("runtime", "", "runtime-head")}
-          </tr>
-        </thead>
-        <tbody>
-          ${this.rows.map((row) => {
-      if (row.kind === "spacer") return b`<tr class="virtual-spacer"><td colspan="8" style=${`height:${row.height}px`}></td></tr>`;
-      if (row.kind === "group") {
-        return b`
-                <tr class="group-row">
-                  <td colspan="8">
-                    <button class="group-toggle" @click=${() => this._action("toggle-group", { key: row.key })}>
-                      ${row.open ? "▾" : "▸"} ${row.label} <span class="muted">(${row.count})</span>
-                    </button>
-                  </td>
-                </tr>
-              `;
-      }
-      return this._pointRow(row);
-    })}
-        </tbody>
-      </table>
-    `;
-  }
-};
-__decorateClass$3([
-  n2({ attribute: false })
-], BepacomPointTable.prototype, "rows", 2);
-__decorateClass$3([
-  n2()
-], BepacomPointTable.prototype, "emptyMessage", 2);
-__decorateClass$3([
-  n2()
-], BepacomPointTable.prototype, "sortKey", 2);
-__decorateClass$3([
-  n2()
-], BepacomPointTable.prototype, "sortDirection", 2);
-BepacomPointTable = __decorateClass$3([
-  t("bepacom-point-table")
-], BepacomPointTable);
-var __defProp$2 = Object.defineProperty;
-var __getOwnPropDesc$2 = Object.getOwnPropertyDescriptor;
-var __decorateClass$2 = (decorators, target, key, kind) => {
-  var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc$2(target, key) : target;
-  for (var i2 = decorators.length - 1, decorator; i2 >= 0; i2--)
-    if (decorator = decorators[i2])
-      result = (kind ? decorator(target, key, result) : decorator(result)) || result;
-  if (kind && result) __defProp$2(target, key, result);
-  return result;
-};
-const EMPTY_MODEL$1 = {
-  sideTab: "inspector",
-  selected: null,
-  inspector: {},
-  linkedEntities: [],
-  saving: false,
-  dirty: false,
-  errors: [],
-  sectionOpen: {},
-  preview: { sourceValue: "-", result: "unavailable", tone: "unknown" }
-};
-let BepacomPointInspector = class extends i {
-  constructor() {
-    super(...arguments);
-    this.model = EMPTY_MODEL$1;
-  }
-  createRenderRoot() {
-    return this;
-  }
-  _action(action, detail = {}) {
-    this.dispatchEvent(new CustomEvent("bepacom-inspector-action", {
-      detail: { action, ...detail },
-      bubbles: true,
-      composed: true
-    }));
-  }
-  _value(value) {
-    if (value === null || value === void 0 || value === "") return "-";
-    if (typeof value === "object") {
-      try {
-        return JSON.stringify(value);
-      } catch {
-        return String(value);
-      }
-    }
-    return String(value);
-  }
-  _current(value) {
-    if (value === null || value === void 0 || value === "" || value === "auto") return "__auto__";
-    const normalized = String(value).trim().toLowerCase();
-    if (["__auto__", "automatic", "automatisch"].includes(normalized)) return "__auto__";
-    if (["__none__", "none", "null", "keine", "no", "false"].includes(normalized)) return "__none__";
-    return String(value);
-  }
-  _options(values, current) {
-    const list = values.some(([value]) => value === current) ? values : [[current, `${current} (aktuell)`], ...values];
-    return list.map(([value, label]) => b`<option value=${value} ?selected=${value === current}>${label}</option>`);
-  }
-  _section(id, title, content) {
-    return b`
-      <details class="detail-section" data-section=${id} ?open=${!!this.model.sectionOpen[id]}>
-        <summary>${title}</summary>
-        <div class="detail-section-body">${content}</div>
-      </details>
-    `;
-  }
-  _tabs() {
-    const count = this.model.linkedEntities.length;
-    const tab = (id, label) => b`
-      <button class=${`side-tab ${this.model.sideTab === id ? "active" : ""}`} @click=${() => this._action("tab", { value: id })}>${label}</button>
-    `;
-    return b`
-      <div class="side-tabs">
-        ${tab("inspector", "Point Inspector")}
-        ${tab("virtual", `Virtuelle Entitäten${count ? ` (${count})` : ""}`)}
-        ${tab("technical", "Inspector")}
-        ${tab("engineering", "Engineering-Properties")}
-      </div>
-    `;
-  }
-  _virtualOverview() {
-    const point = this.model.selected;
-    if (!point) return b`<div class="side-section-head"><h2>Virtuelle Entitäten</h2><div class="muted">Wähle links einen BACnet-Punkt aus.</div></div>`;
-    return b`
-      <div class="side-section-head">
-        <h2>Virtuelle Entitäten</h2>
-        <div class="selected-source-box">
-          <div><strong>Quelle:</strong> ${point.object_key || point.unique_id || "-"}</div>
-          <div class="muted">${point.object_name || ""}</div>
-          <div class="muted">${this.model.linkedEntities.length} verknüpfte virtuelle Entität${this.model.linkedEntities.length === 1 ? "" : "en"}</div>
-        </div>
-      </div>
-      <div class="side-virtual-cards">
-        ${this.model.linkedEntities.length ? this.model.linkedEntities.map((entity) => b`
-              <div class="side-virtual-card">
-                <div class="side-virtual-card-title">
-                  <span class="side-virtual-card-name">${entity.name || entity.unique_id || "Virtuelle Entität"}</span>
-                  <span class="pill">${entity.device_class || "binary"}</span>
-                </div>
-                <div class="side-virtual-card-meta">${entity.entity_id || "Nach Reload verfügbar"}</div>
-                <div class="side-virtual-card-rules">
-                  <div><span>ON</span><code>${entity.on_value ?? "-"}</code></div>
-                  <div><span>OFF</span><code>${entity.off_value ?? "-"}</code></div>
-                  <div><span>ELSE</span><code>${entity.else_state || "unavailable"}</code></div>
-                </div>
-                <div class="virtual-icon-actions">
-                  <button class="secondary" @click=${() => this._action("edit-virtual", { virtualUid: entity.unique_id })}>Bearbeiten</button>
-                  <button class="secondary" @click=${() => this._action("duplicate-virtual", { virtualUid: entity.unique_id })}>Duplizieren</button>
-                  <button class="secondary" @click=${() => this._action("delete-virtual", { virtualUid: entity.unique_id, name: entity.name || "" })}>Löschen</button>
-                </div>
-              </div>
-            `) : b`<div class="muted">Für diesen Punkt sind noch keine virtuellen Entitäten vorhanden.</div>`}
-      </div>
-      <div class="actions"><button @click=${() => this._action("create-virtual")}>+ Neue virtuelle Entität</button></div>
-      <div class="muted" style="margin-top:8px;">Neue Einträge werden im Point Inspector unter „Virtuelle Entität konfigurieren“ angelegt.</div>
-    `;
-  }
-  _configuration(point) {
-    const type = String(point.object_type || "").toLowerCase().replace(/[^a-z]/g, "");
-    const analog = type === "analogvalue";
-    const multistate = type === "multistateoutput";
-    const representation = point.multistate_representation === "switch" ? "switch" : "number";
-    const unit = this._current(point.override_unit);
-    const deviceClass = this._current(point.override_device_class);
-    const stateClass = this._current(point.override_state_class);
-    const updateMode = point.update_mode || (point.enabled === false ? "disabled" : point.subscribe ? "subscribe" : "disabled");
-    const writeProfile = point.write_profile || "direct";
-    return b`
-      <div class="edit-grid">
-        <div><label>HA Entity ID</label><input id="editEntityId" .value=${point.entity_id || ""}></div>
-        <div><label>HA Entitätsname</label><input id="editEntityName" .value=${point.entity_name || ""} placeholder="leer = Standardname"></div>
-        <div><label>Einheit</label><select id="editUnit">${this._options([
-      ["__auto__", `Automatisch (BACnet: ${point.bacnet_unit || "keine"})`],
-      ["__none__", "Keine Einheit"],
-      ["%", "%"],
-      ["°C", "°C"],
-      ["cm", "cm"],
-      ["W", "W"],
-      ["kW", "kW"],
-      ["Wh", "Wh"],
-      ["kWh", "kWh"],
-      ["V", "V"],
-      ["A", "A"],
-      ["Hz", "Hz"],
-      ["lx", "lx"],
-      ["Pa", "Pa"],
-      ["bar", "bar"],
-      ["min", "min"],
-      ["s", "s"],
-      ["h", "h"]
-    ], unit)}</select></div>
-        <div><label>Device Class</label><select id="editDeviceClass">${this._options([
-      ["__auto__", `Automatisch (${point.device_class || "keine"})`],
-      ["__none__", "Keine"],
-      ["temperature", "Temperatur"],
-      ["humidity", "Luftfeuchtigkeit"],
-      ["power", "Leistung"],
-      ["energy", "Energie"],
-      ["voltage", "Spannung"],
-      ["current", "Strom"],
-      ["frequency", "Frequenz"],
-      ["pressure", "Druck"],
-      ["distance", "Entfernung"],
-      ["illuminance", "Beleuchtungsstärke"],
-      ["duration", "Dauer"],
-      ["co2", "CO₂"],
-      ["pm25", "PM2.5"],
-      ["pm10", "PM10"]
-    ], deviceClass)}</select></div>
-        <div><label>State Class</label><select id="editStateClass">${this._options([
-      ["__auto__", `Automatisch (${point.state_class || "keine"})`],
-      ["__none__", "Keine"],
-      ["measurement", "measurement"],
-      ["total", "total"],
-      ["total_increasing", "total_increasing"]
-    ], stateClass)}</select></div>
-        <div><label>Aktualisierungsmodus</label><select id="editUpdateMode">${this._options([
-      ["disabled", "Deaktiviert / keine Aktualisierung"],
-      ["subscribe", "🔵 Push / Subscribe"],
-      ["polling", "Polling"]
-    ], updateMode)}</select></div>
-      </div>
-      ${multistate ? b`
-        <h3 style="margin-top:14px;">Darstellung in Home Assistant</h3>
-        <div class="muted" style="margin-bottom:8px;">Als Schalter wird nur der konfigurierte AUS- bzw. EIN-Wert geschrieben.</div>
-        <div class="edit-grid">
-          <div><label>Entitätstyp</label><select id="editMultistateRepresentation">
-            <option value="number" ?selected=${representation === "number"}>Zahlenwert</option>
-            <option value="switch" ?selected=${representation === "switch"}>Schalter</option>
-          </select></div>
-          <div id="multistateSwitchValues" class="edit-grid" style=${`display:${representation === "switch" ? "contents" : "none"}`}>
-            <div><label>AUS-Wert</label><input id="editMultistateOffValue" type="number" step="any" .value=${String(point.multistate_off_value ?? 1)}></div>
-            <div><label>EIN-Wert</label><input id="editMultistateOnValue" type="number" step="any" .value=${String(point.multistate_on_value ?? 2)}></div>
-          </div>
-        </div>
-      ` : A}
-      ${analog || multistate ? b`
-        <h3 style="margin-top:14px;">Stellbereich</h3>
-        <div class="edit-grid">
-          <div><label>Mindestwert</label><input id="editNumberMin" type="number" step="any" .value=${String(point.number_min ?? -1e6)}></div>
-          <div><label>Höchstwert</label><input id="editNumberMax" type="number" step="any" .value=${String(point.number_max ?? 1e6)}></div>
-          <div><label>Schrittweite</label><input id="editNumberStep" type="number" min="0.000001" step="any" .value=${String(point.number_step ?? 0.01)}></div>
-          <div><label>BACnet-Priorität</label><input id="editWritePriority" type="number" min="1" max="16" .value=${String(point.write_priority ?? 8)}></div>
-        </div>
-        <h3 style="margin-top:14px;">Schreibprofil</h3>
-        <div class="edit-grid">
-          <div><label>Profil</label><select id="editWriteProfile">
-            <option value="direct" ?selected=${writeProfile === "direct"}>Direkt schreiben</option>
-            ${analog ? b`<option value="glt_set_as" ?selected=${writeProfile === "glt_set_as"}>GLT → Wert setzen → AS</option>` : A}
-            ${multistate ? b`<option value="glt_set_stage" ?selected=${writeProfile === "glt_set_stage"}>GLT → Stufe setzen</option>` : A}
-          </select></div>
-          <div><label>Wartezeit nach GLT aktivieren (ms)</label><input id="editGltDelayMs" type="number" min="0" max="60000" .value=${String(point.glt_delay_ms ?? (multistate ? 2e3 : 1200))}></div>
-          ${analog ? b`
-            <div><label>Wartezeit nach Wert schreiben (ms)</label><input id="editAsDelayMs" type="number" min="0" max="60000" .value=${String(point.as_delay_ms ?? 1200)}></div>
-            <div><label>Wartezeit vor Freigabe (ms)</label><input id="editReleaseDelayMs" type="number" min="0" max="60000" .value=${String(point.release_delay_ms ?? 200)}></div>
-            <div><label>Priorität 8 anschließend freigeben</label><div class="check"><input id="editReleasePriority" type="checkbox" .checked=${point.release_priority !== false}> analogValue und binaryValue freigeben</div></div>
-          ` : A}
-        </div>
-      ` : A}
-    `;
-  }
-  _virtualConfiguration(point) {
-    const virtual = point.virtual_binary || {};
-    const assistant = point.object_assistant?.kind === "virtual_binary" ? point.object_assistant : null;
-    const deviceClasses = [
-      ["", "Keine"],
-      ["battery", "Batterie"],
-      ["connectivity", "Verbindung"],
-      ["door", "Tür"],
-      ["garage_door", "Garagentor"],
-      ["gas", "Gas"],
-      ["heat", "Hitze"],
-      ["light", "Licht"],
-      ["lock", "Schloss"],
-      ["moisture", "Feuchtigkeit"],
-      ["motion", "Bewegung"],
-      ["occupancy", "Belegung"],
-      ["opening", "Öffnung"],
-      ["plug", "Steckdose / Plug"],
-      ["power", "Strom"],
-      ["presence", "Anwesenheit"],
-      ["problem", "Problem"],
-      ["running", "Läuft"],
-      ["safety", "Sicherheit"],
-      ["smoke", "Rauch"],
-      ["sound", "Geräusch"],
-      ["tamper", "Manipulation"],
-      ["vibration", "Vibration"],
-      ["window", "Fenster"]
-    ];
-    return b`
-      <div class="muted" style="margin-bottom:8px;">Erzeugt zusätzlich eine Binary-Sensor-Entität aus diesem Rohwert.</div>
-      <div class="rule-help"><strong>Regel-Hilfe:</strong> <code>2</code>, <code>&gt;2</code>, <code>1,2,5</code>, <code>2-5</code>, <code>active</code> oder <code>value &gt; 10 &amp;&amp; value &lt; 20</code></div>
-      ${assistant ? b`
-        <div class="assistant-card">
-          <div class="assistant-title">Objekt-Assistent: ${assistant.title || "Vorschlag"}</div>
-          <div class="muted">${assistant.reason || ""}</div>
-          <div class="assistant-grid">
-            <span>Name</span><strong>${assistant.name || "-"}</strong>
-            <span>Device Class</span><strong>${assistant.device_class || "-"}</strong>
-            <span>EIN wenn</span><code>${assistant.on_value || ""}</code>
-            <span>AUS wenn</span><code>${assistant.off_value || ""}</code>
-          </div>
-          <button id="applyObjectAssistant" class="secondary">Vorschlag übernehmen</button>
-        </div>
-      ` : A}
-      <div class="edit-grid">
-        <div><label>Virtuellen Binary Sensor erzeugen</label><div class="check"><input id="virtualBinaryEnabled" type="checkbox" .checked=${!!point.virtual_binary}> aktiv</div></div>
-        <div><label>Name</label><input id="virtualBinaryName" .value=${virtual.name || ""}></div>
-        <div><label>Unique ID</label><input id="virtualBinaryUniqueId" .value=${virtual.unique_id || `${point.unique_id}_binary`}></div>
-        <div><label>Device Class</label><select id="virtualBinaryDeviceClass">${this._options(deviceClasses, virtual.device_class || "plug")}</select></div>
-        <div><label>EIN wenn</label><input id="virtualBinaryOnValue" .value=${String(virtual.on_value ?? "2")}></div>
-        <div><label>AUS wenn</label><input id="virtualBinaryOffValue" .value=${String(virtual.off_value ?? "1")}></div>
-        <div><label>Sonst</label><select id="virtualBinaryElseState">
-          ${this._options([["unavailable", "unavailable"], ["off", "off"], ["unknown", "unknown"]], virtual.else_state || "unavailable")}
-        </select></div>
-      </div>
-      <div id="virtualRulePreview" class="rule-preview">
-        <div><span class="muted">Aktueller BACnet-Wert</span><strong>${this.model.preview.sourceValue}</strong></div>
-        <div><span class="muted">Regelergebnis</span><strong class=${`rule-result ${this.model.preview.tone}`}>${this.model.preview.result}</strong></div>
-      </div>
-    `;
-  }
-  _inspector() {
-    const point = this.model.selected;
-    if (!point) return b`<div class="side-section-head"><h2>Point Inspector</h2><div class="muted">Wähle links ein Objekt aus.</div></div>`;
-    const inspector = this.model.inspector || {};
-    [
-      ["Objekt", point.object_key],
-      ["Name", point.object_name || "-"],
-      ["HA Entity ID", point.entity_id || "-"],
-      ["HA Entity Name", point.entity_name || point.entity_original_name || "-"],
-      ["Device", point.device_id],
-      ["Present Value", this._value(point.present_value)],
-      ["BACnet Unit", point.bacnet_unit || "-"],
-      ["HA Unit", point.ha_unit || "-"],
-      ["Device Class", point.device_class || "-"],
-      ["State Class", point.state_class || "-"],
-      ["Override", point.override_active ? "Ja" : "Nein"],
-      ["Modus", point.update_mode === "subscribe" ? "Push / Subscribe" : point.update_mode === "polling" ? "Polling" : "Deaktiviert"],
-      ["Subscribed", point.subscribed == null ? "-" : point.subscribed ? "Ja" : "Nein"],
-      ["Aktives Polling", point.fallback_polling ? "Ja" : "Nein"],
-      ["Schreibbar", point.writable ? "Ja" : "Nein"],
-      ["Aktiv", point.enabled ? "Ja" : "Nein"],
-      ["Letztes Update", point.last_update || "-"],
-      ["Quelle", point.last_update_source || "-"],
-      ["Reliability", inspector.reliability || "-"],
-      ["Status Flags", inspector.status_flags || "-"],
-      ["COV Increment", inspector.cov_increment || "-"],
-      ["Push Updates", point.push_updates ?? inspector.push_updates ?? "-"],
-      ["Polling Updates", point.polling_updates ?? inspector.polling_updates ?? "-"],
-      ["Value Changes", point.value_changes ?? inspector.value_changes ?? "-"]
-    ];
-    const raw = inspector.raw || inspector;
-    Object.entries(raw);
-    return b`
-      <div class="point-inspector-head">
-        <div><h2>${point.object_key}</h2><div class="muted">${point.object_name || "-"}</div></div>
-        <div class="inspector-head-actions">
-          <button id="saveOverride" ?disabled=${this.model.saving}>Speichern${this.model.saving ? " …" : ""}</button>
-          <button id="discardEditor" class="secondary" ?disabled=${!this.model.dirty || this.model.saving}>Änderungen verwerfen</button>
-          <button id="resetOverride" class="secondary" ?disabled=${this.model.saving}>Override zurücksetzen</button>
-        </div>
-      </div>
-      <div id="editorDirtyBanner" class="dirty-banner" ?hidden=${!this.model.dirty}><strong>Ungespeicherte Änderungen</strong> – bitte speichern oder verwerfen.</div>
-      <div id="editorValidation" class="validation-errors" ?hidden=${!this.model.errors.length}>${this.model.errors.map((error) => b`<div>${error}</div>`)}</div>
-      <div id="priorityWarning" class="priority-warning" ?hidden=${!(Number(point.write_priority) >= 1 && Number(point.write_priority) <= 7)}>
-        <strong>Achtung:</strong> Eine BACnet-Priorität zwischen 1 und 7 übersteuert den üblichen Bedienwert auf Priorität 8.
-      </div>
-      ${this._section("config", "Konfiguration der Entität", this._configuration(point))}
-      ${this._section("virtual-config", "Virtuelle Entität konfigurieren", this._virtualConfiguration(point))}
-    `;
-  }
-  _technicalInspector() {
-    const point = this.model.selected;
-    if (!point) return b`<div class="side-section-head"><h2>Inspector</h2><div class="muted">Wähle links ein Objekt aus.</div></div>`;
-    const inspector = this.model.inspector || {};
-    const values = [
-      ["Objekt", point.object_key],
-      ["Name", point.object_name || "-"],
-      ["HA Entity ID", point.entity_id || "-"],
-      ["HA Entity Name", point.entity_name || point.entity_original_name || "-"],
-      ["Device", point.device_id],
-      ["Present Value", this._value(point.present_value)],
-      ["BACnet Unit", point.bacnet_unit || "-"],
-      ["HA Unit", point.ha_unit || "-"],
-      ["Device Class", point.device_class || "-"],
-      ["State Class", point.state_class || "-"],
-      ["Override", point.override_active ? "Ja" : "Nein"],
-      ["Modus", point.update_mode === "subscribe" ? "Push / Subscribe" : point.update_mode === "polling" ? "Polling" : "Deaktiviert"],
-      ["Subscribed", point.subscribed == null ? "-" : point.subscribed ? "Ja" : "Nein"],
-      ["Aktives Polling", point.fallback_polling ? "Ja" : "Nein"],
-      ["Schreibbar", point.writable ? "Ja" : "Nein"],
-      ["Aktiv", point.enabled ? "Ja" : "Nein"],
-      ["Letztes Update", point.last_update || "-"],
-      ["Quelle", point.last_update_source || "-"],
-      ["Reliability", inspector.reliability || "-"],
-      ["Status Flags", inspector.status_flags || "-"],
-      ["COV Increment", inspector.cov_increment || "-"],
-      ["Push Updates", point.push_updates ?? inspector.push_updates ?? "-"],
-      ["Polling Updates", point.polling_updates ?? inspector.polling_updates ?? "-"],
-      ["Value Changes", point.value_changes ?? inspector.value_changes ?? "-"]
-    ];
-    return b`
-      <div class="side-section-head"><h2>Inspector</h2><div class="muted">${point.object_key || ""}</div></div>
-      ${values.map(([key, value]) => b`<div class="kv"><div class="k">${key}</div><div class="v">${this._value(value)}</div></div>`)}
-    `;
-  }
-  _engineeringProperties() {
-    const point = this.model.selected;
-    if (!point) return b`<div class="side-section-head"><h2>Engineering-Properties</h2><div class="muted">Wähle links ein Objekt aus.</div></div>`;
-    const inspector = this.model.inspector || {};
-    const rows = Object.entries(inspector.raw || inspector);
-    return b`
-      <div class="side-section-head"><h2>Engineering-Properties</h2><div class="muted">${point.object_key || ""}</div></div>
-      ${rows.length ? rows.map(([key, value]) => b`<div class="kv"><div class="k">${key}</div><div class="v"><code>${this._value(value)}</code></div></div>`) : b`<div class="muted">Keine zusätzlichen Engineering-Daten vorhanden.</div>`}
-    `;
-  }
-  render() {
-    const content = this.model.sideTab === "virtual" ? this._virtualOverview() : this.model.sideTab === "technical" ? this._technicalInspector() : this.model.sideTab === "engineering" ? this._engineeringProperties() : this._inspector();
-    return b`${this._tabs()}<div class="side-body">${content}</div>`;
-  }
-  updated() {
-    this.dispatchEvent(new CustomEvent("bepacom-inspector-rendered", {
-      bubbles: true,
-      composed: true
-    }));
-  }
-};
-__decorateClass$2([
-  n2({ attribute: false })
-], BepacomPointInspector.prototype, "model", 2);
-BepacomPointInspector = __decorateClass$2([
-  t("bepacom-point-inspector")
-], BepacomPointInspector);
-var __defProp$1 = Object.defineProperty;
-var __getOwnPropDesc$1 = Object.getOwnPropertyDescriptor;
-var __decorateClass$1 = (decorators, target, key, kind) => {
-  var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc$1(target, key) : target;
-  for (var i2 = decorators.length - 1, decorator; i2 >= 0; i2--)
-    if (decorator = decorators[i2])
-      result = (kind ? decorator(target, key, result) : decorator(result)) || result;
-  if (kind && result) __defProp$1(target, key, result);
-  return result;
-};
-const EMPTY_MODEL = {
-  open: false,
-  tab: "live",
-  summary: "",
-  configured: [],
-  runtime: [],
-  developer: [],
-  liveChanges: [],
-  livePaused: false,
-  liveFilters: { search: "", source: "all", object_type: "all" }
-};
-let BepacomRuntimeDashboard = class extends i {
-  constructor() {
-    super(...arguments);
-    this.model = EMPTY_MODEL;
-  }
-  createRenderRoot() {
-    return this;
-  }
-  _action(action, detail = {}) {
-    this.dispatchEvent(
-      new CustomEvent("bepacom-dashboard-action", {
-        detail: { action, ...detail },
-        bubbles: true,
-        composed: true
-      })
-    );
-  }
-  _cards(cards) {
-    return cards.map(
-      (card) => b`
-        <bepacom-status-metric
-          .label=${card.label}
-          .value=${String(card.value ?? "-")}
-          .icon=${card.icon}
-          .tone=${card.tone}
-        ></bepacom-status-metric>
-      `
-    );
-  }
-  _headlineCards() {
-    const byLabel = (cards2, label) => cards2.find((card) => card.label === label);
-    const cards = [
-      byLabel(this.model.configured, "BACnet-Punkte"),
-      byLabel(this.model.configured, "Aktive Entitäten"),
-      byLabel(this.model.runtime, "Verbunden"),
-      byLabel(this.model.runtime, "Verbindungsfehler")
-    ].filter((card) => Boolean(card));
-    return cards.map((card) => b`
-      <div class=${`dashboard-headline-card ${card.tone || ""}`}>
-        <span class="dashboard-headline-icon" aria-hidden="true">${card.icon}</span>
-        <span>
-          <small>${card.label}</small>
-          <strong>${String(card.value ?? "-")}</strong>
-        </span>
-      </div>
-    `);
-  }
-  _navigation() {
-    const item = (tab, icon, label, suffix = "") => b`
-      <button
-        class=${`dashboard-nav-item ${this.model.tab === tab ? "active" : ""}`}
-        @click=${() => this._action("tab", { value: tab })}
-      >
-        <span class="dashboard-nav-icon" aria-hidden="true">${icon}</span>
-        <span>${label}</span>
-        ${suffix}
-      </button>
-    `;
-    return b`
-      <nav class="dashboard-nav" aria-label="Statusbereiche">
-        ${item("configuration", "▦", "Konfiguration")}
-        ${item("live", "▤", "Live-Log", b`<span class=${`live-dot ${this.model.livePaused ? "paused" : ""}`}></span>`)}
-        ${item("developer", "◇", "Push-Diagnose")}
-      </nav>
-    `;
-  }
-  _normalize(value) {
-    return String(value ?? "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").trim();
-  }
-  _matches(haystack, query) {
-    const terms = this._normalize(query).split(/\s+/).filter(Boolean);
-    const normalized = this._normalize(haystack);
-    return terms.every((term) => {
-      if (!term.includes("*") && !term.includes("?")) return normalized.includes(term);
-      const escaped = term.replace(/[.+^${}()|[\]\\]/g, "\\$&");
-      return new RegExp(escaped.replace(/\*/g, ".*").replace(/\?/g, "."), "i").test(normalized);
-    });
-  }
-  _filteredChanges() {
-    const { liveChanges, liveFilters } = this.model;
-    return liveChanges.filter((item) => {
-      if (liveFilters.source !== "all" && String(item.source) !== liveFilters.source) return false;
-      if (liveFilters.object_type !== "all" && String(item.object_type) !== liveFilters.object_type) return false;
-      if (!liveFilters.search.trim()) return true;
-      return this._matches(
-        [
-          item.device_id,
-          item.object_type,
-          item.object_id,
-          item.object_key,
-          item.object_name,
-          item.unique_id,
-          item.entity_id,
-          item.previous_value,
-          item.value,
-          item.source
-        ].join(" "),
-        liveFilters.search
-      );
-    });
-  }
-  _formatTime(value) {
-    if (!value) return "-";
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  }
-  _displayValue(value) {
-    if (value === null || value === void 0 || value === "") return "-";
-    if (typeof value === "object") {
-      try {
-        return JSON.stringify(value);
-      } catch {
-        return String(value);
-      }
-    }
-    return String(value);
-  }
-  _liveMonitor() {
-    const filtered = this._filteredChanges();
-    const bins = Array.from({ length: 60 }, () => 0);
-    const now = Date.now();
-    for (const item of this.model.liveChanges) {
-      const age = Math.floor((now - Date.parse(item.ts || "")) / 1e3);
-      if (age >= 0 && age < 60) bins[59 - age] += 1;
-    }
-    const peak = Math.max(0, ...bins);
-    const lastMinute = bins.reduce((sum, count) => sum + count, 0);
-    const average = (lastMinute / 60).toLocaleString("de-DE", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
-    const sources = [...new Set(this.model.liveChanges.map((item) => String(item.source || "unknown")))].sort();
-    const types = [...new Set(this.model.liveChanges.map((item) => String(item.object_type || "unknown")))].sort();
-    return b`
-      <div class="live-monitor">
-        <div class="live-summary">
-          <span><b>${this.model.liveChanges.length.toLocaleString("de-DE")}</b> gespeichert</span>
-          <span><b>${filtered.length.toLocaleString("de-DE")}</b> im Filter</span>
-          <span><b>${average}/s</b> letzte Minute</span>
-          <span><b>${peak}/s</b> Spitze</span>
-          <button class="secondary live-small-btn" @click=${() => this._action("toggle-live")}>
-            ${this.model.livePaused ? "Fortsetzen" : "Pausieren"}
-          </button>
-        </div>
-        <div class="live-chart" aria-label="Änderungen der letzten 60 Sekunden">
-          ${bins.map((count) => {
-      const height = peak ? Math.max(2, Math.round(count / peak * 21)) : 2;
-      return b`<i style=${`height:${height}px`} title=${`${count} Änderung${count === 1 ? "" : "en"}`}></i>`;
-    })}
-        </div>
-        <div class="live-filters">
-          <input
-            .value=${this.model.liveFilters.search}
-            placeholder="Filter / Wildcards …"
-            @input=${(event) => this._action("live-filter", {
-      key: "search",
-      value: event.currentTarget.value
-    })}
-          >
-          <select
-            .value=${this.model.liveFilters.source}
-            @change=${(event) => this._action("live-filter", {
-      key: "source",
-      value: event.currentTarget.value
-    })}
-          >
-            <option value="all">Alle Quellen</option>
-            ${sources.map((source) => b`<option value=${source}>${source}</option>`)}
-          </select>
-          <select
-            .value=${this.model.liveFilters.object_type}
-            @change=${(event) => this._action("live-filter", {
-      key: "object_type",
-      value: event.currentTarget.value
-    })}
-          >
-            <option value="all">Alle Typen</option>
-            ${types.map((type) => b`<option value=${type}>${type}</option>`)}
-          </select>
-          <button class="secondary live-small-btn" title="Monitorverlauf leeren" @click=${() => this._action("clear-live")}>
-            Leeren
-          </button>
-        </div>
-        <div class="live-table-wrap">
-          <table class="live-table">
-            <thead><tr><th>Zeit</th><th>Punkt</th><th>Alt → Neu</th><th>Quelle</th></tr></thead>
-            <tbody>
-              ${filtered.length ? filtered.slice(-120).reverse().map(
-      (item) => b`
-                      <tr
-                        title=${`${item.device_id}/${item.object_type}:${item.object_id} · Im Point Inspector öffnen`}
-                        @click=${() => this._action("select-point", { uniqueId: item.unique_id })}
-                      >
-                        <td>${this._formatTime(item.ts)}</td>
-                        <td><b>${item.friendly_name || item.object_name || item.object_key || item.unique_id}</b><small>${item.entity_id || item.object_key || item.unique_id}</small></td>
-                        <td class="live-value">${this._displayValue(item.previous_value)}<span>→</span>${this._displayValue(item.value)}</td>
-                        <td><span class="live-source">${item.source || "-"}</span></td>
-                      </tr>
-                    `
-    ) : b`<tr><td colspan="4" class="muted">Noch keine passenden Wertänderungen.</td></tr>`}
-            </tbody>
-          </table>
-        </div>
-        <div class="live-foot">Ringpuffer: maximal 10.000 Änderungen · angezeigt werden die neuesten 120 Treffer</div>
-      </div>
-    `;
-  }
-  render() {
-    const model = this.model || EMPTY_MODEL;
-    return b`
-      <section class="dashboard-shell">
-        <div class="dashboard-page-heading">
-          <span class="dashboard-toggle-title">${model.tab === "live" ? "Live-Ansicht" : "Diagnose"}</span>
-          <span class="dashboard-summary">${model.summary}</span>
-        </div>
-        <div class=${`dashboard-content dashboard-content-${model.tab}`}>
-          ${model.tab === "live" ? b`
-                <section class="dashboard-group dashboard-group-wide dashboard-monitor-group">
-                  ${this._liveMonitor()}
-                </section>
-              ` : b`
-                <div class="dashboard-diagnostics-grid">
-                  <section class="dashboard-group">
-                    <div class="dashboard-title">Konfigurationswerte</div>
-                    <div class="dashboard-cards">${this._cards(model.configured)}</div>
-                  </section>
-                  <section class="dashboard-group">
-                    <div class="dashboard-title">System / Laufzeit</div>
-                    <div class="dashboard-cards">${this._cards(model.runtime)}</div>
-                  </section>
-                  <section class="dashboard-group dashboard-group-wide dashboard-monitor-group">
-                    <div class="dashboard-title">Push-Diagnose</div>
-                    <div class="dashboard-cards">${this._cards(model.developer)}</div>
-                  </section>
-                </div>
-              `}
-        </div>
-      </section>
-    `;
-  }
-};
-__decorateClass$1([
-  n2({ attribute: false })
-], BepacomRuntimeDashboard.prototype, "model", 2);
-BepacomRuntimeDashboard = __decorateClass$1([
-  t("bepacom-runtime-dashboard")
-], BepacomRuntimeDashboard);
-var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __decorateClass = (decorators, target, key, kind) => {
-  var result = kind > 1 ? void 0 : kind ? __getOwnPropDesc(target, key) : target;
-  for (var i2 = decorators.length - 1, decorator; i2 >= 0; i2--)
-    if (decorator = decorators[i2])
-      result = (kind ? decorator(target, key, result) : decorator(result)) || result;
-  if (kind && result) __defProp(target, key, result);
-  return result;
-};
-let BepacomExplorerPanel = class extends i {
-  constructor() {
-    super(...arguments);
-    this.narrow = false;
-  }
-  render() {
-    return b`<bepacom-explorer-view></bepacom-explorer-view>`;
-  }
-  updated() {
-    if (!this._explorer) return;
-    this._explorer.panel = this.panel;
-    this._explorer.hass = this.hass;
-  }
-};
-BepacomExplorerPanel.styles = i$3`
-    :host {
-      display: block;
-      width: 100%;
-      height: 100vh;
-      min-height: 0;
-      background: var(--primary-background-color);
-      color: var(--primary-text-color);
-    }
-
-    bepacom-explorer-view {
-      display: block;
-      width: 100%;
-      height: 100%;
-      min-height: 0;
-    }
-  `;
-__decorateClass([
-  n2({ attribute: false })
-], BepacomExplorerPanel.prototype, "hass", 2);
-__decorateClass([
-  n2({ attribute: false })
-], BepacomExplorerPanel.prototype, "panel", 2);
-__decorateClass([
-  n2({ attribute: false })
-], BepacomExplorerPanel.prototype, "narrow", 2);
-__decorateClass([
-  n2({ attribute: false })
-], BepacomExplorerPanel.prototype, "route", 2);
-__decorateClass([
-  e("bepacom-explorer-view")
-], BepacomExplorerPanel.prototype, "_explorer", 2);
-BepacomExplorerPanel = __decorateClass([
-  t("bepacom-explorer-panel")
-], BepacomExplorerPanel);
-export {
-  BepacomExplorerPanel
-};
