@@ -1,0 +1,16 @@
+{
+  "name": "ha-bepacom-bacnet",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:frontend": "vite build --config custom_components/bepacom/vite.config.js",
+    "check:frontend": "tsc --noEmit"
+  },
+  "dependencies": {
+    "lit": "3.3.1"
+  },
+  "devDependencies": {
+    "typescript": "5.9.2",
+    "vite": "7.1.3"
+  }
+}
