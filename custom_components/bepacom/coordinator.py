@@ -65,17 +65,17 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._overrides = BepacomOverrideManager(entry.options)
 
         if self._polling_enabled:
-            _LOGGER.info(
+            _LOGGER.debug(
                 "Bepacom cyclic polling enabled: interval=%s",
                 DEFAULT_SCAN_INTERVAL,
             )
         else:
-            _LOGGER.info(
+            _LOGGER.debug(
                 "Bepacom cyclic polling disabled; using initial discovery and WebSocket/subscription updates only",
             )
 
         if self._snapshot_websocket_mode:
-            _LOGGER.info(
+            _LOGGER.debug(
                 "Bepacom snapshot WebSocket mode enabled; only one gateway subscription will be created and configured objects will be processed from each snapshot",
             )
 
@@ -194,6 +194,9 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
             return raw
 
+        except (CannotConnect, InvalidResponse, UpdateFailed) as err:
+            _LOGGER.debug("Bepacom data update unavailable: %s", err)
+            raise UpdateFailed(str(err)) from err
         except Exception as err:
             if self._discovery_completed:
                 _LOGGER.exception("Coordinator update failed")
@@ -264,7 +267,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 stable_samples = 1
 
             self._inventory_readiness_samples = stable_samples
-            _LOGGER.info(
+            _LOGGER.debug(
                 "BACnet inventory readiness: stable=%s/%s devices=%s "
                 "objects=%s missing_configured=%s",
                 stable_samples,
@@ -382,7 +385,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         if not targets:
             if polling_targets:
-                _LOGGER.info(
+                _LOGGER.debug(
                     "No Bepacom subscription targets configured; starting per-object polling for %s objects.",
                     len(polling_targets),
                 )
@@ -401,7 +404,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             try:
                 managed_result = await self.client.async_set_managed_targets(targets)
                 if managed_result.get("accepted"):
-                    _LOGGER.info(
+                    _LOGGER.debug(
                         "Bepacom managed gateway targets configured: strategy=%s targets=%s devices=%s interval=%s",
                         managed_result.get("strategy"),
                         managed_result.get("targets"),
@@ -419,7 +422,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 )
             gateway_targets = targets[:1]
 
-            _LOGGER.info(
+            _LOGGER.debug(
                 "Initializing Bepacom snapshot WebSocket subscription: trigger=%s/%s, processed_targets=%s",
                 gateway_targets[0][0],
                 gateway_targets[0][1],
@@ -429,7 +432,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             gateway_targets = targets
             self._websocket_manager.clear_snapshot_targets()
 
-            _LOGGER.info("Initializing Bepacom subscriptions for %s objects...", len(targets))
+            _LOGGER.debug("Initializing Bepacom subscriptions for %s objects...", len(targets))
 
         successful = await self._async_subscribe_discovered_objects(gateway_targets)
 
@@ -437,13 +440,13 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._last_subscription_summary = (successful, len(targets))
 
         if self._snapshot_websocket_mode:
-            _LOGGER.info(
+            _LOGGER.debug(
                 "Bepacom snapshot WebSocket initialized: gateway_subscriptions=%s processed_targets=%s",
                 successful,
                 len(targets),
             )
         else:
-            _LOGGER.info(
+            _LOGGER.debug(
                 "Bepacom subscriptions initialized: %s/%s active",
                 successful,
                 len(targets),
@@ -501,7 +504,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 return
 
             if result.get("accepted"):
-                _LOGGER.info(
+                _LOGGER.debug(
                     "Restored Bepacom managed targets after reconnect: strategy=%s targets=%s unchanged=%s",
                     result.get("strategy"),
                     result.get("targets"),
@@ -778,11 +781,11 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 self._schedule_push_update()
         except asyncio.CancelledError:
             raise
-        except Exception:
-            _LOGGER.warning(
-                "Targeted write confirmation failed for %s; falling back to full refresh",
+        except Exception as err:
+            _LOGGER.debug(
+                "Targeted write confirmation failed for %s; using full refresh: %s",
                 obj.unique_id,
-                exc_info=True,
+                err,
             )
             self._schedule_write_fallback_refresh()
         finally:
@@ -898,12 +901,13 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                 _MAX_INVALID_FALLBACK_RESPONSES,
                             )
                         continue
-                    except Exception:
+                    except Exception as err:
                         self._fallback_invalid_responses.pop((device_id, object_id), None)
-                        _LOGGER.exception(
-                            "Fallback polling failed for %s/%s",
+                        _LOGGER.debug(
+                            "Fallback polling unavailable for %s/%s: %s",
                             device_id,
                             object_id,
+                            err,
                         )
                         continue
 

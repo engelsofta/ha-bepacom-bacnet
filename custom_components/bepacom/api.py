@@ -84,20 +84,24 @@ class BepacomClient:
                 response.raise_for_status()
 
                 text = await response.text()
-                _LOGGER.debug("Response: %s", text[:500])
+                _LOGGER.debug(
+                    "Bepacom GET completed: path=%s bytes=%s",
+                    path,
+                    len(text),
+                )
 
                 return self._decode_response(text)
 
         except asyncio.TimeoutError as err:
-            _LOGGER.exception("Timeout while connecting to Bepacom")
+            _LOGGER.debug("Bepacom GET timed out: path=%s", path)
             raise CannotConnect from err
 
         except aiohttp.ClientError as err:
-            _LOGGER.exception("HTTP error while connecting to Bepacom")
+            _LOGGER.debug("Bepacom GET failed: path=%s error=%s", path, err)
             raise CannotConnect from err
 
         except Exception as err:
-            _LOGGER.exception("Unexpected API error")
+            _LOGGER.exception("Unexpected Bepacom GET error: path=%s", path)
             raise InvalidResponse from err
 
     async def _post(
@@ -114,7 +118,12 @@ class BepacomClient:
 
         url = f"{self._base}{path}"
 
-        _LOGGER.debug("POST %s with data: %s", url, data)
+        _LOGGER.debug(
+            "POST %s (json=%s params=%s)",
+            url,
+            data is not None,
+            sorted(params) if params else [],
+        )
         request_kwargs: dict[str, Any] = {"params": params}
 
         if data is not None:
@@ -128,20 +137,24 @@ class BepacomClient:
                 response.raise_for_status()
 
                 text = await response.text()
-                _LOGGER.debug("Response: %s", text[:500])
+                _LOGGER.debug(
+                    "Bepacom POST completed: path=%s bytes=%s",
+                    path,
+                    len(text),
+                )
 
                 return self._decode_response(text)
 
         except asyncio.TimeoutError as err:
-            _LOGGER.exception("Timeout while writing to Bepacom")
+            _LOGGER.debug("Bepacom POST timed out: path=%s", path)
             raise CannotConnect from err
 
         except aiohttp.ClientError as err:
-            _LOGGER.exception("HTTP error while writing to Bepacom")
+            _LOGGER.debug("Bepacom POST failed: path=%s error=%s", path, err)
             raise CannotConnect from err
 
         except Exception as err:
-            _LOGGER.exception("Unexpected API error during write")
+            _LOGGER.exception("Unexpected Bepacom POST error: path=%s", path)
             raise InvalidResponse from err
 
     async def _delete(
@@ -166,20 +179,24 @@ class BepacomClient:
                 response.raise_for_status()
 
                 text = await response.text()
-                _LOGGER.debug("Response: %s", text[:500])
+                _LOGGER.debug(
+                    "Bepacom DELETE completed: path=%s bytes=%s",
+                    path,
+                    len(text),
+                )
 
                 return self._decode_response(text)
 
         except asyncio.TimeoutError as err:
-            _LOGGER.exception("Timeout while deleting Bepacom resource")
+            _LOGGER.debug("Bepacom DELETE timed out: path=%s", path)
             raise CannotConnect from err
 
         except aiohttp.ClientError as err:
-            _LOGGER.exception("HTTP error while deleting Bepacom resource")
+            _LOGGER.debug("Bepacom DELETE failed: path=%s error=%s", path, err)
             raise CannotConnect from err
 
         except Exception as err:
-            _LOGGER.exception("Unexpected API error during delete")
+            _LOGGER.exception("Unexpected Bepacom DELETE error: path=%s", path)
             raise InvalidResponse from err
 
     async def async_ws_connect(
@@ -323,14 +340,13 @@ class BepacomClient:
             if key.lower() in {"location", "content-location", "content-type"}
             or key.lower().startswith("x-")
         }
-        body_preview = body.strip().replace("\n", " ")[:300]
         _LOGGER.warning(
-            "Unexpected subscribe response for %s/%s: status=%s headers=%s body=%s",
+            "Unexpected subscribe response for %s/%s: status=%s headers=%s body_bytes=%s",
             device_id,
             object_id,
             status,
             relevant_headers,
-            body_preview,
+            len(body),
         )
 
     async def async_get_database(self) -> dict[str, Any]:
@@ -437,7 +453,12 @@ class BepacomClient:
                         "lifetime": lifetime,
                     }
 
-                    _LOGGER.debug("POST %s with params: %s", url, params)
+                    _LOGGER.debug(
+                        "POST subscription request for %s/%s using confirmation type %s",
+                        device_id,
+                        object_id,
+                        confirmation_type_candidate,
+                    )
 
                     async with self._session.post(url, params=params) as response:
                         _LOGGER.debug("HTTP Status: %s", response.status)
@@ -445,7 +466,12 @@ class BepacomClient:
                         response.raise_for_status()
 
                         text = await response.text()
-                        _LOGGER.debug("Subscription response: %s", text[:500])
+                        _LOGGER.debug(
+                            "Subscription response received for %s/%s: bytes=%s",
+                            device_id,
+                            object_id,
+                            len(text),
+                        )
 
                         try:
                             result = self._decode_response(text)
@@ -511,11 +537,20 @@ class BepacomClient:
                         break
 
         except asyncio.TimeoutError as err:
-            _LOGGER.exception("Timeout while creating Bepacom subscription")
+            _LOGGER.debug(
+                "Bepacom subscription timed out for %s/%s",
+                device_id,
+                object_id,
+            )
             raise CannotConnect from err
 
         except aiohttp.ClientError as err:
-            _LOGGER.exception("HTTP error while creating Bepacom subscription")
+            _LOGGER.debug(
+                "Bepacom subscription request failed for %s/%s: %s",
+                device_id,
+                object_id,
+                err,
+            )
             raise CannotConnect from err
 
         except Exception as err:
@@ -585,9 +620,8 @@ class BepacomClient:
                 success = result.get("success", False)
 
                 if success:
-                    _LOGGER.info(
-                        "Successfully wrote %s to %s:%s on device %s",
-                        value,
+                    _LOGGER.debug(
+                        "Bepacom write succeeded for %s:%s on device %s",
                         object_type,
                         object_id,
                         device_id,
@@ -633,9 +667,8 @@ class BepacomClient:
         except (CannotConnect, InvalidResponse) as err:
             raise WriteError(str(err)) from err
 
-        _LOGGER.info(
-            "Successfully wrote %s to %s on %s at priority %s",
-            value,
+        _LOGGER.debug(
+            "Bepacom write succeeded for %s on %s at priority %s",
             object_path_id,
             device_path_id,
             priority,
@@ -662,9 +695,8 @@ class BepacomClient:
         except (CannotConnect, InvalidResponse) as err:
             raise WriteError(str(err)) from err
 
-        _LOGGER.info(
-            "Successfully wrote %s to %s on %s at priority %s",
-            value,
+        _LOGGER.debug(
+            "Bepacom write succeeded for %s on %s at priority %s",
             object_path_id,
             device_path_id,
             priority,
@@ -697,9 +729,8 @@ class BepacomClient:
         except (CannotConnect, InvalidResponse) as err:
             raise WriteError(str(err)) from err
 
-        _LOGGER.info(
-            "Successfully wrote %s to %s on %s at priority %s",
-            write_value,
+        _LOGGER.debug(
+            "Bepacom write succeeded for %s on %s at priority %s",
             object_path_id,
             device_path_id,
             priority,
@@ -725,7 +756,7 @@ class BepacomClient:
         except (CannotConnect, InvalidResponse) as err:
             raise WriteError(str(err)) from err
 
-        _LOGGER.info(
+        _LOGGER.debug(
             "Released %s on %s at priority %s",
             object_path_id,
             device_path_id,

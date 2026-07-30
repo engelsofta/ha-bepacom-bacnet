@@ -58,7 +58,7 @@ async def async_setup_entry(
 
     if entities:
         async_add_entities(entities)
-        _LOGGER.info("Added %d number entities", len(entities))
+        _LOGGER.debug("Added %d number entities", len(entities))
 
 
 class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
