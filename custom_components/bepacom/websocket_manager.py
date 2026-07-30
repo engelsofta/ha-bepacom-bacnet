@@ -45,6 +45,7 @@ class _ConnectionStatistics:
 
     connect_count: int = 0
     reconnect_count: int = 0
+    failure_count: int = 0
     push_count: int = 0
     last_connect: float | None = None
     last_disconnect: float | None = None
@@ -72,6 +73,7 @@ class BepacomWebSocketManager:
         self._max_backoff = 60
         self._invalid_subscription_warnings = 0
         self._invalid_subscription_failures = 0
+        self._invalid_message_warnings = 0
         self._subscriptions_disabled = False
         self._subscribe_attempts = 0
         self._subscribe_successes = 0
@@ -229,6 +231,10 @@ class BepacomWebSocketManager:
             "websocket_urls": len(self._connection_statistics),
             "push_count": total_pushes,
             "reconnect_count": total_reconnects,
+            "connection_failures": sum(
+                stats.failure_count
+                for stats in self._connection_statistics.values()
+            ),
             "last_push_age": self._format_age(last_push),
             "last_connect_age": self._format_age(last_connect),
             "last_disconnect_age": self._format_age(last_disconnect),
@@ -320,12 +326,15 @@ class BepacomWebSocketManager:
                 await self._invoke_failure_callback(device_id, object_id)
 
             return False
-        except Exception:
-            _LOGGER.exception(
-                "Failed to create subscription for %s/%s",
-                device_id,
-                object_id,
-            )
+        except Exception as err:
+            if self._invalid_subscription_warnings < _MAX_INVALID_SUBSCRIPTION_WARNINGS:
+                _LOGGER.warning(
+                    "Subscription unavailable for %s/%s: %s",
+                    device_id,
+                    object_id,
+                    err,
+                )
+            self._invalid_subscription_warnings += 1
 
             if self._on_subscription_failure is not None:
                 await self._invoke_failure_callback(device_id, object_id)
@@ -413,11 +422,12 @@ class BepacomWebSocketManager:
 
         try:
             await self._client.async_unsubscribe(device_id, object_id)
-        except Exception:
-            _LOGGER.exception(
-                "Failed to remove subscription for %s/%s",
+        except Exception as err:
+            _LOGGER.debug(
+                "Could not remove subscription for %s/%s: %s",
                 device_id,
                 object_id,
+                err,
             )
 
     async def async_unsubscribe_all(self) -> None:
@@ -459,11 +469,12 @@ class BepacomWebSocketManager:
             async with semaphore:
                 try:
                     await self._client.async_unsubscribe(state.device_id, state.object_id)
-                except Exception:
-                    _LOGGER.exception(
-                        "Failed to remove subscription for %s/%s",
+                except Exception as err:
+                    _LOGGER.debug(
+                        "Could not remove subscription for %s/%s during shutdown: %s",
                         state.device_id,
                         state.object_id,
+                        err,
                     )
 
         await asyncio.gather(*(_unsubscribe_state(state) for state in states))
@@ -478,12 +489,26 @@ class BepacomWebSocketManager:
                 reconnect_delay = 1
             except asyncio.CancelledError:
                 break
-            except Exception:
-                _LOGGER.exception(
-                    "WebSocket connection failed for %s/%s",
-                    state.device_id,
-                    state.object_id,
-                )
+            except Exception as err:
+                stats = self._stats_for_url(state.ws_url)
+                stats.failure_count += 1
+                if stats.failure_count == 1 or stats.failure_count % 10 == 0:
+                    _LOGGER.warning(
+                        "Bepacom WebSocket connection lost for %s/%s: %s "
+                        "(failure %s; reconnect follows)",
+                        state.device_id,
+                        state.object_id,
+                        err,
+                        stats.failure_count,
+                    )
+                else:
+                    _LOGGER.debug(
+                        "Bepacom WebSocket reconnect failure %s for %s/%s: %s",
+                        stats.failure_count,
+                        state.device_id,
+                        state.object_id,
+                        err,
+                    )
 
             if state.stop_event.is_set():
                 break
@@ -517,7 +542,7 @@ class BepacomWebSocketManager:
 
         self._last_resubscribe = time.monotonic()
 
-        _LOGGER.info(
+        _LOGGER.debug(
             "Renewing Bepacom subscriptions after reconnect: url=%s objects=%s",
             ws_url,
             len(states),
@@ -532,11 +557,12 @@ class BepacomWebSocketManager:
                     subscription.device_id,
                     subscription.object_id,
                 )
-            except Exception:
-                _LOGGER.exception(
-                    "Failed to renew subscription for %s/%s",
+            except Exception as err:
+                _LOGGER.debug(
+                    "Could not renew subscription for %s/%s: %s",
                     subscription.device_id,
                     subscription.object_id,
+                    err,
                 )
 
     async def _async_listen(self, state: _SubscriptionState) -> None:
@@ -616,7 +642,7 @@ class BepacomWebSocketManager:
                     stats.push_count <= 5 or stats.push_count % 100 == 0
                 ):
                     _LOGGER.debug(
-                        "Bepacom WebSocket push path: url=%s owner=%s/%s processed=%s changed=%s no_change=%s ignored=%s seen=%s value=%s push_count=%s total_updates=%s",
+                        "Bepacom WebSocket push path: url=%s owner=%s/%s processed=%s changed=%s no_change=%s ignored=%s seen=%s push_count=%s total_updates=%s",
                         state.ws_url,
                         state.device_id,
                         state.object_id,
@@ -625,7 +651,6 @@ class BepacomWebSocketManager:
                         max(0, processed - changed),
                         ignored,
                         seen,
-                        self._payload_debug_summary(payload),
                         stats.push_count,
                         self._websocket_updates,
                     )
@@ -920,7 +945,9 @@ class BepacomWebSocketManager:
             try:
                 message = message.decode("utf-8")
             except UnicodeDecodeError:
-                _LOGGER.warning("Ignoring non-UTF-8 WebSocket message")
+                if self._invalid_message_warnings < _MAX_INVALID_SUBSCRIPTION_WARNINGS:
+                    _LOGGER.warning("Ignoring non-UTF-8 WebSocket message")
+                self._invalid_message_warnings += 1
                 return None
 
         if not message:
@@ -930,7 +957,9 @@ class BepacomWebSocketManager:
             payload = json.loads(message)
         except json.JSONDecodeError:
             if message.lstrip().startswith(("{", "[")):
-                _LOGGER.warning("Ignoring malformed WebSocket payload: %s", message)
+                if self._invalid_message_warnings < _MAX_INVALID_SUBSCRIPTION_WARNINGS:
+                    _LOGGER.warning("Ignoring malformed WebSocket payload")
+                self._invalid_message_warnings += 1
                 return None
 
             return {"presentValue": message}

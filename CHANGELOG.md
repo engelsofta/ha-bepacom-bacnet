@@ -1,35 +1,128 @@
 # Changelog
 
-## 0.3.8-beta.1
+## 1.2.0 - 2026-07-30
+
+This release contains all changes since version 1.1.6.
+
+### Highlights
+
+- Completely redesigned the BACnet Explorer with a modern Lit 3 and TypeScript frontend.
+- Added global **Configuration**, **Live View**, and **Diagnostics** workspaces.
+- Added a full-width live log with a 60-second activity chart, filtering, pause and clear controls.
+- Added a dedicated diagnostics workspace for connection, subscription, polling and push-processing metrics.
+- Added a persistent status strip for BACnet points, active entities, connection state and connection errors.
 
 ### Added
-- Sidebar BACnet Explorer with searchable/filterable object table.
-- Grouping by BACnet type or device.
-- Details panel with Inspector, Engineering properties, Live Monitor, Write area and Entity Configuration.
-- Per-object update mode: Disabled, Push/Subscribe, Polling.
-- Tri-state overrides for unit, device class and state class: Automatic, None, custom value.
-- Stable BACnet-based entity ID migration.
-- Live value-change highlighting with direction-aware animation.
-- Push diagnostics and optimized snapshot dispatch lookup.
-- Manual integration reload guard in the Explorer.
-- Export support for BACnet object data.
+
+- Privacy-safe Home Assistant diagnostics downloads.
+- Automated gateway API and diagnostics tests that do not require physical BACnet hardware.
+- Reproducible Vite frontend builds, TypeScript checks and pinned frontend dependencies.
+- Import and export of Explorer overrides.
+- Reload previews showing pending entity changes.
+- Immediate editor validation, entity-ID conflict detection and discard controls.
+- Device, object-type, runtime, override and transport filters.
+- Bulk editing for multiple BACnet points.
+- Firmware and transport information in Explorer diagnostics.
+- Warnings for writable points using high BACnet priorities.
+- Dedicated Point Inspector, virtual entity, technical Inspector and Engineering Properties tabs.
 
 ### Changed
-- Object configuration moved out of the OptionsFlow and into the Sidebar Explorer.
-- Global subscribe list and JSON override editor removed from Devices & Services options.
-- Polling defaults to off for new entries.
-- Status dashboard grouped into configuration and runtime/system values.
-- Table layout cleaned up for large BACnet installations.
+
+- Rebuilt the Explorer interface as reusable Lit components with native templates and declarative events.
+- Reorganized Explorer navigation into top-level Configuration, Live View and Diagnostics sections.
+- Redesigned the interface with full-width smoked-glass dashboard styling and responsive layouts.
+- Moved the Point Inspector collapse control directly between the table and details panel.
+- Improved table proportions, group headings, selection behavior and entity-link interaction.
+- Improved native dropdown colors and readability in dark mode.
+- Expanded the live log to use the available page height.
+- Reduced routine log noise and moved normal write activity to debug logging.
+- Known network failures now use compact throttled messages without repeated stack traces.
+- Sensitive response bodies and BACnet values are no longer written to logs.
 
 ### Fixed
-- Duplicate `analoginput_analoginput` entity IDs through stable suggested IDs and registry migration.
-- Sidebar panel registration and browser cache issues.
-- Editor save behavior after keyboard/refresh refactors.
-- State class handling so `Automatic` does not remove HA statistics accidentally.
-- Repeated reload loop when clicking “Integration neu laden”.
-- Live Monitor history duplication/mixing across entities.
 
-### Beta notes
-- This is a beta release for testing the new Sidebar Explorer workflow.
-- Create a Home Assistant backup before installation.
-- Existing entity IDs may be migrated to the stable `bepacom_1_<objecttype>_<instance>` scheme.
+- Fixed table scrolling being reset while scrolling or selecting BACnet points.
+- Fixed stale point-detail responses replacing a newer selection.
+- Fixed live-monitor filters losing focus during refreshes.
+- Fixed Live Monitor pause and clear actions while requests are in flight.
+- Fixed newly created Multi-State Output switches receiving unstable `device_*` entity IDs.
+- Preserved explicitly customized entity IDs during registry normalization.
+
+### Compatibility
+
+- Existing config entries, entity unique IDs, overrides and virtual entities are preserved.
+- No configuration migration or re-pairing is required when upgrading from 1.1.6.
+- The integration continues to support legacy full-snapshot WebSocket payloads.
+- Managed COV targets and optimized delta updates require Engelsoft BACstac.
+
+## 1.1.6 - 2026-07-20
+
+This release contains all changes since version 1.1.1.
+
+### Added
+
+- Added managed COV target support for the optimized Engelsoft BACstac gateway while retaining legacy full-snapshot WebSocket compatibility.
+- Added compact WebSocket delta processing and detailed push, subscription and processing diagnostics.
+- Added a live change monitor with filtering, pause, clear, rate chart and a 10,000-entry client-side history.
+- Added configurable Multi-State Output representation as either a number or switch, including configurable ON/OFF values.
+- Added configurable write priorities and GLT/AS write profiles with priority release support.
+- Added virtual binary entities managed by Home Assistant and wildcard search in the Explorer.
+- Added `cm` as a supported length unit with automatic `distance` device class handling.
+
+### Changed
+
+- Redesigned the BACnet Explorer with a more compact layout, improved search controls and responsive mobile tables.
+- Moved the live monitor from the Point Inspector into the runtime dashboard.
+- Improved the Point Inspector layout and made its object header and action buttons sticky while scrolling.
+- New installations use snapshot WebSocket transport by default; transport handling is now automatic.
+- Combined push and value-change runtime statistics into a clearer overview.
+- Improved startup inventory readiness checks so temporary gateway startup gaps are tolerated without dropping configured entities.
+- Optimized snapshot dispatching to process configured targets instead of repeatedly walking the complete payload.
+- Improved entity display names in the live monitor while retaining the Home Assistant entity ID as secondary information.
+
+### Fixed
+
+- Fixed unreliable behavior after repeated integration reloads by preventing duplicate subscription tasks and restoring managed targets safely.
+- Fixed legacy Entity Registry overrides that renamed stable BACnet entity IDs back to `device_*` IDs after a reload.
+- Fixed deferred Entity Registry override collisions when the requested ID was already occupied.
+- Fixed virtual entity states not following Home Assistant updates immediately.
+- Fixed the live-monitor filter losing focus during runtime refreshes.
+- Fixed the live-monitor Clear and Pause buttons not updating reliably while focused or while a request was in flight.
+- Fixed startup handling when one or two previously configured BACnet points are temporarily missing.
+- Improved write confirmation and fallback refresh handling for commandable BACnet objects.
+
+### Compatibility
+
+- Existing entity unique IDs, configured point overrides and virtual entities are preserved.
+- Automatically generated legacy `device_*` entity IDs are migrated to stable BACnet-based IDs. Custom user-assigned entity IDs remain unchanged.
+- The integration continues to understand legacy full-snapshot WebSocket payloads from the original Bepacom add-on. Managed COV and delta optimizations require Engelsoft BACstac.
+
+## 1.1.1 - 2026-07-18
+
+### Added
+
+- Added a BACnet inventory readiness check during startup. The integration waits for the gateway inventory to settle before creating entities.
+- Added tolerance for up to two temporarily missing configured points when the remaining relevant inventory is stable.
+- Added inventory readiness samples and missing configured points to the integration diagnostics.
+- Added wildcard search to the BACnet Explorer. `*` matches any sequence of characters and `?` matches one character.
+
+### Changed
+
+- Limited startup stability evaluation to configured and otherwise relevant BACnet points.
+- Virtual entity state indicators now follow Home Assistant state changes directly.
+- Adjusted push-processing performance colors for larger installations.
+
+### Fixed
+
+- Updated metadata and translations to pass HACS and Home Assistant Hassfest validation.
+- Declared the Home Assistant HTTP dependency and marked YAML configuration as unsupported.
+- Improved entity-registry override handling when a point changes between `number` and `switch` representation.
+- Improved startup behavior for BACnet gateways that publish their inventory slowly.
+
+## 1.0.0
+
+- Initial stable release.
+- Automatic BACnet object discovery and Home Assistant entity creation.
+- WebSocket/COV push updates with polling fallback.
+- Writable BACnet values and services for releasing priority slots.
+- Integrated BACnet Explorer with entity overrides, diagnostics, history and virtual binary sensors.
