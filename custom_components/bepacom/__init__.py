@@ -207,9 +207,13 @@ async def _async_migrate_legacy_entity_ids(
     migrated = 0
     skipped = 0
 
+    raw_overrides = entry.options.get(CONF_ENTITY_OVERRIDES, {})
+    if not isinstance(raw_overrides, dict):
+        raw_overrides = {}
+
     registry_entries = [
         entity_entry
-        for entity_entry in registry.entities.values()
+        for entity_entry in er.async_entries_for_config_entry(registry, entry.entry_id)
         if getattr(entity_entry, "platform", None) == DOMAIN
     ]
 
@@ -217,6 +221,15 @@ async def _async_migrate_legacy_entity_ids(
         expected_entity_id = _expected_entity_id(entity_entry)
         if not expected_entity_id or entity_entry.entity_id == expected_entity_id:
             continue
+
+        # A custom ID explicitly saved in the Explorer belongs to the user and
+        # must not be normalized. Generated legacy IDs have already been removed
+        # from the options by _async_migrate_legacy_entity_id_overrides().
+        raw_override = raw_overrides.get(str(entity_entry.unique_id))
+        if isinstance(raw_override, dict):
+            stored_entity_id = str(raw_override.get("entity_id") or "").strip()
+            if stored_entity_id:
+                continue
 
         if registry.async_get(expected_entity_id) is not None:
             skipped += 1
@@ -431,6 +444,12 @@ async def async_setup_entry(
             entry,
             PLATFORMS,
         )
+
+    # Existing entries are normalized before platform setup. Run the same pass
+    # once more afterwards because a point exposed in a new domain (for example
+    # a Multi-State Output changed from number to switch) only receives its new
+    # Entity Registry entry while the platform is being created.
+    await _async_migrate_legacy_entity_ids(hass, entry)
 
     await _async_apply_deferred_entity_registry_overrides(hass, entry, coordinator)
 

@@ -102,15 +102,16 @@ class DiscoveryEngine:
 
         self._last_summary_signature = summary_signature
 
-        _LOGGER.info("========== Bepacom Discovery ==========")
-        _LOGGER.info("Devices found : %s", len(self.devices))
-        _LOGGER.info("Objects found : %s", len(self.objects))
+        _LOGGER.debug(
+            "Bepacom discovery summary: devices=%s objects=%s",
+            len(self.devices),
+            len(self.objects),
+        )
 
         for object_type in sorted(counter):
-            _LOGGER.info(
+            _LOGGER.debug(
                 "%-20s %5d",
                 object_type,
                 counter[object_type],
             )
 
-        _LOGGER.info("=======================================")

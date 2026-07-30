@@ -30,7 +30,7 @@ PANEL_URL = "bepacom_explorer"
 PANEL_NAME = "bepacom-explorer-panel"
 PANEL_STATIC_URL = "/bepacom_static"
 PANEL_EVENT = "bepacom_explorer_updated"
-PANEL_VERSION = "0613"
+PANEL_VERSION = "0642"
 
 _WS_REGISTERED = "websocket_registered"
 _PANEL_REGISTERED = "panel_registered"
@@ -472,6 +472,24 @@ def _matches_filters(point: dict[str, Any], msg: dict[str, Any]) -> bool:
     return True
 
 
+def _explorer_diagnostics(coordinator, registry) -> dict[str, Any]:
+    """Return transport and gateway metadata for the Explorer status view."""
+    devices = list(coordinator.discovery.devices.values())
+    firmware_versions = sorted(
+        {str(device.firmware).strip() for device in devices if device.firmware}
+    )
+    models = sorted({str(device.model).strip() for device in devices if device.model})
+    vendors = sorted({str(device.vendor).strip() for device in devices if device.vendor})
+    return {
+        **coordinator.websocket_diagnostics,
+        **registry.performance_summary(),
+        "gateway_device_count": len(devices),
+        "firmware_versions": firmware_versions,
+        "device_models": models,
+        "device_vendors": vendors,
+    }
+
+
 @websocket_api.websocket_command({vol.Required("type"): "bepacom/explorer/entries"})
 @websocket_api.async_response
 async def websocket_explorer_entries(
@@ -541,7 +559,7 @@ async def websocket_explorer_points(
             "points": points[:limit],
             "total": len(points),
             "limited": len(points) > limit,
-            "diagnostics": {**coordinator.websocket_diagnostics, **registry.performance_summary()},
+            "diagnostics": _explorer_diagnostics(coordinator, registry),
         },
     )
 
@@ -595,10 +613,7 @@ async def websocket_explorer_points_runtime(
         {
             "entry_id": entry_id,
             "points": points,
-            "diagnostics": {
-                **coordinator.websocket_diagnostics,
-                **registry.performance_summary(),
-            },
+            "diagnostics": _explorer_diagnostics(coordinator, registry),
         },
     )
 
@@ -1178,7 +1193,33 @@ async def websocket_explorer_save_override(
             # Do not rename or persist it for the newly selected platform.
             override_msg.pop("entity_id", None)
 
-    await _async_update_entity_registry_from_msg(hass, entry_id, obj, override_msg)
+    submitted_entity_id = _normalize_empty(override_msg.get("entity_id"))
+    if submitted_entity_id is not None:
+        if not re.fullmatch(r"[a-z0-9_]+\.[a-z0-9_]+", submitted_entity_id):
+            connection.send_error(
+                msg["id"],
+                "invalid_entity_id",
+                "Entity ID must use lowercase letters, numbers and underscores in domain.name format",
+            )
+            return
+
+        occupying_entry = er.async_get(hass).async_get(submitted_entity_id)
+        if (
+            occupying_entry is not None
+            and occupying_entry.unique_id != obj.unique_id
+        ):
+            connection.send_error(
+                msg["id"],
+                "entity_id_conflict",
+                f"Entity ID {submitted_entity_id} is already in use",
+            )
+            return
+
+    try:
+        await _async_update_entity_registry_from_msg(hass, entry_id, obj, override_msg)
+    except ValueError as err:
+        connection.send_error(msg["id"], "entity_id_conflict", str(err))
+        return
     await _async_apply_override_options(hass, entry, override_msg, source_obj=obj)
     obj = registry.get_by_unique_id(msg["unique_id"]) or obj
 
