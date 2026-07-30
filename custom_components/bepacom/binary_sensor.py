@@ -53,7 +53,7 @@ async def async_setup_entry(
 
     if entities:
         async_add_entities(entities)
-        _LOGGER.info("Added %d binary sensor entities", len(entities))
+        _LOGGER.debug("Added %d binary sensor entities", len(entities))
 
 
 class BepacomBinarySensor(CoordinatorEntity[BepacomCoordinator], BinarySensorEntity):

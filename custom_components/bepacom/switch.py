@@ -50,7 +50,7 @@ async def async_setup_entry(
 
     if entities:
         async_add_entities(entities)
-        _LOGGER.info("Added %d switch entities", len(entities))
+        _LOGGER.debug("Added %d switch entities", len(entities))
 
 
 class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
