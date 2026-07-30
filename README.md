@@ -1,10 +1,8 @@
 # Engelsoft Beacon BACnet/IP for Home Assistant
 
-![Version](https://img.shields.io/badge/Version-1.1.6-blue)
+![Version](https://img.shields.io/badge/Version-1.2.0-blue)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.6.0%2B-41BDF5)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
-
-<img width="128" height="128" alt="logo" src="https://github.com/user-attachments/assets/c722be40-ec2e-41b3-b50a-8ce158d11ed9" />
 
 The Engelsoft Beacon BACnet/IP integration connects BACnet/IP data points from a Bepacom gateway to Home Assistant. It automatically discovers supported BACnet objects, creates suitable Home Assistant entities, and updates them primarily through WebSocket/COV notifications. The integrated **BACnet Explorer** provides a central interface for managing, customizing, and diagnosing BACnet points.
 
@@ -27,9 +25,13 @@ The Engelsoft Beacon BACnet/IP integration connects BACnet/IP data points from a
 - services for releasing BACnet priority slots
 - dedicated GLT/AS write profiles
 - integrated BACnet Explorer in the Home Assistant sidebar
+- separate Configuration, Live View, and Diagnostics workspaces
+- full-width live change log with activity chart and transport filters
+- persistent connection and BACnet inventory status cards
 - per-point entity overrides and runtime settings
+- bulk point editing plus override import and export
 - virtual binary sensors derived from numeric or multi-state BACnet values
-- diagnostics, recent value history, and data export
+- privacy-safe Home Assistant diagnostics, recent value history, and data export
 - support for multiple Engelsoft Beacon BACnet/IP connections
 
 ## Requirements
@@ -249,7 +251,7 @@ During startup, the integration attempts to migrate older generated entity IDs t
 
 ## Performance
 
-Version 1.1.6 is designed for larger BACnet installations:
+Version 1.2.0 is designed for larger BACnet installations:
 
 - unchanged push values are filtered before they reach Home Assistant
 - only the affected entity writes a new Home Assistant state
