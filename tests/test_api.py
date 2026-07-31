@@ -26,6 +26,18 @@ class RecordingClient(BepacomClient):
         return None
 
 
+class LegacySchemaClient(BepacomClient):
+    """Client exposing an old add-on OpenAPI schema."""
+
+    def __init__(self) -> None:
+        super().__init__("legacy-gateway.local")
+        self.get_requests: list[str] = []
+
+    async def _get(self, path: str) -> Any:
+        self.get_requests.append(path)
+        return {"paths": {"/apiv1/{deviceid}/{objectid}": {"post": {}}}}
+
+
 def test_normalize_device_path_id() -> None:
     """Device identifiers are normalized exactly once."""
     client = BepacomClient("gateway.local")
@@ -40,6 +52,27 @@ def test_normalize_object_path_id() -> None:
 
     assert client._normalize_object_path_id("analogValue:7") == "analog-value,7"
     assert client._normalize_object_path_id("analog-value,7") == "analog-value,7"
+
+
+@pytest.mark.asyncio
+async def test_managed_targets_detects_legacy_schema_without_post() -> None:
+    """Old add-ons are detected without hitting their generic write route."""
+    client = LegacySchemaClient()
+
+    first = await client.async_set_managed_targets([("1", "analogInput:403")])
+    second = await client.async_set_managed_targets([("1", "analogInput:404")])
+
+    assert first == {"accepted": False, "mode": "unsupported"}
+    assert second == {"accepted": False, "mode": "unsupported"}
+    assert client.get_requests == ["/openapi.json"]
+    assert client._session is None
+
+
+def test_legacy_snapshot_websocket_uses_global_endpoint() -> None:
+    """Legacy compatibility connects directly to the add-on's global feed."""
+    client = BepacomClient("192.0.2.10")
+
+    assert client.legacy_snapshot_websocket_url() == "ws://192.0.2.10:8099/ws"
 
 
 @pytest.mark.asyncio
