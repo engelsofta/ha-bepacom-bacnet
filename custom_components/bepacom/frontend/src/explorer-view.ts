@@ -92,7 +92,7 @@ export class BepacomExplorerView extends HTMLElement {
   _versionLabel() {
     const cfg = this.panel?.config || {};
     const version = cfg.version || "1.2.0";
-    const build = cfg.frontend_build || "0642";
+    const build = cfg.frontend_build || "0648";
     return `Version ${version} · Frontend-Build ${build}`;
   }
 
@@ -483,10 +483,6 @@ export class BepacomExplorerView extends HTMLElement {
   }
 
   _updateHeaderDom() {
-    const subtitle = this.shadowRoot?.getElementById("subtitle");
-    if (subtitle) {
-      subtitle.textContent = `Sidebar-Ansicht für gefundene BACnet-Objekte${this._total !== undefined ? ` · ${this._points.length} von ${this._total}` : ""}${this._limited ? " · Liste begrenzt" : ""}`;
-    }
     const mainStatus = this.shadowRoot?.querySelector(".main-status-strip");
     if (mainStatus) mainStatus.outerHTML = this._mainStatusHtml();
     const dashboard = this.shadowRoot?.getElementById("dashboard");
@@ -1358,9 +1354,6 @@ export class BepacomExplorerView extends HTMLElement {
   _dashboardHtml() {
     const d = this._diagnostics || {};
     const configured = [
-      ["BACnet-Punkte", d.objects ?? this._total ?? "-"],
-      ["Aktive Entitäten", d.enabled ?? "-"],
-      ["Deaktiviert", d.configured_disabled ?? d.disabled ?? "-"],
       ["Push konfiguriert", d.configured_push ?? "-"],
       ["Polling konfiguriert", d.configured_polling ?? "-"],
       ["Overrides", d.overrides ?? "-"],
@@ -1382,13 +1375,9 @@ export class BepacomExplorerView extends HTMLElement {
       : "-";
     const pushChangeValue = `${pushNotificationsRaw ?? "-"} / ${averageChangesPerPush}`;
     const runtime = [
-      ["Verbunden", d.connected === undefined ? "-" : (d.connected ? "Ja" : "Nein")],
       ["Aktive Subscriptions", d.subscribed ?? d.subscriptions ?? "-"],
       ["Aktives Polling", d.fallback_polling ?? d.fallback_objects ?? "-"],
-      ["Pushs / Ø Änderungen", pushChangeValue],
-      ["Ø Push-Verarbeitung ms", d.dispatch_time_avg_ms === undefined ? "-" : Number(d.dispatch_time_avg_ms).toFixed(2)],
       ["Reconnects", d.reconnect_count ?? "-"],
-      ["Verbindungsfehler", d.connection_failures ?? "-"],
     ];
     const developer = [
       ["Direkt-Pushs", d.websocket_direct_messages ?? "-"],
@@ -1634,6 +1623,10 @@ export class BepacomExplorerView extends HTMLElement {
       .stat { padding:8px 10px; min-height:38px; border-radius:9px; background:var(--secondary-background-color); border:1px solid var(--divider-color); min-width:0; display:flex; align-items:center; }
       .stat-ok { border-color: color-mix(in srgb, var(--success-color, #43a047) 45%, var(--divider-color)); background: color-mix(in srgb, var(--success-color, #43a047) 10%, var(--secondary-background-color)); }
       .stat-warn { border-color: color-mix(in srgb, var(--warning-color, #ffa600) 55%, var(--divider-color)); background: color-mix(in srgb, var(--warning-color, #ffa600) 12%, var(--secondary-background-color)); }
+      .legacy-addon-warning { display:flex; gap:10px; align-items:flex-start; margin:0 0 12px; padding:10px 12px; border-radius:10px; border:1px solid color-mix(in srgb, var(--warning-color, #ffa600) 55%, var(--divider-color)); background:color-mix(in srgb, var(--warning-color, #ffa600) 12%, var(--card-background-color)); color:var(--primary-text-color); }
+      .legacy-addon-warning strong { display:block; margin-bottom:2px; }
+      .legacy-addon-warning small { display:block; line-height:1.4; color:var(--secondary-text-color); }
+      .legacy-addon-warning .warning-icon { color:var(--warning-color, #ffa600); font-size:20px; line-height:1; }
       .stat-bad { border-color: color-mix(in srgb, var(--error-color, #db4437) 55%, var(--divider-color)); background: color-mix(in srgb, var(--error-color, #db4437) 12%, var(--secondary-background-color)); }
       .stat-muted { opacity:.78; }
       .stat-line { display:flex; align-items:center; gap:8px; min-width:0; width:100%; }
@@ -2425,11 +2418,8 @@ export class BepacomExplorerView extends HTMLElement {
         transform:none;
         text-align:left;
       }
-      .main-nav-item:hover:not(:disabled) {
-        color:#f5f2ec;
-        background:rgba(255,255,255,.045);
-      }
-      .main-nav-item.active {
+      .main-nav-item.active,
+      .main-nav-item.active:hover:not(:disabled) {
         color:#fff9ef;
         background:linear-gradient(135deg,#c88a3d,#a96b28);
         box-shadow:0 6px 16px rgba(82,49,17,.2);
@@ -2547,6 +2537,187 @@ export class BepacomExplorerView extends HTMLElement {
         max-width:none;
         padding:12px clamp(10px,1vw,18px) 16px;
       }
+      /* NetMan-aligned visual language: quiet surfaces, clear hierarchy. */
+      :host {
+        --bepacom-gold:#d19a42;
+        --bepacom-gold-deep:#a86c27;
+        --bepacom-border:rgba(255,255,255,.085);
+        font-family:Inter,"SF Pro Display","Segoe UI Variable","Segoe UI",sans-serif;
+      }
+      .wrap {
+        padding:0 clamp(12px,1.1vw,22px) 18px;
+        background:radial-gradient(circle at 32% -20%,rgba(209,154,66,.07),transparent 31%),#1b1a19;
+      }
+      .header {
+        min-height:108px;
+        margin:0 calc(clamp(12px,1.1vw,22px) * -1) 20px;
+        padding:18px clamp(16px,1.5vw,30px);
+        box-sizing:border-box;
+        align-items:center;
+        border-bottom:1px solid rgba(255,255,255,.055);
+        background:rgba(24,23,22,.94);
+      }
+      .brand-lockup { display:flex; align-items:center; gap:15px; min-width:0; }
+      .brand-mark {
+        width:48px; height:48px; flex:0 0 48px; display:grid; place-items:center;
+        border:1px solid rgba(255,226,169,.34); border-radius:14px; color:#241c10;
+        background:linear-gradient(145deg,#e1b55c,#bd7e2c);
+        box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 8px 22px rgba(75,44,10,.22);
+        font-size:19px; font-weight:850;
+      }
+      .brand-copy { min-width:0; }
+      .brand-eyebrow {
+        margin-bottom:5px; color:#d9bd83; font-size:10px; font-weight:800;
+        letter-spacing:.22em; text-transform:uppercase;
+      }
+      h1 { margin:0; font-size:31px; line-height:1; letter-spacing:-.045em; }
+      .subtitle { margin-top:7px; color:#8f8b84; font-size:10px; }
+      .frontend-version {
+        margin:7px 0 0; padding:0; border:0; border-radius:0;
+        color:#696660; background:transparent; font-size:9px;
+      }
+      .header-action-buttons button {
+        min-height:42px; border-color:rgba(255,255,255,.1); border-radius:999px;
+        color:#e6e2db; background:rgba(255,255,255,.045); box-shadow:none;
+      }
+      .header-action-buttons button:hover:not(:disabled) {
+        border-color:rgba(209,154,66,.38); background:rgba(209,154,66,.1);
+      }
+      .main-status-strip {
+        grid-template-columns:minmax(360px,1.4fr) repeat(4,minmax(0,1fr));
+        gap:9px; margin-bottom:16px; padding:9px;
+        border:1px solid var(--bepacom-border); border-radius:14px;
+        background:rgba(52,51,48,.78); box-shadow:0 12px 30px rgba(0,0,0,.14);
+      }
+      .dashboard-headline-card {
+        min-height:82px; align-items:flex-start; padding:14px 16px;
+        border-color:rgba(255,255,255,.075); border-radius:11px;
+        background:rgba(255,255,255,.045);
+      }
+      .dashboard-headline-icon { display:none; }
+      .dashboard-headline-card small {
+        margin-bottom:8px; color:#aaa59c; font-size:9px; letter-spacing:.075em;
+      }
+      .dashboard-headline-card strong {
+        color:#f2d598; font-size:25px; letter-spacing:-.04em;
+      }
+      .dashboard-headline-card.stat-ok strong { color:#dcd49a; }
+      .dashboard-headline-card.stat-warn strong,.dashboard-headline-card.stat-bad strong { color:#df766a; }
+      .dashboard-headline-card.status-overview { padding:11px 16px; }
+      .status-overview-grid {
+        width:100%; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px;
+      }
+      .status-overview-value {
+        min-width:0; padding-right:12px; border-right:1px solid rgba(255,255,255,.075);
+      }
+      .status-overview-value:last-child { padding-right:0; border-right:0; }
+      .status-overview-value strong {
+        display:block; padding:0; font-size:23px; line-height:1;
+      }
+      .status-overview-value small {
+        display:block; margin-top:7px; color:#aaa59c; font-size:8px;
+        font-weight:750; letter-spacing:.07em; text-transform:uppercase;
+      }
+      .status-overview-value.total strong { color:#f2d598; }
+      .status-overview-value.active strong { color:#a9c89e; }
+      .status-overview-value.disabled strong { color:#df766a; }
+      .main-nav {
+        min-height:44px; margin-bottom:14px; padding:4px; border-radius:11px;
+        background:rgba(45,44,41,.82); box-shadow:none; backdrop-filter:none;
+      }
+      .main-nav-item,.main-nav-item:hover:not(:disabled) {
+        min-height:34px; padding:5px 12px; gap:8px; border-radius:8px;
+      }
+      .main-nav-item.active,
+      .main-nav-item.active:hover:not(:disabled) {
+        background:linear-gradient(135deg,var(--bepacom-gold),var(--bepacom-gold-deep));
+        box-shadow:0 6px 18px rgba(86,51,14,.22);
+      }
+      .main-nav-item small { display:none; }
+      .main-nav-icon { font-size:14px; }
+      .main-nav-item strong { font-size:13px; }
+      .main-dashboard .dashboard-shell {
+        border-color:var(--bepacom-border); border-radius:14px;
+        background:rgba(48,47,44,.84); box-shadow:none;
+      }
+      .dashboard-page-heading { min-height:62px; padding:16px 20px; background:transparent; }
+      .dashboard-toggle-title { font-size:19px; font-weight:760; letter-spacing:-.025em; }
+      .dashboard-summary { color:#8f8a82; font-size:11px; }
+      .dashboard-group { border-color:rgba(255,255,255,.065); background:rgba(255,255,255,.025); }
+      .main-dashboard .dashboard-content { padding:0 20px 18px; }
+      .live-summary { color:#98938b; }
+      .live-chart {
+        height:34px; border-color:rgba(255,255,255,.065); background:rgba(20,19,18,.24);
+      }
+      .live-filters input,.live-filters select {
+        border-color:rgba(255,255,255,.075); background:#302f2c;
+      }
+      .live-table-wrap {
+        border-color:rgba(255,255,255,.075); border-radius:10px; background:rgba(38,37,35,.42);
+      }
+      .live-table th {
+        padding:11px 12px; color:#aaa59d; background:#2d2c2a;
+        font-size:9px; letter-spacing:.07em; text-transform:uppercase;
+      }
+      .live-table td,.live-table tbody td { padding:12px; border-top-color:rgba(255,255,255,.06); }
+      .live-table tbody tr:hover { background:rgba(209,154,66,.055); }
+      .live-source {
+        border-color:rgba(209,154,66,.22); color:#d7b36f; background:rgba(209,154,66,.07);
+      }
+      .dashboard-content-developer { padding-top:2px!important; }
+      .dashboard-diagnostics-grid {
+        grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+        gap:12px;
+      }
+      .dashboard-diagnostics-grid > .dashboard-group {
+        padding:16px;
+        border-color:rgba(255,255,255,.075);
+        border-radius:12px;
+        background:rgba(255,255,255,.024);
+      }
+      .dashboard-diagnostics-grid > .dashboard-group:nth-child(3) {
+        grid-column:1 / -1;
+      }
+      .dashboard-title {
+        margin:0 0 14px;
+        padding-bottom:11px;
+        border-bottom:1px solid rgba(255,255,255,.06);
+        color:#d9d4cc;
+        font-size:10px;
+        font-weight:800;
+        letter-spacing:.085em;
+        text-transform:uppercase;
+      }
+      .dashboard-diagnostics-grid .dashboard-cards {
+        gap:9px;
+      }
+      .dashboard-diagnostics-grid > .dashboard-group:nth-child(1) .dashboard-cards {
+        grid-template-columns:repeat(3,minmax(0,1fr));
+      }
+      .dashboard-diagnostics-grid > .dashboard-group:nth-child(2) .dashboard-cards {
+        grid-template-columns:repeat(4,minmax(0,1fr));
+      }
+      .dashboard-diagnostics-grid > .dashboard-group:nth-child(3) .dashboard-cards {
+        grid-template-columns:repeat(7,minmax(0,1fr));
+      }
+      .dashboard-content-developer .dashboard-summary { display:none; }
+      @media (max-width:1500px) {
+        .dashboard-diagnostics-grid > .dashboard-group:nth-child(2) .dashboard-cards {
+          grid-template-columns:repeat(3,minmax(0,1fr));
+        }
+        .dashboard-diagnostics-grid > .dashboard-group:nth-child(3) .dashboard-cards {
+          grid-template-columns:repeat(5,minmax(0,1fr));
+        }
+      }
+      @media (max-width:1000px) {
+        .dashboard-diagnostics-grid { grid-template-columns:1fr; }
+        .dashboard-diagnostics-grid > .dashboard-group:nth-child(3) { grid-column:auto; }
+        .dashboard-diagnostics-grid > .dashboard-group:nth-child(1) .dashboard-cards,
+        .dashboard-diagnostics-grid > .dashboard-group:nth-child(2) .dashboard-cards,
+        .dashboard-diagnostics-grid > .dashboard-group:nth-child(3) .dashboard-cards {
+          grid-template-columns:repeat(2,minmax(0,1fr));
+        }
+      }
       @media (max-width: 1100px) { :host { height:auto; overflow:visible; } .wrap { height:auto; min-height:100vh; overflow:visible; } .toolbar { align-items:stretch; } .toolbar .toolbar-nav { flex:1 0 100%; border-right:0; border-bottom:1px solid var(--divider-color); padding:2px 2px 8px; } .dashboard-content { grid-template-columns: 1fr; } .dashboard-cards { grid-template-columns: repeat(2, 1fr); } #explorerView { overflow:visible; } .content { grid-template-columns: 1fr; overflow:visible; } .table-wrap { height:70vh; } .side { height:70vh; } }
       @media (max-width: 700px) {
         .main-nav { grid-template-columns:1fr; }
@@ -2644,9 +2815,13 @@ export class BepacomExplorerView extends HTMLElement {
       <style>${styles}</style>
       <div class="wrap">
         <div class="header">
-          <div>
-            <h1>Engelsoft Beacon BACnet/IP</h1>
-            <div id="subtitle" class="subtitle">Sidebar-Ansicht für gefundene BACnet-Objekte${this._total !== undefined ? ` · ${this._points.length} von ${this._total}` : ""}${this._limited ? " · Liste begrenzt" : ""}</div><div class="frontend-version">${this._versionLabel()}</div>
+          <div class="brand-lockup">
+            <div class="brand-mark" aria-hidden="true">B</div>
+            <div class="brand-copy">
+            <div class="brand-eyebrow">Engelsoft</div>
+            <h1>Beacon BACnet</h1>
+            <div class="frontend-version">${this._versionLabel()}</div>
+            </div>
           </div>
           <div class="header-actions-menu">
             <button id="mobileActionsToggle" class="mobile-actions-toggle" type="button" title="Aktionen" aria-label="Aktionen öffnen" aria-expanded="false">☰</button>
@@ -2729,13 +2904,41 @@ export class BepacomExplorerView extends HTMLElement {
 
   _mainStatusHtml() {
     const diagnostics = this._diagnostics || {};
+    const legacyAddonWarning = diagnostics.legacy_addon_detected === true ? `
+      <aside class="legacy-addon-warning" role="status">
+        <span class="warning-icon">&#9888;</span>
+        <span><strong>Veraltetes BACnet-Add-on erkannt</strong><small>Dieses Add-on unterstützt keine verwalteten COV-Ziele. Zuverlässige Push-Aktualisierungen setzen voraus, dass dort alle benötigten Objekte per COV abonniert sind (z.&nbsp;B. <code>CoV_list: all</code>). Empfohlen wird Engelsoft BACstac.</small></span>
+      </aside>` : "";
+    const pushTime = diagnostics.dispatch_time_avg_ms === undefined
+      ? "-"
+      : `${Number(diagnostics.dispatch_time_avg_ms).toFixed(2)} ms`;
+    const valueChanges = this._dashboardValueChanges(diagnostics);
+    const pushNotificationsRaw = diagnostics.bacnet_push_notifications
+      ?? diagnostics.websocket_updates
+      ?? diagnostics.push_count;
+    const pushNotifications = Number(pushNotificationsRaw);
+    const averageChangesPerPush = Number.isFinite(pushNotifications) && pushNotifications > 0
+      ? (Number(valueChanges) / pushNotifications).toLocaleString("de-DE", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : "-";
+    const pushChangeValue = `${pushNotificationsRaw ?? "-"} / ${averageChangesPerPush}`;
     const cards = [
-      ["BACnet-Punkte", diagnostics.objects ?? this._total ?? "-", ""],
-      ["Aktive Entitäten", diagnostics.enabled ?? "-", ""],
       ["Verbunden", diagnostics.connected === undefined ? "-" : (diagnostics.connected ? "Ja" : "Nein"), diagnostics.connected ? "stat-ok" : "stat-bad"],
       ["Verbindungsfehler", diagnostics.connection_failures ?? 0, Number(diagnostics.connection_failures || 0) > 0 ? "stat-warn" : ""],
+      ["Push-Verarbeitung", pushTime, ""],
+      ["Pushs / Ø Änderungen", pushChangeValue, ""],
     ];
-    return `<section class="main-status-strip" aria-label="Systemstatus">${cards.map(([label, value, tone]) => `
+    const overview = `
+      <div class="dashboard-headline-card status-overview">
+        <div class="status-overview-grid">
+          <span class="status-overview-value total"><strong>${this._escape(diagnostics.objects ?? this._total ?? "-")}</strong><small>Punkte insgesamt</small></span>
+          <span class="status-overview-value active"><strong>${this._escape(diagnostics.enabled ?? "-")}</strong><small>Aktive Entitäten</small></span>
+          <span class="status-overview-value disabled"><strong>${this._escape(diagnostics.configured_disabled ?? diagnostics.disabled ?? "-")}</strong><small>Deaktiviert</small></span>
+        </div>
+      </div>`;
+    return `${legacyAddonWarning}<section class="main-status-strip" aria-label="Systemstatus">${overview}${cards.map(([label, value, tone]) => `
       <div class="dashboard-headline-card ${tone}">
         <span class="dashboard-headline-icon">${this._statusIcon(label, value)}</span>
         <span><small>${this._escape(label)}</small><strong>${this._escape(value)}</strong></span>
@@ -3550,9 +3753,6 @@ export class BepacomExplorerView extends HTMLElement {
       : "-";
     const pushChangeValue = `${pushNotificationsRaw ?? "-"} / ${averageChangesPerPush}`;
     const configured = [
-      ["BACnet-Punkte", d.objects ?? this._total ?? "-"],
-      ["Aktive Entitäten", d.enabled ?? "-"],
-      ["Deaktiviert", d.configured_disabled ?? d.disabled ?? "-"],
       ["Push konfiguriert", d.configured_push ?? "-"],
       ["Polling konfiguriert", d.configured_polling ?? "-"],
       ["Overrides", d.overrides ?? "-"],
@@ -3560,13 +3760,9 @@ export class BepacomExplorerView extends HTMLElement {
     if (Array.isArray(d.firmware_versions) && d.firmware_versions.length) configured.push(["Firmware", d.firmware_versions.join(", ")]);
     if (Array.isArray(d.device_models) && d.device_models.length) configured.push(["Gerätemodelle", d.device_models.join(", ")]);
     const runtime = [
-      ["Verbunden", d.connected === undefined ? "-" : (d.connected ? "Ja" : "Nein")],
       ["Aktive Subscriptions", d.subscribed ?? d.subscriptions ?? "-"],
       ["Aktives Polling", d.fallback_polling ?? d.fallback_objects ?? "-"],
-      ["Pushs / Ø Änderungen", pushChangeValue],
-      ["Ø Push-Verarbeitung ms", d.dispatch_time_avg_ms === undefined ? "-" : Number(d.dispatch_time_avg_ms).toFixed(2)],
       ["Reconnects", d.reconnect_count ?? "-"],
-      ["Verbindungsfehler", d.connection_failures ?? "-"],
     ];
     const developer = [
       ["Direkt-Pushs", d.websocket_direct_messages ?? "-"],
