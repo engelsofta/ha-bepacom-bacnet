@@ -106,6 +106,13 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._write_fallback_refresh_task: asyncio.Task[None] | None = None
         self._data_revision = 0
         self._managed_target_restore_lock = asyncio.Lock()
+        # ``None`` means that capability detection has not completed yet.
+        # The original Bepacom add-on does not expose /apiv1/managed/targets;
+        # newer Engelsoft BACstac builds do, even when configured for legacy
+        # transport.  Keep this distinction available to the frontend so it
+        # can explain the limitations of the old gateway without guessing from
+        # product names or versions.
+        self._managed_targets_supported: bool | None = None
 
     @property
     def websocket_diagnostics(self) -> dict[str, Any]:
@@ -123,6 +130,8 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     self._inventory_missing_configured_points
                 ),
                 "fallback_objects": len(self._fallback_objects),
+                "managed_targets_supported": self._managed_targets_supported,
+                "legacy_addon_detected": self._managed_targets_supported is False,
             }
         )
         return diagnostics
@@ -403,6 +412,15 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._websocket_manager.set_snapshot_targets(targets, initial_values)
             try:
                 managed_result = await self.client.async_set_managed_targets(targets)
+                self._managed_targets_supported = (
+                    managed_result.get("mode") != "unsupported"
+                )
+                if self._managed_targets_supported is False:
+                    _LOGGER.warning(
+                        "Outdated BACnet add-on detected: managed COV targets are not supported. "
+                        "Reliable push updates require the add-on to subscribe to all needed "
+                        "objects itself (for example CoV_list: all). Engelsoft BACstac is recommended."
+                    )
                 if managed_result.get("accepted"):
                     _LOGGER.debug(
                         "Bepacom managed gateway targets configured: strategy=%s targets=%s devices=%s interval=%s",
@@ -417,9 +435,25 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         managed_result.get("mode", "unknown"),
                     )
             except (CannotConnect, InvalidResponse):
+                # A connection or payload error is not proof that the gateway
+                # is old.  Leave the capability unknown and avoid a misleading
+                # warning in the UI.
+                self._managed_targets_supported = None
                 _LOGGER.debug(
-                    "Bepacom gateway does not support managed targets; continuing with legacy snapshot behavior"
+                    "Could not determine managed-target support; continuing with legacy snapshot behavior"
                 )
+
+            if self._managed_targets_supported is False:
+                successful = int(
+                    await self._websocket_manager.async_connect_legacy_snapshot()
+                )
+                self._subscriptions_initialized = True
+                self._last_subscription_summary = (successful, len(targets))
+                _LOGGER.info(
+                    "Legacy BACnet add-on compatibility active: using global snapshot WebSocket without duplicate subscriptions"
+                )
+                return
+
             gateway_targets = targets[:1]
 
             _LOGGER.debug(
@@ -488,6 +522,12 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
     async def _async_restore_managed_targets(self) -> None:
         """Restore managed gateway targets after a WebSocket reconnect."""
         if not self._snapshot_websocket_mode or not self.data:
+            return
+
+        # The legacy add-on owns its configured COV/poll tasks.  Its global
+        # WebSocket reconnects independently and has no managed targets to
+        # restore.
+        if self._managed_targets_supported is False:
             return
 
         async with self._managed_target_restore_lock:
