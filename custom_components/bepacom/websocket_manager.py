@@ -37,6 +37,7 @@ class _SubscriptionState:
     websocket: aiohttp.ClientWebSocketResponse | None = None
     stop_event: asyncio.Event = field(default_factory=asyncio.Event)
     owns_connection: bool = False
+    gateway_subscription: bool = True
 
 
 @dataclass(slots=True)
@@ -387,6 +388,35 @@ class BepacomWebSocketManager:
         self._log_diagnostics(ws_url, reason="subscribe")
         return True
 
+    async def async_connect_legacy_snapshot(self) -> bool:
+        """Listen to a legacy add-on's global snapshot feed without subscribing.
+
+        Old BACnet add-ons already create COV and polling tasks from their own
+        configuration.  Calling their subscribe endpoint again only creates
+        duplicate-subscription errors, while the global ``/ws`` feed is
+        available without that call.
+        """
+        key = ("__legacy_snapshot__", "__global_ws__")
+        if key in self._subscriptions:
+            return True
+
+        ws_url = self._client.legacy_snapshot_websocket_url()
+        state = _SubscriptionState(
+            device_id=key[0],
+            object_id=key[1],
+            ws_url=ws_url,
+            owns_connection=True,
+            gateway_subscription=False,
+        )
+        state.task = asyncio.create_task(
+            self._async_run_subscription(state),
+            name="bepacom-legacy-snapshot-websocket",
+        )
+        self._subscriptions[key] = state
+        self._stats_for_url(ws_url)
+        _LOGGER.info("Connected legacy Bepacom add-on through global snapshot WebSocket")
+        return True
+
     async def async_unsubscribe(self, device_id: str, object_id: str) -> None:
         """Unsubscribe from an object's change feed."""
         key = (device_id, object_id)
@@ -421,7 +451,8 @@ class BepacomWebSocketManager:
         self._log_diagnostics(state.ws_url, reason="unsubscribe")
 
         try:
-            await self._client.async_unsubscribe(device_id, object_id)
+            if state.gateway_subscription:
+                await self._client.async_unsubscribe(device_id, object_id)
         except Exception as err:
             _LOGGER.debug(
                 "Could not remove subscription for %s/%s: %s",
@@ -466,6 +497,8 @@ class BepacomWebSocketManager:
         semaphore = asyncio.Semaphore(_UNSUBSCRIBE_CONCURRENCY)
 
         async def _unsubscribe_state(state: _SubscriptionState) -> None:
+            if not state.gateway_subscription:
+                return
             async with semaphore:
                 try:
                     await self._client.async_unsubscribe(state.device_id, state.object_id)
@@ -549,7 +582,7 @@ class BepacomWebSocketManager:
         )
 
         for subscription in states:
-            if subscription.stop_event.is_set():
+            if subscription.stop_event.is_set() or not subscription.gateway_subscription:
                 continue
 
             try:

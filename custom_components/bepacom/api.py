@@ -52,6 +52,7 @@ class BepacomClient:
     def __init__(self, host: str, port: int = 8099) -> None:
         self._base = f"http://{host}:{port}"
         self._session: aiohttp.ClientSession | None = None
+        self._managed_targets_endpoint_supported: bool | None = None
         self._subscription_diagnostic_logs = 0
 
     async def async_connect(self) -> None:
@@ -239,6 +240,10 @@ class BepacomClient:
         base_url = URL(self._base).with_scheme("ws")
         return str(base_url.join(URL(_DEFAULT_SUBSCRIPTION_WS_PATH)))
 
+    def legacy_snapshot_websocket_url(self) -> str:
+        """Return the global WebSocket used by legacy snapshot add-ons."""
+        return self._default_subscription_websocket_url()
+
     def _normalize_device_path_id(self, device_id: str) -> str:
         """Normalize device identifiers for API paths.
 
@@ -387,6 +392,23 @@ class BepacomClient:
         self, targets: list[tuple[str, str]]
     ) -> dict[str, Any]:
         """Send the complete managed polling target list to a capable gateway."""
+        if self._managed_targets_endpoint_supported is None:
+            try:
+                schema = await self._get("/openapi.json")
+            except (CannotConnect, InvalidResponse):
+                # Capability discovery is optional.  If an unusual gateway does
+                # not expose OpenAPI, retain the existing request/response
+                # fallback below.
+                schema = None
+
+            if isinstance(schema, dict) and isinstance(schema.get("paths"), dict):
+                self._managed_targets_endpoint_supported = (
+                    "/apiv1/managed/targets" in schema["paths"]
+                )
+
+        if self._managed_targets_endpoint_supported is False:
+            return {"accepted": False, "mode": "unsupported"}
+
         await self.async_connect()
         assert self._session is not None
 
@@ -400,6 +422,7 @@ class BepacomClient:
         try:
             async with self._session.post(url, json=payload) as response:
                 if response.status == 404:
+                    self._managed_targets_endpoint_supported = False
                     return {"accepted": False, "mode": "unsupported"}
                 response.raise_for_status()
                 result = self._decode_response(await response.text())
@@ -408,8 +431,19 @@ class BepacomClient:
         except aiohttp.ClientError as err:
             raise CannotConnect from err
 
+        # Legacy add-ons route this unknown URL through their generic
+        # ``/apiv1/{deviceid}/{objectid}`` write handler.  That handler returns
+        # the JSON number 400 with HTTP 200 and logs a misleading failed-write
+        # warning.  Treat that distinctive response as a capability result so
+        # the coordinator can switch to the global snapshot WebSocket and avoid
+        # retrying the unsupported endpoint after every reconnect.
+        if str(result).strip().strip('"').lower() in {"400", "none"}:
+            self._managed_targets_endpoint_supported = False
+            return {"accepted": False, "mode": "unsupported"}
+
         if not isinstance(result, dict):
             raise InvalidResponse
+        self._managed_targets_endpoint_supported = True
         return result
 
     async def async_subscribe(
