@@ -28,17 +28,18 @@ export class BepacomStatusMetric extends LitElement {
   static styles = css`
     :host {
       box-sizing: border-box;
+      position: relative;
       display: flex;
-      align-items: center;
+      align-items: flex-end;
       min-width: 0;
-      min-height: 48px;
-      gap: 10px;
-      padding: 9px 11px;
-      border: 0;
-      border-radius: 11px;
-      background: rgba(255,255,255,.055);
+      min-height: 66px;
+      padding: 10px 13px;
+      border: 1px solid rgba(255,255,255,.065);
+      border-radius: 10px;
+      background: rgba(255,255,255,.035);
       color: var(--primary-text-color);
       font-family: Inter, "SF Pro Display", "Segoe UI Variable", "Segoe UI", sans-serif;
+      overflow: hidden;
     }
 
     :host([tone="stat-ok"]) {
@@ -85,21 +86,26 @@ export class BepacomStatusMetric extends LitElement {
     }
 
     .icon {
+      position:absolute;
+      top:9px;
+      right:10px;
       display:flex;
       align-items:center;
       justify-content:center;
-      flex: 0 0 28px;
-      width: 28px;
-      height:28px;
-      border-radius:50%;
-      background:rgba(255,255,255,.075);
+      width:21px;
+      height:21px;
+      border-radius:6px;
+      background:rgba(255,255,255,.055);
+      opacity:.72;
       text-align: center;
-      font-size: 14px;
+      font-size: 10px;
     }
 
     .text {
-      display: block;
+      display: flex;
+      flex-direction: column-reverse;
       min-width: 0;
+      width:100%;
     }
 
     strong,
@@ -112,16 +118,20 @@ export class BepacomStatusMetric extends LitElement {
 
     strong {
       color:#f7f4ee;
-      font-size: 15px;
-      line-height: 1.15;
-      letter-spacing:-.02em;
+      padding-right:30px;
+      font-size: 19px;
+      line-height: 1.05;
+      letter-spacing:-.04em;
     }
 
     small {
-      margin-top: 2px;
+      margin-bottom: 5px;
       color: #aaa398;
-      font-size: 11px;
-      line-height: 1.2;
+      font-size: 9px;
+      font-weight:700;
+      line-height: 1.15;
+      letter-spacing:.055em;
+      text-transform:uppercase;
     }
   `;
 }
