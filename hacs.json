@@ -1,6 +1,8 @@
 {
-  "name": "Engelsoft Beacon",
-  "content_in_root": false,
-  "homeassistant": "2026.6.0",
-  "render_readme": true
+    "name":  "Engelsoft Beacon BACnet/IP",
+    "content_in_root":  false,
+    "filename":  "beacon.zip",
+    "homeassistant":  "2026.6.0",
+    "render_readme":  true,
+    "zip_release":  true
 }
