@@ -133,6 +133,28 @@ export class BepacomStatusMetric extends LitElement {
       letter-spacing:.055em;
       text-transform:uppercase;
     }
+
+    :host-context(.theme-light) {
+      border-color: rgba(62,52,39,.1);
+      background: rgba(255,255,255,.72);
+      color: #29251f;
+    }
+
+    :host-context(.theme-light) .icon {
+      background: rgba(62,52,39,.055);
+    }
+
+    :host-context(.theme-light) strong { color:#29251f; }
+    :host-context(.theme-light) small { color:#797268; }
+
+    :host-context(.theme-light):host([tone="stat-ok"]) {
+      background: color-mix(in srgb, var(--success-color, #64815c) 9%, #fffdfa);
+    }
+
+    :host-context(.theme-light):host([tone="stat-warn"]),
+    :host-context(.theme-light):host([tone="stat-bad"]) {
+      background: color-mix(in srgb, var(--error-color, #b9564d) 8%, #fffdfa);
+    }
   `;
 }
 

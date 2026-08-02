@@ -1,11 +1,9 @@
 # Engelsoft Beacon BACnet/IP for Home Assistant
 
-![Version](https://img.shields.io/badge/Version-1.2.1-blue)
+![Version](https://img.shields.io/badge/Version-1.2.1b1-orange)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.6.0%2B-41BDF5)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 [![GitHub Downloads](https://img.shields.io/github/downloads/engelsofta/ha-bepacom-bacnet/total?label=Downloads)](https://github.com/engelsofta/ha-bepacom-bacnet/releases)
-
-<img width="128" height="128" alt="logo" src="https://github.com/user-attachments/assets/9566911d-a0ac-41b8-9217-f7a2947b5de1" />
 
 The Engelsoft Beacon BACnet/IP integration connects BACnet/IP data points from a Bepacom gateway to Home Assistant. It automatically discovers supported BACnet objects, creates suitable Home Assistant entities, and updates them primarily through WebSocket/COV notifications. The integrated **BACnet Explorer** provides a central interface for managing, customizing, and diagnosing BACnet points.
 
@@ -254,7 +252,7 @@ During startup, the integration attempts to migrate older generated entity IDs t
 
 ## Performance
 
-Version 1.2.0 is designed for larger BACnet installations:
+Version 1.2.1b1 is designed for larger BACnet installations:
 
 - unchanged push values are filtered before they reach Home Assistant
 - only the affected entity writes a new Home Assistant state
