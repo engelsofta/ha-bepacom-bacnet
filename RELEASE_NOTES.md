@@ -1,6 +1,6 @@
-# Engelsoft Beacon BACnet/IP 1.2.1_B1
+# Engelsoft Beacon BACnet/IP 1.2.1 B1
 
-Version 1.2.1_B1 is a pre-release preview of the visual refinements for the Beacon BACnet Explorer.
+Version 1.2.1b1 is a pre-release preview of the visual refinements for the Beacon BACnet Explorer.
 
 ## Highlights
 
@@ -26,4 +26,4 @@ Version 1.2.1_B1 is a pre-release preview of the visual refinements for the Beac
 - Frontend build `0649`.
 
 For the complete list of changes, see
-[CHANGELOG.md](CHANGELOG.md#121_b1---2026-08-02).
+[CHANGELOG.md](CHANGELOG.md#121b1---2026-08-02).

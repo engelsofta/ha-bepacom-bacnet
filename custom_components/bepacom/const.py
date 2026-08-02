@@ -3,7 +3,7 @@
 from datetime import timedelta
 
 DOMAIN = "bepacom"
-VERSION = "1.2.1_B1"
+VERSION = "1.2.1b1"
 CONF_SUBSCRIBED_OBJECTS = "subscribed_objects"
 CONF_ENTITY_OVERRIDES = "entity_overrides"
 CONF_VIRTUAL_ENTITIES = "virtual_entities"
