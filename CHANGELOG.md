@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.2.1_B1 - 2026-08-02
+
+This patch release refines the BACnet Explorer introduced in version 1.2.0.
+
+### Added
+
+- Added an automatic light interface that follows the active Home Assistant theme.
+- Added a system color-scheme fallback when Home Assistant does not expose an explicit theme mode.
+- Added push-processing time and push/change efficiency to the persistent top status area.
+
+### Changed
+
+- Renamed the Explorer header to **Beacon BACnet** and simplified its branding area.
+- Reworked the interface to match the cleaner Engelsoft NetMan dashboard language.
+- Redesigned diagnostics with clearer information groups, larger values and a responsive card grid.
+- Combined total points, active entities and disabled points into one compact status card.
+- Reduced the height of diagnostics cards and the main navigation.
+- Improved Live View tables, filters, badges, spacing and visual hierarchy.
+- Removed duplicate summary metrics from Diagnostics when they are already visible in the persistent status area.
+- Refined light-theme tables, forms, dropdowns, Point Inspector panels and virtual-entity views.
+
+### Compatibility
+
+- Existing config entries, entities, overrides and virtual entities are unchanged.
+- No migration or re-pairing is required when upgrading from 1.2.0.
+- The dark appearance remains the default whenever no light theme can be detected.
+
 ## 1.2.0 - 2026-07-30
 
 This release contains all changes since version 1.1.6.
