@@ -91,7 +91,7 @@ export class BepacomExplorerView extends HTMLElement {
 
   _versionLabel() {
     const cfg = this.panel?.config || {};
-    const version = cfg.version || "1.2.1_B1";
+    const version = cfg.version || "1.2.1b1";
     const build = cfg.frontend_build || "0649";
     return `Version ${version} · Frontend-Build ${build}`;
   }

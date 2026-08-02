@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.1_B1 - 2026-08-02
+## 1.2.1b1 - 2026-08-02
 
 This patch release refines the BACnet Explorer introduced in version 1.2.0.
 
