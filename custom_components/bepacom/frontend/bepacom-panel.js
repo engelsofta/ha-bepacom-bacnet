@@ -705,8 +705,8 @@ class BepacomExplorerView extends HTMLElement {
   }
   _versionLabel() {
     const cfg = this.panel?.config || {};
-    const version = cfg.version || "1.2.0";
-    const build = cfg.frontend_build || "0648";
+    const version = cfg.version || "1.2.1_B1";
+    const build = cfg.frontend_build || "0649";
     return `Version ${version} · Frontend-Build ${build}`;
   }
   connectedCallback() {
@@ -797,6 +797,12 @@ class BepacomExplorerView extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     this._api = hass ? new ExplorerApi(hass) : null;
+    const wrap = this.shadowRoot?.querySelector(".wrap");
+    if (wrap) {
+      const light = !this._isDarkTheme(hass);
+      wrap.classList.toggle("theme-light", light);
+      wrap.classList.toggle("theme-dark", !light);
+    }
     this._scheduleVirtualStateDomUpdate();
     if (!this._hasHass) {
       this._hasHass = true;
@@ -805,6 +811,10 @@ class BepacomExplorerView extends HTMLElement {
   }
   get hass() {
     return this._hass;
+  }
+  _isDarkTheme(hass = this._hass) {
+    if (typeof hass?.themes?.darkMode === "boolean") return hass.themes.darkMode;
+    return window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ?? true;
   }
   _scheduleVirtualStateDomUpdate() {
     if (this._virtualStateUpdateQueued) return;
@@ -3166,6 +3176,148 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       .dashboard-diagnostics-grid > .dashboard-group:nth-child(3) .dashboard-cards {
         grid-template-columns:repeat(7,minmax(0,1fr));
       }
+      /* Automatic light appearance, driven by Home Assistant's active theme. */
+      .wrap.theme-light {
+        --primary-color:#b87926;
+        --accent-color:#b87926;
+        --primary-text-color:#29251f;
+        --text-primary-color:#29251f;
+        --secondary-text-color:#746e65;
+        --card-background-color:#fffdfa;
+        --secondary-background-color:#f1ede6;
+        --divider-color:rgba(62,52,39,.13);
+        --bepacom-border:rgba(62,52,39,.13);
+        --bp-shadow:0 10px 28px rgba(78,61,39,.08);
+        color-scheme:light;
+        color:#29251f;
+        background:
+          radial-gradient(circle at 30% -15%,rgba(202,146,65,.12),transparent 32%),
+          #f3f0ea;
+      }
+      .theme-light .header {
+        border-bottom-color:rgba(62,52,39,.1);
+        background:rgba(250,248,244,.96);
+      }
+      .theme-light h1 { color:#211f1b; }
+      .theme-light .brand-eyebrow { color:#9a6b2c; }
+      .theme-light .frontend-version { color:#918a80; }
+      .theme-light .header-action-buttons button,
+      .theme-light button.secondary,
+      .theme-light .view-tab,
+      .theme-light .icon-action {
+        color:#3b3731;
+        border-color:rgba(62,52,39,.14);
+        background:rgba(255,255,255,.72);
+      }
+      .theme-light .header-action-buttons button:hover:not(:disabled),
+      .theme-light button.secondary:hover:not(:disabled),
+      .theme-light .view-tab:hover,
+      .theme-light .icon-action:hover {
+        color:#6d491d;
+        border-color:rgba(184,121,38,.34);
+        background:rgba(184,121,38,.08);
+      }
+      .theme-light .main-status-strip,
+      .theme-light .main-nav,
+      .theme-light .card,
+      .theme-light .toolbar,
+      .theme-light .side,
+      .theme-light .table-wrap,
+      .theme-light .main-dashboard .dashboard-shell {
+        border-color:rgba(62,52,39,.13);
+        background:rgba(255,253,250,.88);
+        box-shadow:0 10px 28px rgba(78,61,39,.07);
+      }
+      .theme-light .dashboard-headline-card {
+        border-color:rgba(62,52,39,.1);
+        background:#f6f2eb;
+      }
+      .theme-light .dashboard-headline-card small,
+      .theme-light .status-overview-value small,
+      .theme-light .dashboard-summary,
+      .theme-light .live-summary,
+      .theme-light .muted,
+      .theme-light label { color:#797268; }
+      .theme-light .dashboard-headline-card strong { color:#9b671f; }
+      .theme-light .dashboard-headline-card.stat-ok strong,
+      .theme-light .status-overview-value.active strong { color:#64815c; }
+      .theme-light .dashboard-headline-card.stat-warn strong,
+      .theme-light .dashboard-headline-card.stat-bad strong,
+      .theme-light .status-overview-value.disabled strong { color:#b9564d; }
+      .theme-light .status-overview-value.total strong { color:#a06b20; }
+      .theme-light .status-overview-value { border-right-color:rgba(62,52,39,.11); }
+      .theme-light .main-nav-item { color:#6f685f; }
+      .theme-light .main-nav-item:hover:not(:disabled) {
+        color:#302b25; background:rgba(62,52,39,.05);
+      }
+      .theme-light .main-nav-item.active {
+        color:#fffaf2;
+        background:linear-gradient(135deg,#c99543,#a86c27);
+      }
+      .theme-light .dashboard-page-heading { color:#29251f; border-bottom-color:rgba(62,52,39,.09); }
+      .theme-light .dashboard-group,
+      .theme-light .dashboard-diagnostics-grid > .dashboard-group {
+        border-color:rgba(62,52,39,.11);
+        background:rgba(246,242,235,.72);
+      }
+      .theme-light .dashboard-title {
+        color:#5e574e; border-bottom-color:rgba(62,52,39,.1);
+      }
+      .theme-light input,
+      .theme-light select {
+        color:#29251f;
+        border-color:rgba(62,52,39,.15);
+        background:#fffdfa;
+        color-scheme:light;
+      }
+      .theme-light select option,
+      .theme-light select optgroup { color:#29251f; background:#fffdfa; }
+      .theme-light select option:checked { color:#2b2114; background:#ead5b3; }
+      .theme-light th,
+      .theme-light .live-table th {
+        color:#70695f;
+        background:#ebe6de!important;
+      }
+      .theme-light td { border-color:rgba(62,52,39,.09)!important; }
+      .theme-light tbody tr:hover:not(.group-row),
+      .theme-light .live-table tbody tr:hover { background:rgba(184,121,38,.055); }
+      .theme-light tbody tr.selected {
+        background:rgba(184,121,38,.09);
+        box-shadow:inset 2px 0 0 #b87926;
+      }
+      .theme-light .group-row td { background:rgba(184,121,38,.075); }
+      .theme-light .name { color:#29251f; }
+      .theme-light .value-link { color:#8a591c; }
+      .theme-light .side-tabs,
+      .theme-light .side-section-head,
+      .theme-light .point-inspector-head { background:#f0ece5; }
+      .theme-light .side-tab { color:#777066; }
+      .theme-light .side-tab.active {
+        color:#6d491d;
+        border-color:rgba(184,121,38,.24);
+        background:rgba(184,121,38,.09);
+      }
+      .theme-light details.detail-section,
+      .theme-light .side-virtual-card {
+        border-color:rgba(62,52,39,.11);
+        background:rgba(255,255,255,.64);
+      }
+      .theme-light details.detail-section > summary { color:#3e3932; }
+      .theme-light .live-chart,
+      .theme-light .live-table-wrap,
+      .theme-light .history-list {
+        border-color:rgba(62,52,39,.12);
+        background:rgba(255,253,250,.72);
+      }
+      .theme-light .live-filters input,
+      .theme-light .live-filters select { background:#fffdfa; }
+      .theme-light .live-source {
+        color:#85571d; border-color:rgba(184,121,38,.24); background:rgba(184,121,38,.08);
+      }
+      .theme-light .detail-rail-toggle,
+      .theme-light .detail-rail-toggle:hover:not(:disabled) {
+        color:#655e55; border-color:rgba(62,52,39,.15); background:#f8f5ef;
+      }
       .dashboard-content-developer .dashboard-summary { display:none; }
       @media (max-width:1500px) {
         .dashboard-diagnostics-grid > .dashboard-group:nth-child(2) .dashboard-cards {
@@ -3278,7 +3430,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     `;
     this.shadowRoot.innerHTML = `
       <style>${styles}</style>
-      <div class="wrap">
+      <div class="wrap ${this._isDarkTheme() ? "theme-dark" : "theme-light"}">
         <div class="header">
           <div class="brand-lockup">
             <div class="brand-mark" aria-hidden="true">B</div>
@@ -5257,6 +5409,28 @@ BepacomStatusMetric.styles = i$3`
       letter-spacing:.055em;
       text-transform:uppercase;
     }
+
+    :host-context(.theme-light) {
+      border-color: rgba(62,52,39,.1);
+      background: rgba(255,255,255,.72);
+      color: #29251f;
+    }
+
+    :host-context(.theme-light) .icon {
+      background: rgba(62,52,39,.055);
+    }
+
+    :host-context(.theme-light) strong { color:#29251f; }
+    :host-context(.theme-light) small { color:#797268; }
+
+    :host-context(.theme-light):host([tone="stat-ok"]) {
+      background: color-mix(in srgb, var(--success-color, #64815c) 9%, #fffdfa);
+    }
+
+    :host-context(.theme-light):host([tone="stat-warn"]),
+    :host-context(.theme-light):host([tone="stat-bad"]) {
+      background: color-mix(in srgb, var(--error-color, #b9564d) 8%, #fffdfa);
+    }
   `;
 __decorateClass$6([
   n2()
@@ -5618,6 +5792,41 @@ BepacomExplorerToolbar.styles = i$3`
     .reset {
       margin: 17px 4px 0;
     }
+
+    :host-context(.theme-light) {
+      border-color: rgba(62,52,39,.13);
+      background: rgba(255,253,250,.88);
+      box-shadow: 0 10px 28px rgba(78,61,39,.07);
+      backdrop-filter: none;
+    }
+
+    :host-context(.theme-light) button {
+      color:#3b3731;
+      border-color:rgba(62,52,39,.14);
+      background:rgba(255,255,255,.76);
+    }
+
+    :host-context(.theme-light) .tab.active {
+      color:#fffaf2;
+      border-color:rgba(184,121,38,.34);
+      background:linear-gradient(135deg,#c99543,#a86c27);
+    }
+
+    :host-context(.theme-light) label { color:#797268; }
+
+    :host-context(.theme-light) input,
+    :host-context(.theme-light) select {
+      color:#29251f;
+      border-color:rgba(62,52,39,.15);
+      background:#fffdfa;
+    }
+
+    :host-context(.theme-light) select { color-scheme:light; }
+    :host-context(.theme-light) select option,
+    :host-context(.theme-light) select optgroup { color:#29251f; background:#fffdfa; }
+    :host-context(.theme-light) select option:checked { color:#2b2114; background:#ead5b3; }
+
+    :host-context(.theme-light) .check { color:#3b3731; }
 
     @media (max-width: 1100px) {
       .nav {
