@@ -263,6 +263,41 @@ export class BepacomExplorerToolbar extends LitElement {
       margin: 17px 4px 0;
     }
 
+    :host-context(.theme-light) {
+      border-color: rgba(62,52,39,.13);
+      background: rgba(255,253,250,.88);
+      box-shadow: 0 10px 28px rgba(78,61,39,.07);
+      backdrop-filter: none;
+    }
+
+    :host-context(.theme-light) button {
+      color:#3b3731;
+      border-color:rgba(62,52,39,.14);
+      background:rgba(255,255,255,.76);
+    }
+
+    :host-context(.theme-light) .tab.active {
+      color:#fffaf2;
+      border-color:rgba(184,121,38,.34);
+      background:linear-gradient(135deg,#c99543,#a86c27);
+    }
+
+    :host-context(.theme-light) label { color:#797268; }
+
+    :host-context(.theme-light) input,
+    :host-context(.theme-light) select {
+      color:#29251f;
+      border-color:rgba(62,52,39,.15);
+      background:#fffdfa;
+    }
+
+    :host-context(.theme-light) select { color-scheme:light; }
+    :host-context(.theme-light) select option,
+    :host-context(.theme-light) select optgroup { color:#29251f; background:#fffdfa; }
+    :host-context(.theme-light) select option:checked { color:#2b2114; background:#ead5b3; }
+
+    :host-context(.theme-light) .check { color:#3b3731; }
+
     @media (max-width: 1100px) {
       .nav {
         flex: 1 0 100%;
