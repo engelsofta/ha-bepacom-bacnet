@@ -1,0 +1,36 @@
+name: Release package
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: Build HACS release ZIP
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out release
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Create beacon.zip
+        working-directory: custom_components/bepacom
+        run: >-
+          zip -r "${GITHUB_WORKSPACE}/beacon.zip" .
+          -x "__pycache__/*" "*.pyc" ".git/*" ".agents/*" "tests/*"
+
+      - name: Attach ZIP to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release upload
+          "${{ github.event.release.tag_name }}"
+          beacon.zip
+          --clobber
