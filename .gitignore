@@ -1,0 +1,28 @@
+__pycache__/
+*.py[cod]
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+node_modules/
+*.js.map
+dashboard_bepacom_glt_as.yaml
+
+# Local development and analysis material; not part of the HACS integration.
+custom_components/bepacom/bepacom-HA-Addons-main/
+custom_components/bepacom/bacnetinterface_dev/
+custom_components/bepacom/dashboard_engelsoft_migriert.yaml
+
+# Local backup copies and unrelated workspaces beside this integration.
+custom_components/old/
+custom_components/* - Kopie*/
+bepacom-HA-Addons-main/
+HA_Net_Mon/
+Omnibattery-1.0.1b5/
+UNO/

@@ -21,6 +21,7 @@ interface LiveChange {
   source?: string;
   friendly_name?: string;
   entity_id?: string;
+  resolved_unique_id?: string;
 }
 
 export interface RuntimeDashboardModel {
@@ -224,7 +225,7 @@ export class BepacomRuntimeDashboard extends LitElement {
         </div>
         <div class="live-chart" aria-label="Änderungen der letzten 60 Sekunden">
           ${bins.map((count) => {
-            const height = peak ? Math.max(2, Math.round((count / peak) * 21)) : 2;
+            const height = peak ? Math.max(3, Math.round((count / peak) * 50)) : 3;
             return html`<i style=${`height:${height}px`} title=${`${count} Änderung${count === 1 ? "" : "en"}`}></i>`;
           })}
         </div>
@@ -273,7 +274,7 @@ export class BepacomRuntimeDashboard extends LitElement {
                     (item) => html`
                       <tr
                         title=${`${item.device_id}/${item.object_type}:${item.object_id} · Im Point Inspector öffnen`}
-                        @click=${() => this._action("select-point", { uniqueId: item.unique_id })}
+                        @click=${() => this._action("select-point", { uniqueId: item.resolved_unique_id || item.unique_id })}
                       >
                         <td>${this._formatTime(item.ts)}</td>
                         <td><b>${item.friendly_name || item.object_name || item.object_key || item.unique_id}</b><small>${item.entity_id || item.object_key || item.unique_id}</small></td>

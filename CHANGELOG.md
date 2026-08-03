@@ -1,5 +1,64 @@
 # Changelog
 
+## 1.2.2 - 2026-08-03
+
+This stable release promotes integration-controlled BACnet transport and adds another round of Explorer usability and diagnostics improvements.
+
+### Added
+
+- Added robust Live View point resolution across different BACnet object notations.
+- Live events now resolve their Home Assistant friendly name through device, object type and instance when the raw unique ID differs.
+- Added resolved point navigation so clicking such a Live View entry still opens the correct Point Inspector.
+
+### Changed
+
+- Promoted per-object `cov`, `polling` and `disabled` transport synchronization from beta to the stable release channel.
+- Enlarged the 60-second activity timeline and made its bars use the complete available width.
+- Improved diagnostic card typography, icon sizing, spacing and responsive use of wide screens.
+- Improved the contrast of BACnet object-group headings in Home Assistant light themes.
+
+### Fixed
+
+- Fixed Live View entries falling back to raw identifiers such as `(analog-input,[2]201)` even when a matching Home Assistant entity name exists.
+- Fixed the activity timeline occupying only part of the available horizontal space on wide displays.
+- Fixed overly faint Explorer group labels in light mode.
+
+### Compatibility
+
+- Full per-object transport control requires an Engelsoft BACstac build with `integration_controlled` support.
+- Existing gateways continue to work through the legacy compatibility path.
+- Existing config entries, entity IDs, overrides and virtual entities are preserved.
+
+## 1.2.1b2 - 2026-08-03
+
+This pre-release introduces integration-controlled BACnet transport selection and completes the light-theme polish.
+
+### Added
+
+- Added per-object transport synchronization from the integration to Engelsoft BACstac.
+- Push points are transmitted as `cov`, polling points as `polling`, and disabled points as `disabled`.
+- Added automatic restoration of the complete transport profile after WebSocket reconnects.
+- Added API and coordinator tests for mixed COV, polling and disabled target profiles.
+
+### Changed
+
+- The integration is now the single source of truth for each entity's requested update mode when BACstac uses `integration_controlled`.
+- Managed snapshot mode now listens through one global WebSocket instead of creating an additional trigger COV subscription.
+- BACstac remains responsible for COV limits, throttled subscription setup and automatic polling fallbacks.
+- Legacy gateways remain compatible and retain integration-side polling fallback behavior.
+
+### Fixed
+
+- Fixed invisible virtual-entity navigation text in Home Assistant light themes.
+- Improved contrast for virtual binary-state badges such as **Plugged in**, **Unplugged** and **No light**.
+- Improved light-theme icon and settings-button visibility.
+
+### Compatibility
+
+- Full per-object transport control requires an Engelsoft BACstac build with `integration_controlled` support.
+- Existing gateways continue to work through the legacy compatibility path.
+- Existing config entries, entity IDs, overrides and virtual entities are preserved.
+
 ## 1.2.1b1 - 2026-08-02
 
 This patch release refines the BACnet Explorer introduced in version 1.2.0.
