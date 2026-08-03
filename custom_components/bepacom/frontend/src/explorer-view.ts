@@ -91,8 +91,8 @@ export class BepacomExplorerView extends HTMLElement {
 
   _versionLabel() {
     const cfg = this.panel?.config || {};
-    const version = cfg.version || "1.2.1b1";
-    const build = cfg.frontend_build || "0649";
+    const version = cfg.version || "1.2.1b2";
+    const build = cfg.frontend_build || "0650";
     return `Version ${version} · Frontend-Build ${build}`;
   }
 
@@ -2739,18 +2739,53 @@ export class BepacomExplorerView extends HTMLElement {
       .theme-light .header-action-buttons button,
       .theme-light button.secondary,
       .theme-light .view-tab,
-      .theme-light .icon-action {
+      .theme-light .icon-action,
+      .theme-light .mobile-actions-toggle {
         color:#3b3731;
-        border-color:rgba(62,52,39,.14);
-        background:rgba(255,255,255,.72);
+        border-color:rgba(62,52,39,.22);
+        background:#fffdfa;
       }
       .theme-light .header-action-buttons button:hover:not(:disabled),
       .theme-light button.secondary:hover:not(:disabled),
       .theme-light .view-tab:hover,
-      .theme-light .icon-action:hover {
+      .theme-light .icon-action:hover,
+      .theme-light .mobile-actions-toggle:hover {
         color:#6d491d;
-        border-color:rgba(184,121,38,.34);
-        background:rgba(184,121,38,.08);
+        border-color:rgba(184,121,38,.48);
+        background:#f5ead8;
+      }
+      .theme-light .view-tab.active,
+      .theme-light .view-tab.active:hover {
+        color:#563817!important;
+        border-color:rgba(160,102,31,.48)!important;
+        background:linear-gradient(135deg,#f2e2c8,#ead3ae)!important;
+        box-shadow:inset 0 0 0 1px rgba(255,255,255,.45);
+      }
+      .theme-light .virtual-type-badge,
+      .theme-light .virtual-badge {
+        color:#4f4941;
+        border-color:rgba(62,52,39,.2);
+        background:#f2eee7;
+      }
+      .theme-light .virtual-state-badge.on {
+        color:#316b38;
+        border-color:#9bc99c;
+        background:#e4f3e2;
+      }
+      .theme-light .virtual-state-badge.off {
+        color:#514c45;
+        border-color:#c7c1b8;
+        background:#ece9e3;
+      }
+      .theme-light .virtual-state-badge.unavailable,
+      .theme-light .virtual-state-badge.unknown {
+        color:#87571c;
+        border-color:#d7b681;
+        background:#f7ead5;
+      }
+      .theme-light .icon-action {
+        color:#403a33;
+        box-shadow:0 1px 3px rgba(62,52,39,.1);
       }
       .theme-light .main-status-strip,
       .theme-light .main-nav,
