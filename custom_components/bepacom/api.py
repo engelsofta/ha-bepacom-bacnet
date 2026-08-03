@@ -389,9 +389,10 @@ class BepacomClient:
         raise InvalidResponse
 
     async def async_set_managed_targets(
-        self, targets: list[tuple[str, str]]
+        self,
+        targets: list[tuple[str, str] | tuple[str, str, str]],
     ) -> dict[str, Any]:
-        """Send the complete managed polling target list to a capable gateway."""
+        """Send managed targets and their requested transports to the gateway."""
         if self._managed_targets_endpoint_supported is None:
             try:
                 schema = await self._get("/openapi.json")
@@ -413,12 +414,7 @@ class BepacomClient:
         assert self._session is not None
 
         url = f"{self._base}/apiv1/managed/targets"
-        payload = {
-            "targets": [
-                {"device_id": device_id, "object_id": object_id}
-                for device_id, object_id in targets
-            ]
-        }
+        payload = self._managed_targets_payload(targets)
         try:
             async with self._session.post(url, json=payload) as response:
                 if response.status == 404:
@@ -445,6 +441,20 @@ class BepacomClient:
             raise InvalidResponse
         self._managed_targets_endpoint_supported = True
         return result
+
+    @staticmethod
+    def _managed_targets_payload(
+        targets: list[tuple[str, str] | tuple[str, str, str]],
+    ) -> dict[str, list[dict[str, str]]]:
+        """Serialize legacy pairs and transport-aware managed targets."""
+        payload_targets: list[dict[str, str]] = []
+        for target in targets:
+            device_id, object_id = target[:2]
+            item = {"device_id": device_id, "object_id": object_id}
+            if len(target) > 2:
+                item["update_mode"] = target[2]
+            payload_targets.append(item)
+        return {"targets": payload_targets}
 
     async def async_subscribe(
         self,

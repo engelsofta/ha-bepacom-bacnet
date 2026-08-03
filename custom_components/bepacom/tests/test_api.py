@@ -75,6 +75,48 @@ def test_legacy_snapshot_websocket_uses_global_endpoint() -> None:
     assert client.legacy_snapshot_websocket_url() == "ws://192.0.2.10:8099/ws"
 
 
+def test_managed_targets_payload_includes_requested_transport() -> None:
+    """Per-object COV, polling and disabled modes are sent explicitly."""
+    payload = BepacomClient._managed_targets_payload(
+        [
+            ("21", "analogInput:403", "cov"),
+            ("21", "analogInput:404", "polling"),
+            ("21", "analogInput:405", "disabled"),
+        ]
+    )
+
+    assert payload == {
+        "targets": [
+            {
+                "device_id": "21",
+                "object_id": "analogInput:403",
+                "update_mode": "cov",
+            },
+            {
+                "device_id": "21",
+                "object_id": "analogInput:404",
+                "update_mode": "polling",
+            },
+            {
+                "device_id": "21",
+                "object_id": "analogInput:405",
+                "update_mode": "disabled",
+            },
+        ]
+    }
+
+
+def test_managed_targets_payload_keeps_legacy_pairs_compatible() -> None:
+    """Existing gateways still receive the original two-field payload."""
+    assert BepacomClient._managed_targets_payload(
+        [("1", "analogInput:7")]
+    ) == {
+        "targets": [
+            {"device_id": "1", "object_id": "analogInput:7"}
+        ]
+    }
+
+
 @pytest.mark.asyncio
 async def test_write_binary_value_uses_bacnet_labels() -> None:
     """Binary values use active/inactive rather than ambiguous numeric values."""
