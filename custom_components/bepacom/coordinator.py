@@ -390,7 +390,75 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         targets = self._iter_subscription_targets()
         polling_targets = self._iter_polling_targets()
+        managed_targets = self._iter_managed_targets()
+        active_managed_targets = [
+            (device_id, object_id)
+            for device_id, object_id, update_mode in managed_targets
+            if update_mode != "disabled"
+        ]
         self._set_configured_polling_targets(polling_targets)
+
+        if self._snapshot_websocket_mode:
+            initial_values = self._snapshot_initial_values(active_managed_targets)
+            self._websocket_manager.set_snapshot_targets(
+                active_managed_targets, initial_values
+            )
+            try:
+                managed_result = await self.client.async_set_managed_targets(
+                    managed_targets
+                )
+                self._managed_targets_supported = (
+                    managed_result.get("mode") != "unsupported"
+                )
+                if self._managed_targets_supported is False:
+                    _LOGGER.warning(
+                        "Outdated BACnet add-on detected: integration-managed target modes are not supported. "
+                        "Engelsoft BACstac is recommended for per-object COV, polling and disabled control."
+                    )
+                elif managed_result.get("accepted"):
+                    _LOGGER.debug(
+                        "Bepacom managed targets configured: strategy=%s targets=%s cov=%s polling=%s disabled=%s",
+                        managed_result.get("strategy"),
+                        managed_result.get("targets"),
+                        managed_result.get("cov_targets", "n/a"),
+                        managed_result.get("polling_targets", "n/a"),
+                        managed_result.get("disabled_targets", "n/a"),
+                    )
+                else:
+                    _LOGGER.debug(
+                        "Bepacom gateway keeps %s target handling",
+                        managed_result.get("mode", "legacy"),
+                    )
+            except (CannotConnect, InvalidResponse):
+                self._managed_targets_supported = None
+                _LOGGER.debug(
+                    "Could not synchronize integration-managed target modes; continuing with snapshot compatibility behavior"
+                )
+
+            # Older or legacy add-ons do not execute integration-requested poll
+            # targets. Keep the integration-side polling fallback for them.
+            if polling_targets and self._managed_targets_supported is not True:
+                self._ensure_fallback_polling()
+
+            successful = 0
+            if active_managed_targets:
+                # The managed endpoint owns BACnet COV/polling tasks. Listening
+                # to the global feed avoids creating a duplicate COV merely to
+                # obtain the WebSocket URL.
+                successful = int(
+                    await self._websocket_manager.async_connect_legacy_snapshot()
+                )
+            self._subscriptions_initialized = True
+            self._last_subscription_summary = (
+                successful,
+                len(active_managed_targets),
+            )
+            _LOGGER.debug(
+                "Bepacom managed snapshot WebSocket initialized: connected=%s processed_targets=%s",
+                successful,
+                len(active_managed_targets),
+            )
+            return
 
         if not targets:
             if polling_targets:
@@ -407,84 +475,17 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             self._last_subscription_summary = (0, 0)
             return
 
-        if self._snapshot_websocket_mode:
-            initial_values = self._snapshot_initial_values(targets)
-            self._websocket_manager.set_snapshot_targets(targets, initial_values)
-            try:
-                managed_result = await self.client.async_set_managed_targets(targets)
-                self._managed_targets_supported = (
-                    managed_result.get("mode") != "unsupported"
-                )
-                if self._managed_targets_supported is False:
-                    _LOGGER.warning(
-                        "Outdated BACnet add-on detected: managed COV targets are not supported. "
-                        "Reliable push updates require the add-on to subscribe to all needed "
-                        "objects itself (for example CoV_list: all). Engelsoft BACstac is recommended."
-                    )
-                if managed_result.get("accepted"):
-                    _LOGGER.debug(
-                        "Bepacom managed gateway targets configured: strategy=%s targets=%s devices=%s interval=%s",
-                        managed_result.get("strategy"),
-                        managed_result.get("targets"),
-                        managed_result.get("devices"),
-                        managed_result.get("poll_rate", "n/a"),
-                    )
-                else:
-                    _LOGGER.debug(
-                        "Bepacom gateway keeps legacy subscription handling: %s",
-                        managed_result.get("mode", "unknown"),
-                    )
-            except (CannotConnect, InvalidResponse):
-                # A connection or payload error is not proof that the gateway
-                # is old.  Leave the capability unknown and avoid a misleading
-                # warning in the UI.
-                self._managed_targets_supported = None
-                _LOGGER.debug(
-                    "Could not determine managed-target support; continuing with legacy snapshot behavior"
-                )
-
-            if self._managed_targets_supported is False:
-                successful = int(
-                    await self._websocket_manager.async_connect_legacy_snapshot()
-                )
-                self._subscriptions_initialized = True
-                self._last_subscription_summary = (successful, len(targets))
-                _LOGGER.info(
-                    "Legacy BACnet add-on compatibility active: using global snapshot WebSocket without duplicate subscriptions"
-                )
-                return
-
-            gateway_targets = targets[:1]
-
-            _LOGGER.debug(
-                "Initializing Bepacom snapshot WebSocket subscription: trigger=%s/%s, processed_targets=%s",
-                gateway_targets[0][0],
-                gateway_targets[0][1],
-                len(targets),
-            )
-        else:
-            gateway_targets = targets
-            self._websocket_manager.clear_snapshot_targets()
-
-            _LOGGER.debug("Initializing Bepacom subscriptions for %s objects...", len(targets))
-
-        successful = await self._async_subscribe_discovered_objects(gateway_targets)
+        self._websocket_manager.clear_snapshot_targets()
+        _LOGGER.debug("Initializing Bepacom subscriptions for %s objects...", len(targets))
+        successful = await self._async_subscribe_discovered_objects(targets)
 
         self._subscriptions_initialized = True
         self._last_subscription_summary = (successful, len(targets))
-
-        if self._snapshot_websocket_mode:
-            _LOGGER.debug(
-                "Bepacom snapshot WebSocket initialized: gateway_subscriptions=%s processed_targets=%s",
-                successful,
-                len(targets),
-            )
-        else:
-            _LOGGER.debug(
-                "Bepacom subscriptions initialized: %s/%s active",
-                successful,
-                len(targets),
-            )
+        _LOGGER.debug(
+            "Bepacom subscriptions initialized: %s/%s active",
+            successful,
+            len(targets),
+        )
 
     def _snapshot_initial_values(
         self,
@@ -531,9 +532,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return
 
         async with self._managed_target_restore_lock:
-            targets = self._iter_subscription_targets()
-            if not targets:
-                return
+            targets = self._iter_managed_targets()
 
             try:
                 result = await self.client.async_set_managed_targets(targets)
@@ -647,6 +646,27 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 continue
             if self._overrides.use_polling(obj):
                 targets.append((str(obj.device_id), f"{obj.object_type}:{obj.object_id}"))
+        return targets
+
+    def _iter_managed_targets(self) -> list[tuple[str, str, str]]:
+        """Return every discovered object with its requested add-on transport."""
+        targets: list[tuple[str, str, str]] = []
+        mode_map = {
+            "subscribe": "cov",
+            "polling": "polling",
+            "disabled": "disabled",
+        }
+        for obj in self.point_registry.all(include_disabled=True):
+            update_mode = mode_map.get(
+                self._overrides.get_update_mode(obj), "disabled"
+            )
+            targets.append(
+                (
+                    str(obj.device_id),
+                    f"{obj.object_type}:{obj.object_id}",
+                    update_mode,
+                )
+            )
         return targets
 
     def _set_configured_polling_targets(self, targets: list[tuple[str, str]]) -> None:

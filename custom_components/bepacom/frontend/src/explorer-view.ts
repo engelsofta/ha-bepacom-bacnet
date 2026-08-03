@@ -91,8 +91,8 @@ export class BepacomExplorerView extends HTMLElement {
 
   _versionLabel() {
     const cfg = this.panel?.config || {};
-    const version = cfg.version || "1.2.1b1";
-    const build = cfg.frontend_build || "0649";
+    const version = cfg.version || "1.2.2";
+    const build = cfg.frontend_build || "0651";
     return `Version ${version} · Frontend-Build ${build}`;
   }
 
@@ -1238,6 +1238,59 @@ export class BepacomExplorerView extends HTMLElement {
     return Math.max(backend, client);
   }
 
+  _normalizeBacnetObjectType(value) {
+    return String(value ?? "").toLowerCase().replace(/[^a-z]/g, "");
+  }
+
+  _bacnetObjectInstance(value) {
+    if (value === null || value === undefined || value === "") return "";
+    const text = String(value).trim();
+    const trailing = text.match(/(?:[:),]|\])\s*(\d+)\s*\)?$/);
+    if (trailing) return trailing[1];
+    return /^\d+$/.test(text) ? text : "";
+  }
+
+  _pointForLiveChange(item) {
+    const exact = this._points.find((point) => point.unique_id === item?.unique_id);
+    if (exact) return exact;
+
+    const eventType = this._normalizeBacnetObjectType(item?.object_type || item?.object_key || item?.unique_id);
+    const eventInstance = this._bacnetObjectInstance(item?.object_id)
+      || this._bacnetObjectInstance(item?.object_key)
+      || this._bacnetObjectInstance(item?.unique_id);
+    const eventDevice = String(item?.device_id ?? "").trim();
+    if (!eventType || !eventInstance) return undefined;
+
+    return this._points.find((point) => {
+      const pointType = this._normalizeBacnetObjectType(point.object_type || point.object_key || point.unique_id);
+      const pointInstance = this._bacnetObjectInstance(point.instance)
+        || this._bacnetObjectInstance(point.object_id)
+        || this._bacnetObjectInstance(point.object_key)
+        || this._bacnetObjectInstance(point.unique_id);
+      const pointDevice = String(point.device_id ?? "").trim();
+      return pointType === eventType
+        && pointInstance === eventInstance
+        && (!eventDevice || !pointDevice || eventDevice === pointDevice);
+    });
+  }
+
+  _livePointLabels(item) {
+    const point = this._pointForLiveChange(item);
+    const entityId = point?.entity_id || item?.entity_id || "";
+    const state = entityId ? this.hass?.states?.[entityId] : undefined;
+    const friendlyName = state?.attributes?.friendly_name
+      || point?.entity_name
+      || point?.entity_original_name
+      || point?.object_name
+      || point?.description
+      || item?.friendly_name
+      || item?.object_name
+      || entityId
+      || item?.object_key
+      || item?.unique_id;
+    return { point, entityId, friendlyName };
+  }
+
   _filteredLiveChanges() {
     const search = String(this._liveFilters.search || "").trim();
     const pointByUid = new Map(this._points.map((point) => [point.unique_id, point]));
@@ -1245,7 +1298,7 @@ export class BepacomExplorerView extends HTMLElement {
       if (this._liveFilters.source !== "all" && String(item.source) !== this._liveFilters.source) return false;
       if (this._liveFilters.object_type !== "all" && String(item.object_type) !== this._liveFilters.object_type) return false;
       if (!search) return true;
-      const point = pointByUid.get(item.unique_id);
+      const point = pointByUid.get(item.unique_id) || this._pointForLiveChange(item);
       const haystack = [
         item.device_id, item.object_type, item.object_id, item.object_key,
         item.object_name, item.unique_id, point?.entity_id,
@@ -1267,21 +1320,14 @@ export class BepacomExplorerView extends HTMLElement {
     const lastMinute = bins.reduce((sum, count) => sum + count, 0);
     const average = (lastMinute / 60).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const bars = bins.map((count) => {
-      const height = peak ? Math.max(2, Math.round((count / peak) * 21)) : 2;
+      const height = peak ? Math.max(3, Math.round((count / peak) * 50)) : 3;
       return `<i style="height:${height}px" title="${count} Änderung${count === 1 ? "" : "en"}"></i>`;
     }).join("");
     const sources = [...new Set(this._liveChanges.map((item) => String(item.source || "unknown")))].sort();
     const types = [...new Set(this._liveChanges.map((item) => String(item.object_type || "unknown")))].sort();
     const options = (values, selected) => values.map((value) => `<option value="${this._escape(value)}" ${value === selected ? "selected" : ""}>${this._escape(value)}</option>`).join("");
     const rows = filtered.slice(-120).reverse().map((item) => {
-      const point = this._points.find((candidate) => candidate.unique_id === item.unique_id);
-      const entityId = point?.entity_id || "";
-      const friendlyName = this.hass?.states?.[entityId]?.attributes?.friendly_name
-        || point?.entity_name
-        || point?.entity_original_name
-        || item.object_name
-        || item.object_key
-        || item.unique_id;
+      const { entityId, friendlyName } = this._livePointLabels(item);
       const secondaryLabel = entityId || item.object_key || item.unique_id;
       return `<tr data-live-uid="${this._escape(item.unique_id)}" title="${this._escape(`${item.device_id}/${item.object_type}:${item.object_id} · Im Point Inspector öffnen`)}">
         <td>${this._escape(this._formatTime(item.ts))}</td>
@@ -1613,8 +1659,8 @@ export class BepacomExplorerView extends HTMLElement {
       .live-summary { display:flex; align-items:center; flex-wrap:wrap; gap:6px 12px; color:var(--secondary-text-color); font-size:11px; margin-bottom:5px; }
       .live-summary b { color:var(--primary-text-color); }
       .live-small-btn { padding:4px 9px; min-height:26px; font-size:10px; margin-left:auto; }
-      .live-chart { height:25px; display:flex; align-items:flex-end; gap:2px; padding:2px 5px; border:1px solid var(--divider-color); border-radius:7px; background:color-mix(in srgb, var(--secondary-background-color) 88%, transparent); overflow:hidden; }
-      .live-chart i { flex:1 1 0; min-width:1px; max-width:12px; border-radius:2px 2px 0 0; background:linear-gradient(180deg, var(--primary-color), color-mix(in srgb, var(--primary-color) 55%, transparent)); }
+      .live-chart { height:58px; display:flex; align-items:flex-end; gap:3px; padding:4px 6px; border:1px solid var(--divider-color); border-radius:8px; background:color-mix(in srgb, var(--secondary-background-color) 88%, transparent); overflow:hidden; }
+      .live-chart i { flex:1 1 0; min-width:1px; border-radius:3px 3px 0 0; background:linear-gradient(180deg, var(--primary-color), color-mix(in srgb, var(--primary-color) 55%, transparent)); }
       .live-filters { display:grid; grid-template-columns:minmax(150px,2fr) minmax(100px,.7fr) minmax(110px,.8fr) auto; gap:6px; margin:7px 0; }
       .live-filters input, .live-filters select { height:30px; padding:4px 8px; border-radius:7px; font-size:11px; }
       .live-table-wrap { max-height:155px; overflow:auto; border:1px solid var(--divider-color); border-radius:8px; }
@@ -2658,7 +2704,7 @@ export class BepacomExplorerView extends HTMLElement {
       .main-dashboard .dashboard-content { padding:0 20px 18px; }
       .live-summary { color:#98938b; }
       .live-chart {
-        height:34px; border-color:rgba(255,255,255,.065); background:rgba(20,19,18,.24);
+        height:58px; border-color:rgba(255,255,255,.065); background:rgba(20,19,18,.24);
       }
       .live-filters input,.live-filters select {
         border-color:rgba(255,255,255,.075); background:#302f2c;
@@ -2706,10 +2752,10 @@ export class BepacomExplorerView extends HTMLElement {
         grid-template-columns:repeat(3,minmax(0,1fr));
       }
       .dashboard-diagnostics-grid > .dashboard-group:nth-child(2) .dashboard-cards {
-        grid-template-columns:repeat(4,minmax(0,1fr));
+        grid-template-columns:repeat(3,minmax(0,1fr));
       }
       .dashboard-diagnostics-grid > .dashboard-group:nth-child(3) .dashboard-cards {
-        grid-template-columns:repeat(7,minmax(0,1fr));
+        grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
       }
       /* Automatic light appearance, driven by Home Assistant's active theme. */
       .wrap.theme-light {
@@ -2739,18 +2785,53 @@ export class BepacomExplorerView extends HTMLElement {
       .theme-light .header-action-buttons button,
       .theme-light button.secondary,
       .theme-light .view-tab,
-      .theme-light .icon-action {
+      .theme-light .icon-action,
+      .theme-light .mobile-actions-toggle {
         color:#3b3731;
-        border-color:rgba(62,52,39,.14);
-        background:rgba(255,255,255,.72);
+        border-color:rgba(62,52,39,.22);
+        background:#fffdfa;
       }
       .theme-light .header-action-buttons button:hover:not(:disabled),
       .theme-light button.secondary:hover:not(:disabled),
       .theme-light .view-tab:hover,
-      .theme-light .icon-action:hover {
+      .theme-light .icon-action:hover,
+      .theme-light .mobile-actions-toggle:hover {
         color:#6d491d;
-        border-color:rgba(184,121,38,.34);
-        background:rgba(184,121,38,.08);
+        border-color:rgba(184,121,38,.48);
+        background:#f5ead8;
+      }
+      .theme-light .view-tab.active,
+      .theme-light .view-tab.active:hover {
+        color:#563817!important;
+        border-color:rgba(160,102,31,.48)!important;
+        background:linear-gradient(135deg,#f2e2c8,#ead3ae)!important;
+        box-shadow:inset 0 0 0 1px rgba(255,255,255,.45);
+      }
+      .theme-light .virtual-type-badge,
+      .theme-light .virtual-badge {
+        color:#4f4941;
+        border-color:rgba(62,52,39,.2);
+        background:#f2eee7;
+      }
+      .theme-light .virtual-state-badge.on {
+        color:#316b38;
+        border-color:#9bc99c;
+        background:#e4f3e2;
+      }
+      .theme-light .virtual-state-badge.off {
+        color:#514c45;
+        border-color:#c7c1b8;
+        background:#ece9e3;
+      }
+      .theme-light .virtual-state-badge.unavailable,
+      .theme-light .virtual-state-badge.unknown {
+        color:#87571c;
+        border-color:#d7b681;
+        background:#f7ead5;
+      }
+      .theme-light .icon-action {
+        color:#403a33;
+        box-shadow:0 1px 3px rgba(62,52,39,.1);
       }
       .theme-light .main-status-strip,
       .theme-light .main-nav,
@@ -2820,7 +2901,14 @@ export class BepacomExplorerView extends HTMLElement {
         background:rgba(184,121,38,.09);
         box-shadow:inset 2px 0 0 #b87926;
       }
-      .theme-light .group-row td { background:rgba(184,121,38,.075); }
+      .theme-light .group-row td {
+        color:#39332c!important;
+        background:#eee5d7!important;
+        box-shadow:inset 3px 0 0 rgba(184,121,38,.72);
+      }
+      .theme-light .group-toggle,
+      .theme-light .group-toggle:hover:not(:disabled) { color:#39332c!important; }
+      .theme-light .group-row .muted { color:#756a5d!important; }
       .theme-light .name { color:#29251f; }
       .theme-light .value-link { color:#8a591c; }
       .theme-light .side-tabs,
@@ -3939,7 +4027,6 @@ export class BepacomExplorerView extends HTMLElement {
       icon: this._statusIcon(label, value),
       tone: this._statusClass(label, value),
     }));
-    const pointByUid = new Map(this._points.map((point) => [point.unique_id, point]));
     dashboard.model = {
       open: !!this._statusOpen,
       tab: ["configuration", "developer"].includes(this._dashboardTab) ? this._dashboardTab : "live",
@@ -3956,17 +4043,12 @@ export class BepacomExplorerView extends HTMLElement {
       livePaused: this._livePaused,
       liveFilters: { ...this._liveFilters },
       liveChanges: this._liveChanges.map((item) => {
-        const point = pointByUid.get(item.unique_id);
-        const entityId = point?.entity_id || "";
+        const { point, entityId, friendlyName } = this._livePointLabels(item);
         return {
           ...item,
           entity_id: entityId,
-          friendly_name: this.hass?.states?.[entityId]?.attributes?.friendly_name
-            || point?.entity_name
-            || point?.entity_original_name
-            || item.object_name
-            || item.object_key
-            || item.unique_id,
+          resolved_unique_id: point?.unique_id || item.unique_id,
+          friendly_name: friendlyName,
         };
       }),
     };

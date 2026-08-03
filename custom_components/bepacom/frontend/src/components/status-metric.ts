@@ -30,10 +30,10 @@ export class BepacomStatusMetric extends LitElement {
       box-sizing: border-box;
       position: relative;
       display: flex;
-      align-items: flex-end;
+      align-items: center;
       min-width: 0;
-      min-height: 66px;
-      padding: 10px 13px;
+      min-height: 72px;
+      padding: 12px 14px;
       border: 1px solid rgba(255,255,255,.065);
       border-radius: 10px;
       background: rgba(255,255,255,.035);
@@ -87,18 +87,18 @@ export class BepacomStatusMetric extends LitElement {
 
     .icon {
       position:absolute;
-      top:9px;
-      right:10px;
+      top:10px;
+      right:11px;
       display:flex;
       align-items:center;
       justify-content:center;
-      width:21px;
-      height:21px;
-      border-radius:6px;
+      width:25px;
+      height:25px;
+      border-radius:7px;
       background:rgba(255,255,255,.055);
       opacity:.72;
       text-align: center;
-      font-size: 10px;
+      font-size: 12px;
     }
 
     .text {
@@ -119,7 +119,7 @@ export class BepacomStatusMetric extends LitElement {
     strong {
       color:#f7f4ee;
       padding-right:30px;
-      font-size: 19px;
+      font-size: 22px;
       line-height: 1.05;
       letter-spacing:-.04em;
     }
@@ -127,10 +127,10 @@ export class BepacomStatusMetric extends LitElement {
     small {
       margin-bottom: 5px;
       color: #aaa398;
-      font-size: 9px;
+      font-size: 10px;
       font-weight:700;
       line-height: 1.15;
-      letter-spacing:.055em;
+      letter-spacing:.045em;
       text-transform:uppercase;
     }
 
