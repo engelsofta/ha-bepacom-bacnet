@@ -91,8 +91,8 @@ export class BepacomExplorerView extends HTMLElement {
 
   _versionLabel() {
     const cfg = this.panel?.config || {};
-    const version = cfg.version || "1.2.2";
-    const build = cfg.frontend_build || "0651";
+    const version = cfg.version || "1.2.3";
+    const build = cfg.frontend_build || "0652";
     return `Version ${version} · Frontend-Build ${build}`;
   }
 
@@ -4924,7 +4924,7 @@ export class BepacomExplorerView extends HTMLElement {
     return this._options([
       ["disabled", "Deaktiviert / keine Aktualisierung"],
       ["subscribe", "🔵 Push / Subscribe"],
-      ["polling", "Polling"],
+      ["polling", "🟢 Polling"],
     ], current);
   }
 

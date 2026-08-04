@@ -159,7 +159,7 @@ export class BepacomPointInspector extends LitElement {
           ["measurement", "measurement"], ["total", "total"], ["total_increasing", "total_increasing"],
         ], stateClass)}</select></div>
         <div><label>Aktualisierungsmodus</label><select id="editUpdateMode">${this._options([
-          ["disabled", "Deaktiviert / keine Aktualisierung"], ["subscribe", "🔵 Push / Subscribe"], ["polling", "Polling"],
+          ["disabled", "Deaktiviert / keine Aktualisierung"], ["subscribe", "🔵 Push / Subscribe"], ["polling", "🟢 Polling"],
         ], updateMode)}</select></div>
       </div>
       ${multistate ? html`

@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.3 - 2026-08-04
+
+This patch release makes transport modes immediately recognizable throughout the BACnet Explorer.
+
+### Changed
+
+- Added a green indicator to the **Polling** option in the Point Inspector update-mode selector.
+- Standardized runtime colors across the Explorer: blue represents Push/COV and green represents Polling.
+- Snapshot-based push updates now use the same blue indicator as regular Push/COV updates.
+- Polling fallbacks use the same green indicator as explicitly configured Polling.
+
+### Compatibility
+
+- Existing config entries, transport settings, entity IDs, overrides and virtual entities are unchanged.
+- No migration or reconfiguration is required.
+
 ## 1.2.2 - 2026-08-03
 
 This stable release promotes integration-controlled BACnet transport and adds another round of Explorer usability and diagnostics improvements.
