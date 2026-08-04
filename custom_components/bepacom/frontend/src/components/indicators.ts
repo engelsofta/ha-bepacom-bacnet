@@ -17,9 +17,8 @@ export class BepacomRuntimeIndicator extends LitElement {
     :host { display:inline-flex; align-items:center; justify-content:center; }
     span { display:inline-block; width:11px; height:11px; border:1px solid color-mix(in srgb,currentColor 35%,transparent); border-radius:50%; background:var(--secondary-text-color); box-shadow:0 0 0 3px color-mix(in srgb,currentColor 10%,transparent); }
     .off { color:var(--secondary-text-color); opacity:.55; }
-    .snapshot { color:#7e57c2; background:currentColor; }
-    .push { color:var(--success-color,#43a047); background:currentColor; }
-    .poll { color:var(--warning-color,#ffa600); background:currentColor; }
+    .snapshot,.push { color:#1e88e5; background:currentColor; }
+    .poll { color:#43a047; background:currentColor; }
     .wait { color:var(--info-color,#039be5); background:transparent; }
   `;
 }

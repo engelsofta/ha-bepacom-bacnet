@@ -705,8 +705,8 @@ class BepacomExplorerView extends HTMLElement {
   }
   _versionLabel() {
     const cfg = this.panel?.config || {};
-    const version = cfg.version || "1.2.2";
-    const build = cfg.frontend_build || "0651";
+    const version = cfg.version || "1.2.3";
+    const build = cfg.frontend_build || "0652";
     return `Version ${version} · Frontend-Build ${build}`;
   }
   connectedCallback() {
@@ -5291,7 +5291,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     return this._options([
       ["disabled", "Deaktiviert / keine Aktualisierung"],
       ["subscribe", "🔵 Push / Subscribe"],
-      ["polling", "Polling"]
+      ["polling", "🟢 Polling"]
     ], current);
   }
   _options(values, current) {
@@ -5541,9 +5541,8 @@ BepacomRuntimeIndicator.styles = i$3`
     :host { display:inline-flex; align-items:center; justify-content:center; }
     span { display:inline-block; width:11px; height:11px; border:1px solid color-mix(in srgb,currentColor 35%,transparent); border-radius:50%; background:var(--secondary-text-color); box-shadow:0 0 0 3px color-mix(in srgb,currentColor 10%,transparent); }
     .off { color:var(--secondary-text-color); opacity:.55; }
-    .snapshot { color:#7e57c2; background:currentColor; }
-    .push { color:var(--success-color,#43a047); background:currentColor; }
-    .poll { color:var(--warning-color,#ffa600); background:currentColor; }
+    .snapshot,.push { color:#1e88e5; background:currentColor; }
+    .poll { color:#43a047; background:currentColor; }
     .wait { color:var(--info-color,#039be5); background:transparent; }
   `;
 __decorateClass$5([
@@ -6289,7 +6288,7 @@ let BepacomPointInspector = class extends i {
         <div><label>Aktualisierungsmodus</label><select id="editUpdateMode">${this._options([
       ["disabled", "Deaktiviert / keine Aktualisierung"],
       ["subscribe", "🔵 Push / Subscribe"],
-      ["polling", "Polling"]
+      ["polling", "🟢 Polling"]
     ], updateMode)}</select></div>
       </div>
       ${multistate ? b`
