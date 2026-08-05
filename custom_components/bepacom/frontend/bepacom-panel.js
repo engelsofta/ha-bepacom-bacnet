@@ -706,7 +706,7 @@ class BepacomExplorerView extends HTMLElement {
   _versionLabel() {
     const cfg = this.panel?.config || {};
     const version = cfg.version || "1.2.3";
-    const build = cfg.frontend_build || "0652";
+    const build = cfg.frontend_build || "0653";
     return `Version ${version} · Frontend-Build ${build}`;
   }
   connectedCallback() {
@@ -3089,7 +3089,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         border-color:rgba(209,154,66,.38); background:rgba(209,154,66,.1);
       }
       .main-status-strip {
-        grid-template-columns:minmax(360px,1.4fr) repeat(4,minmax(0,1fr));
+        grid-template-columns:minmax(360px,1.35fr) minmax(250px,.95fr) minmax(180px,.68fr) minmax(390px,1.45fr);
         gap:9px; margin-bottom:16px; padding:9px;
         border:1px solid var(--bepacom-border); border-radius:14px;
         background:rgba(52,51,48,.78); box-shadow:0 12px 30px rgba(0,0,0,.14);
@@ -3112,6 +3112,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       .status-overview-grid {
         width:100%; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px;
       }
+      .status-overview-grid-two { grid-template-columns:repeat(2,minmax(0,1fr)); }
       .status-overview-value {
         min-width:0; padding-right:12px; border-right:1px solid rgba(255,255,255,.075);
       }
@@ -3126,6 +3127,11 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       .status-overview-value.total strong { color:#f2d598; }
       .status-overview-value.active strong { color:#a9c89e; }
       .status-overview-value.disabled strong { color:#df766a; }
+      .status-overview-value.connected strong { color:#dcd49a; }
+      .status-overview-value.errors strong { color:#df766a; }
+      .status-overview-value.push strong { color:#69aef1; }
+      .status-overview-value.polling strong { color:#8fc486; }
+      .status-overview-value.efficiency strong { color:#f2d598; }
       .main-nav {
         min-height:44px; margin-bottom:14px; padding:4px; border-radius:11px;
         background:rgba(45,44,41,.82); box-shadow:none; backdrop-filter:none;
@@ -3304,11 +3310,15 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       .theme-light label { color:#797268; }
       .theme-light .dashboard-headline-card strong { color:#9b671f; }
       .theme-light .dashboard-headline-card.stat-ok strong,
-      .theme-light .status-overview-value.active strong { color:#64815c; }
+      .theme-light .status-overview-value.active strong,
+      .theme-light .status-overview-value.connected strong,
+      .theme-light .status-overview-value.polling strong { color:#64815c; }
       .theme-light .dashboard-headline-card.stat-warn strong,
       .theme-light .dashboard-headline-card.stat-bad strong,
       .theme-light .status-overview-value.disabled strong { color:#b9564d; }
       .theme-light .status-overview-value.total strong { color:#a06b20; }
+      .theme-light .status-overview-value.push strong { color:#2676b9; }
+      .theme-light .status-overview-value.efficiency strong { color:#a06b20; }
       .theme-light .status-overview-value { border-right-color:rgba(62,52,39,.11); }
       .theme-light .main-nav-item { color:#6f685f; }
       .theme-light .main-nav-item:hover:not(:disabled) {
@@ -3599,13 +3609,11 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }) : "-";
-    const pushChangeValue = `${pushNotificationsRaw ?? "-"} / ${averageChangesPerPush}`;
-    const cards = [
-      ["Verbunden", diagnostics.connected === void 0 ? "-" : diagnostics.connected ? "Ja" : "Nein", diagnostics.connected ? "stat-ok" : "stat-bad"],
-      ["Verbindungsfehler", diagnostics.connection_failures ?? 0, Number(diagnostics.connection_failures || 0) > 0 ? "stat-warn" : ""],
-      ["Push-Verarbeitung", pushTime, ""],
-      ["Pushs / Ø Änderungen", pushChangeValue, ""]
-    ];
+    const connectionFailures = Number(diagnostics.connection_failures || 0);
+    const connectedLabel = diagnostics.connected === void 0 ? "-" : diagnostics.connected ? "Ja" : "Nein";
+    const connectionTone = diagnostics.connected === false ? "stat-bad" : connectionFailures > 0 ? "stat-warn" : "stat-ok";
+    const covPushUpdates = diagnostics.processed_push_updates ?? diagnostics.push_updates ?? "-";
+    const pollingUpdates = diagnostics.processed_polling_updates ?? diagnostics.polling_updates ?? "-";
     const overview = `
       <div class="dashboard-headline-card status-overview">
         <div class="status-overview-grid">
@@ -3614,11 +3622,26 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
           <span class="status-overview-value disabled"><strong>${this._escape(diagnostics.configured_disabled ?? diagnostics.disabled ?? "-")}</strong><small>Deaktiviert</small></span>
         </div>
       </div>`;
-    return `${legacyAddonWarning}<section class="main-status-strip" aria-label="Systemstatus">${overview}${cards.map(([label, value, tone]) => `
-      <div class="dashboard-headline-card ${tone}">
-        <span class="dashboard-headline-icon">${this._statusIcon(label, value)}</span>
-        <span><small>${this._escape(label)}</small><strong>${this._escape(value)}</strong></span>
-      </div>`).join("")}</section>`;
+    const connectionOverview = `
+      <div class="dashboard-headline-card status-overview ${connectionTone}">
+        <div class="status-overview-grid status-overview-grid-two">
+          <span class="status-overview-value connected"><strong>${this._escape(connectedLabel)}</strong><small>Verbunden</small></span>
+          <span class="status-overview-value errors"><strong>${this._escape(connectionFailures)}</strong><small>Verbindungsfehler</small></span>
+        </div>
+      </div>`;
+    const processingCard = `
+      <div class="dashboard-headline-card">
+        <span><small>Push-Verarbeitung</small><strong>${this._escape(pushTime)}</strong></span>
+      </div>`;
+    const transportOverview = `
+      <div class="dashboard-headline-card status-overview transport-overview">
+        <div class="status-overview-grid">
+          <span class="status-overview-value push"><strong>${this._escape(covPushUpdates)}</strong><small>COV-Pushs</small></span>
+          <span class="status-overview-value polling"><strong>${this._escape(pollingUpdates)}</strong><small>Polling-Updates</small></span>
+          <span class="status-overview-value efficiency"><strong>${this._escape(averageChangesPerPush)}</strong><small>Ø Änderungen/Nachricht</small></span>
+        </div>
+      </div>`;
+    return `${legacyAddonWarning}<section class="main-status-strip" aria-label="Systemstatus">${overview}${connectionOverview}${processingCard}${transportOverview}</section>`;
   }
   _virtualEntitiesPageHtml() {
     return `<div class="view-panel">${this._virtualEntitiesOverviewHtml(true)}</div>`;
