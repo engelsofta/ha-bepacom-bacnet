@@ -671,6 +671,7 @@ class BepacomExplorerView extends HTMLElement {
     this._editorDirty = false;
     this._editorErrors = [];
     this._pendingReloadIds = /* @__PURE__ */ new Set();
+    this._pendingTransportIds = /* @__PURE__ */ new Set();
     this._manualReloadRunning = false;
     this._manualReloadUntil = 0;
     this._refreshInFlight = false;
@@ -706,7 +707,7 @@ class BepacomExplorerView extends HTMLElement {
   _versionLabel() {
     const cfg = this.panel?.config || {};
     const version = cfg.version || "1.2.3";
-    const build = cfg.frontend_build || "0653";
+    const build = cfg.frontend_build || "0654";
     return `Version ${version} · Frontend-Build ${build}`;
   }
   connectedCallback() {
@@ -1129,6 +1130,7 @@ class BepacomExplorerView extends HTMLElement {
   }
   async _saveSelected() {
     if (!this.hass || !this._selected) return;
+    const previousUpdateMode = this._selected.update_mode || "disabled";
     if (!this._validateEditor()) {
       this._error = "Bitte korrigiere zuerst die markierten Eingaben.";
       return;
@@ -1198,9 +1200,12 @@ class BepacomExplorerView extends HTMLElement {
       this._editorDirty = false;
       this._editorErrors = [];
       this._pendingReloadIds.add(this._selected.unique_id);
+      if ((this._selected.update_mode || "disabled") !== previousUpdateMode) {
+        this._pendingTransportIds.add(this._selected.unique_id);
+      }
       this._inspector = result.inspector || {};
       this._setHistoryForSelected(result.history || [], this._selected?.unique_id);
-      this._message = "Gespeichert. Die Integration wird nicht automatisch neu geladen. Wenn du mit allen Änderungen fertig bist, nutze oben 'Integration neu laden'.";
+      this._message = this._pendingTransportIds.has(this._selected.unique_id) ? "Gespeichert. Der Aktualisierungsmodus ist noch nicht aktiv – Änderungen oben gesammelt anwenden." : "Gespeichert. Änderungen an der Home-Assistant-Entity werden beim nächsten Integrations-Reload vollständig wirksam.";
       await this._loadPoints(false);
     } catch (err) {
       this._error = this._formatError(err);
@@ -1288,6 +1293,7 @@ Diese Aktion entfernt die virtuelle Entität aus der Engelsoft-Beacon-Konfigurat
   }
   async _resetSelected() {
     if (!this.hass || !this._selected) return;
+    const previousUpdateMode = this._selected.update_mode || "disabled";
     this._editorDirty = false;
     this._manualReloadRunning = false;
     this._manualReloadUntil = 0;
@@ -1302,6 +1308,10 @@ Diese Aktion entfernt die virtuelle Entität aus der Engelsoft-Beacon-Konfigurat
       });
       this._selected = result.point;
       this._pendingReloadIds.add(this._selected.unique_id);
+      this._pendingTransportIds.add(this._selected.unique_id);
+      if ((this._selected.update_mode || "disabled") !== previousUpdateMode) {
+        this._pendingTransportIds.add(this._selected.unique_id);
+      }
       this._inspector = result.inspector || {};
       this._setHistoryForSelected(result.history || [], this._selected?.unique_id);
       this._message = "Override zurückgesetzt. Spätestens nach einem Reload der Integration ist alles vollständig wirksam.";
@@ -1347,6 +1357,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       } else {
         this._message = "Neuladen wurde gestartet. Die Ansicht wird gleich aktualisiert.";
         this._pendingReloadIds.clear();
+        this._pendingTransportIds.clear();
       }
       window.setTimeout(async () => {
         this._manualReloadRunning = false;
@@ -1367,6 +1378,28 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       this._saving = false;
       this._error = this._formatError(err);
       this._startRefreshTimer();
+      this._render();
+    }
+  }
+  async _applyUpdateModes() {
+    if (!this.hass || !this._entryId || !this._pendingTransportIds.size || this._saving) return;
+    const changed = this._pendingTransportIds.size;
+    this._saving = true;
+    this._message = `${changed} Aktualisierungsmodi werden an BACstac übertragen …`;
+    this._error = null;
+    this._render();
+    try {
+      const result = await this.hass.callWS({
+        type: "bepacom/explorer/apply_update_modes",
+        entry_id: this._entryId || void 0
+      });
+      this._pendingTransportIds.clear();
+      this._message = `Aktualisierungsmodi aktiv: ${result.cov || 0} Push · ${result.polling || 0} Polling · ${result.disabled || 0} deaktiviert. Kein Reload nötig.`;
+      await this._loadPoints(false);
+    } catch (err) {
+      this._error = this._formatError(err);
+    } finally {
+      this._saving = false;
       this._render();
     }
   }
@@ -1664,6 +1697,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
           });
         }
         this._pendingReloadIds.add(item.unique_id);
+        if (item.update_mode) this._pendingTransportIds.add(item.unique_id);
       }
       this._message = `${items.length} Overrides importiert${skipped ? `, ${skipped} unbekannte Punkte übersprungen` : ""}. Bitte Integration neu laden.`;
       await this._loadPoints(false);
@@ -3449,7 +3483,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         .header-actions-menu > .header-action-buttons { display:none; }
         .header-actions-menu.open > .header-action-buttons { position:absolute; z-index:100; top:48px; right:0; width:min(280px, calc(100vw - 16px)); box-sizing:border-box; display:grid; grid-template-columns:1fr 1fr; gap:7px; padding:10px; border:1px solid var(--divider-color); border-radius:12px; background:var(--card-background-color); box-shadow:0 8px 28px rgba(0,0,0,.35); }
         .header-action-buttons button { width:100%; padding:9px 8px; font-size:12px; }
-        .header-action-buttons #toggleDetails, .header-action-buttons #reloadIntegration { grid-column:1 / -1; }
+        .header-action-buttons #toggleDetails, .header-action-buttons #applyUpdateModes, .header-action-buttons #reloadIntegration { grid-column:1 / -1; }
         .toolbar .search-field, .toolbar .filter-field, .toolbar .check-field { flex:1 1 100%; min-width:0; }
         .toolbar .reset-field { margin-left:auto; }
         .view-tab { flex:1 1 auto; padding:8px 10px; }
@@ -3530,7 +3564,8 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
               <button class="secondary" id="exportOverrides">Overrides exportieren</button>
               <button class="secondary" id="importOverrides">Overrides importieren</button>
               <input id="importOverridesFile" type="file" accept="application/json,.json" hidden>
-              ${this._pendingReloadIds.size ? `<span class="pending-reload">${this._pendingReloadIds.size} Änderungen warten</span>` : ""}
+              ${this._pendingTransportIds.size ? `<span class="pending-reload">${this._pendingTransportIds.size} Modi noch nicht angewendet</span>` : this._pendingReloadIds.size ? `<span class="pending-reload">${this._pendingReloadIds.size} Änderungen warten</span>` : ""}
+              <button class="primary" id="applyUpdateModes" ${!this._pendingTransportIds.size || this._saving ? "disabled" : ""}>Aktualisierungsmodi anwenden${this._pendingTransportIds.size ? ` (${this._pendingTransportIds.size})` : ""}</button>
               <button class="secondary" id="reloadIntegration" ${this._saving || this._manualReloadRunning || Date.now() < this._manualReloadUntil ? "disabled" : ""}>Integration neu laden${this._pendingReloadIds.size ? ` (${this._pendingReloadIds.size})` : ""}</button>
               <button class="secondary" id="refresh">Aktualisieren${this._loading ? " …" : ""}</button>
             </div>
@@ -3979,7 +4014,8 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         if (this._selected?.unique_id === uniqueId) this._selected = { ...this._selected, ...updated };
       }
       this._pendingReloadIds.add(uniqueId);
-      this._message = "Inline-Änderung gespeichert. Wenn du fertig bist, bitte Integration neu laden.";
+      if (field === "mode") this._pendingTransportIds.add(uniqueId);
+      this._message = field === "mode" ? "Aktualisierungsmodus gespeichert. Wenn du fertig bist, oben gesammelt anwenden." : "Inline-Änderung gespeichert. Für Entity-Änderungen bitte Integration neu laden.";
       this._render();
     } catch (err) {
       this._error = this._formatError(err);
@@ -4174,6 +4210,9 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
           entity_name: p2.entity_name || ""
         });
         this._pendingReloadIds.add(p2.unique_id);
+        if (updateMode && updateMode !== (p2.update_mode || "disabled")) {
+          this._pendingTransportIds.add(p2.unique_id);
+        }
       }
       this._message = `${targets.length} Objekte wurden aktualisiert. Wenn du fertig bist, bitte Integration neu laden.`;
       await this._loadPoints(false);
@@ -4195,6 +4234,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       for (const p2 of targets) {
         await this.hass.callWS({ type: "bepacom/explorer/reset_override", entry_id: this._entryId || void 0, unique_id: p2.unique_id });
         this._pendingReloadIds.add(p2.unique_id);
+        this._pendingTransportIds.add(p2.unique_id);
       }
       this._message = `${targets.length} Overrides wurden zurückgesetzt.`;
       await this._loadPoints(false);
@@ -4594,6 +4634,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     this.shadowRoot.getElementById("importOverrides")?.addEventListener("click", () => this._openOverrideImport());
     this.shadowRoot.getElementById("importOverridesFile")?.addEventListener("change", (ev) => this._importOverrides(ev.target.files?.[0]));
     this.shadowRoot.getElementById("reloadIntegration")?.addEventListener("click", () => this._reloadIntegration());
+    this.shadowRoot.getElementById("applyUpdateModes")?.addEventListener("click", () => this._applyUpdateModes());
     this.shadowRoot.getElementById("search")?.addEventListener("input", (ev) => this._setFilter("search", ev.target.value));
     this.shadowRoot.getElementById("virtualSearch")?.addEventListener("input", (ev) => {
       this._virtualSearch = ev.target.value || "";

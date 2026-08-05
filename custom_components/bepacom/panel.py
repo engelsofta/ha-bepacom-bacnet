@@ -22,7 +22,7 @@ from homeassistant.util import slugify
 from .const import DOMAIN, VERSION, CONF_ENTITY_OVERRIDES, CONF_VIRTUAL_ENTITIES
 from .entity_factory import BacnetObjectTypeMapper
 from .models import BacnetObject
-from .exceptions import WriteError
+from .exceptions import CannotConnect, InvalidResponse, WriteError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ PANEL_URL = "bepacom_explorer"
 PANEL_NAME = "bepacom-explorer-panel"
 PANEL_STATIC_URL = "/bepacom_static"
 PANEL_EVENT = "bepacom_explorer_updated"
-PANEL_VERSION = "0653"
+PANEL_VERSION = "0654"
 
 _WS_REGISTERED = "websocket_registered"
 _PANEL_REGISTERED = "panel_registered"
@@ -49,6 +49,7 @@ async def async_register_explorer_panel(hass: HomeAssistant, entry: ConfigEntry)
         websocket_api.async_register_command(hass, websocket_explorer_reset_override)
         websocket_api.async_register_command(hass, websocket_explorer_delete_virtual_entity)
         websocket_api.async_register_command(hass, websocket_explorer_reload_entry)
+        websocket_api.async_register_command(hass, websocket_explorer_apply_update_modes)
         websocket_api.async_register_command(hass, websocket_explorer_history)
         websocket_api.async_register_command(hass, websocket_explorer_changes)
         websocket_api.async_register_command(hass, websocket_explorer_write_property)
@@ -1079,6 +1080,50 @@ async def _async_apply_override_options(
         )
         coordinator.async_set_updated_data(coordinator.data)
 
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "bepacom/explorer/apply_update_modes",
+        vol.Optional("entry_id"): str,
+    }
+)
+@websocket_api.async_response
+async def websocket_explorer_apply_update_modes(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Apply all saved per-point transport modes without reloading the entry."""
+    entry_id, data = _entry_data(hass, msg.get("entry_id"))
+    if data is None or entry_id is None:
+        connection.send_error(msg["id"], "not_found", "No Bepacom config entry is loaded")
+        return
+
+    coordinator = data.get("coordinator")
+    if coordinator is None:
+        connection.send_error(msg["id"], "not_ready", "Bepacom coordinator is not ready")
+        return
+
+    try:
+        result = await coordinator.async_apply_managed_targets()
+    except (CannotConnect, InvalidResponse):
+        connection.send_error(
+            msg["id"],
+            "gateway_unavailable",
+            "Die Aktualisierungsmodi konnten nicht an BACstac übertragen werden",
+        )
+        return
+
+    if not result.get("accepted"):
+        connection.send_error(
+            msg["id"],
+            "managed_targets_unsupported",
+            "Das verbundene BACnet-Add-on unterstützt integrationsgesteuerte Aktualisierungsmodi nicht",
+        )
+        return
+
+    connection.send_result(msg["id"], {"entry_id": entry_id, **result})
 
 
 @websocket_api.websocket_command(

@@ -550,6 +550,47 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     result.get("unchanged", False),
                 )
 
+    async def async_apply_managed_targets(self) -> dict[str, Any]:
+        """Apply the current per-point transport modes without reloading.
+
+        The complete desired state is sent once. The gateway remains responsible
+        for diffing it against its running COV and polling tasks.
+        """
+        targets = self._iter_managed_targets()
+        counts = {
+            "total": len(targets),
+            "cov": sum(mode == "cov" for _, _, mode in targets),
+            "polling": sum(mode == "polling" for _, _, mode in targets),
+            "disabled": sum(mode == "disabled" for _, _, mode in targets),
+        }
+
+        if not self._snapshot_websocket_mode:
+            return {
+                **counts,
+                "accepted": False,
+                "mode": "integration_transport_not_active",
+            }
+
+        active_targets = [
+            (device_id, object_id)
+            for device_id, object_id, mode in targets
+            if mode != "disabled"
+        ]
+        polling_targets = self._iter_polling_targets()
+
+        async with self._managed_target_restore_lock:
+            result = await self.client.async_set_managed_targets(targets)
+            self._managed_targets_supported = result.get("mode") != "unsupported"
+
+            if self._managed_targets_supported:
+                self._websocket_manager.set_snapshot_targets(
+                    active_targets,
+                    self._snapshot_initial_values(active_targets),
+                )
+                self._set_configured_polling_targets(polling_targets)
+
+        return {**counts, **result}
+
     async def _async_subscribe_targets(
         self,
         targets: list[tuple[str, str]],
