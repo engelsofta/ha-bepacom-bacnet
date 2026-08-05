@@ -1,18 +1,18 @@
 # Engelsoft Beacon BACnet/IP for Home Assistant
 
-![Version](https://img.shields.io/badge/Version-1.2.5-orange)
+![Version](https://img.shields.io/badge/Version-1.2.6%20B1-orange)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.6.0%2B-41BDF5)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 [![GitHub Downloads](https://img.shields.io/github/downloads/engelsofta/ha-bepacom-bacnet/total?label=Downloads)](https://github.com/engelsofta/ha-bepacom-bacnet/releases)
 
-The Engelsoft Beacon BACnet/IP integration connects BACnet/IP data points from a Bepacom gateway to Home Assistant. It automatically discovers supported BACnet objects, creates suitable Home Assistant entities, and updates them primarily through WebSocket/COV notifications. The integrated **BACnet Explorer** provides a central interface for managing, customizing, and diagnosing BACnet points.
+The Engelsoft Beacon BACnet/IP integration connects BACnet/IP data points from **Engelsoft BACstac** to Home Assistant. It automatically discovers supported BACnet objects, creates suitable Home Assistant entities, and updates them primarily through managed WebSocket/COV notifications. The integrated **BACnet Explorer** provides a central interface for managing, customizing, and diagnosing BACnet points.
 
 > [!IMPORTANT]
-> This integration requires a compatible BACnet gateway add-on: either the original **[Bepacom BACnet/IP add-on](https://github.com/Bepacom-Raalte/bepacom-HA-Addons)** for legacy full-snapshot transport or **Engelsoft BACstac** for managed COV targets and optimized delta updates. The integration will not work unless a compatible add-on is installed, running, and reachable from Home Assistant.
+> This integration requires the **[Engelsoft BACstac Home Assistant Add-on](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)**. BACstac provides BACnet discovery, managed COV subscriptions, polling, write access, and the local API used by the integration. The integration will not work unless BACstac is installed, running, and reachable from Home Assistant.
 
 ## Features
 
-- automatic discovery of BACnet devices and objects exposed by the Bepacom gateway
+- automatic discovery of BACnet devices and objects exposed by Engelsoft BACstac
 - configuration through the Home Assistant user interface
 - stable entity IDs using the format `bepacom_<device>_<object-type>_<object-id>`
 - automatic mapping to `sensor`, `binary_sensor`, `number`, and `switch` entities
@@ -39,21 +39,21 @@ The Engelsoft Beacon BACnet/IP integration connects BACnet/IP data points from a
 
 - Home Assistant `2026.6.0` or newer
 - HACS for the recommended custom-repository installation
-- the **[Bepacom Home Assistant Add-on](https://github.com/Bepacom-Raalte/bepacom-HA-Addons)** installed and running
+- the **[Engelsoft BACstac Home Assistant Add-on](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)** installed and running
 - network access from Home Assistant to the add-on's HTTP and WebSocket API
 - TCP port `8099` by default, unless configured differently in the add-on
 
-The integration is not a standalone BACnet/IP stack. BACnet communication, discovery, and the gateway API are provided by the Bepacom add-on.
+The integration is not a standalone BACnet/IP stack. BACnet communication, discovery, managed COV subscriptions, polling, and the gateway API are provided by Engelsoft BACstac.
 
 ## Installation
 
-### 1. Install the Bepacom add-on
+### 1. Install Engelsoft BACstac
 
 Install the add-on from:
 
-**[github.com/Bepacom-Raalte/bepacom-HA-Addons](https://github.com/Bepacom-Raalte/bepacom-HA-Addons)**
+**[github.com/engelsofta/engelsoft-bacstac-ha-addon](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)**
 
-Configure and start the add-on. Verify that its HTTP API is reachable from Home Assistant. The integration uses port `8099` by default.
+Configure and start BACstac. Verify that its HTTP API is reachable from Home Assistant. The integration uses port `8099` by default.
 
 ### 2. Install through HACS
 
@@ -76,12 +76,12 @@ Configure and start the add-on. Verify that its HTTP API is reachable from Home 
 1. Open **Settings → Devices & services**.
 2. Select **Add integration**.
 3. Search for **Engelsoft Beacon BACnet/IP**.
-4. Enter the host/IP address and port of the Bepacom API.
+4. Enter the host/IP address and API port of Engelsoft BACstac.
 5. Confirm the setup.
 
 | Setting | Description | Default |
 |---|---|---:|
-| Host | IP address or hostname of the Bepacom add-on | – |
+| Host | IP address or hostname of the Engelsoft BACstac add-on | – |
 | Port | Port of the HTTP/WebSocket API | `8099` |
 
 After the initial full BACnet inventory has been loaded, the integration creates devices and entities. The **BACnet Explorer** is also added to the Home Assistant sidebar.
@@ -252,7 +252,7 @@ During startup, the integration attempts to migrate older generated entity IDs t
 
 ## Performance
 
-Version 1.2.3 is designed for larger BACnet installations:
+Version 1.2.6 B1 is designed for larger BACnet installations:
 
 - unchanged push values are filtered before they reach Home Assistant
 - only the affected entity writes a new Home Assistant state
@@ -266,7 +266,7 @@ Version 1.2.3 is designed for larger BACnet installations:
 
 ### The integration cannot be configured
 
-- verify that the Bepacom add-on is running
+- verify that Engelsoft BACstac is running
 - check the configured host and port
 - verify API reachability from the Home Assistant network
 - inspect both the add-on and Home Assistant logs
@@ -306,7 +306,7 @@ A Home Assistant configuration backup is recommended before updating.
 
 ## Privacy and network access
 
-Communication remains local between Home Assistant and the configured Bepacom API. The integration itself does not require a cloud service. Refer to the add-on documentation for any additional network requirements of the gateway service.
+Communication remains local between Home Assistant and the configured Engelsoft BACstac API. The integration itself does not require a cloud service. Refer to the BACstac documentation for any additional network requirements of the gateway service.
 
 ## Support
 
@@ -314,13 +314,13 @@ When reporting a problem, please include:
 
 - integration version and frontend build
 - Home Assistant version
-- Bepacom add-on version and relevant configuration
+- Engelsoft BACstac version and relevant configuration
 - affected BACnet device ID, object type, and object ID
 - relevant BACnet Explorer diagnostics
 - a short debug-log excerpt covering the time of the problem
 
 Please use the GitHub repository's issue tracker for bug reports and feature requests.
 
-## Acknowledgements
+## Technical compatibility note
 
-This integration relies on the API provided by **[Bepacom-Raalte/bepacom-HA-Addons](https://github.com/Bepacom-Raalte/bepacom-HA-Addons)**. Thank you to the project contributors for providing the Home Assistant/BACnet gateway functionality.
+The integration domain, installation directory, Home Assistant action names, and existing generated entity IDs retain the internal identifier `bepacom` for backwards compatibility. These identifiers do not indicate support for another gateway and must not be renamed manually. All BACnet gateway functionality documented here targets **[Engelsoft BACstac](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)**.
