@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.2.6 B2 - 2026-08-05
+
+### Diagnostics that explain the data path
+
+- Reworked the Diagnostics workspace into clear Configuration, Runtime Health, and Data Processing sections.
+- Added a visual processing pipeline from WebSocket messages through inspected and filtered objects to effective value changes.
+- Added an immediately readable filtering efficiency percentage.
+- Promoted average changes per message and processing latency to operational health metrics.
+- Replaced misleading active-subscription cards with the actual integration WebSocket state.
+- Moved duplicate callback, payload, push, and polling counters into a compact Technical Details section.
+- Preserved low-level raw counters for troubleshooting without overwhelming the primary view.
+- Improved responsive layouts and matching light/dark theme presentation.
+
+**Less number soup, more BACnet signal — diagnostics that finally speak human.**
+
 ## 1.2.6 B1 - 2026-08-05
 
 ### Integration-controlled modes, now without the reload ritual
