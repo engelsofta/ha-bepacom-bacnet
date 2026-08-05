@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.6 B1 - 2026-08-05
+
+### Integration-controlled modes, now without the reload ritual
+
+- Added the dedicated **Apply update modes** workflow to the BACnet Explorer.
+- Push/COV, polling and disabled changes are collected locally and sent to BACstac as one complete target profile.
+- Applying transport changes no longer reloads the Home Assistant integration or interrupts the global WebSocket.
+- BACstac can diff the desired profile and only start, stop or change affected BACnet tasks.
+- The Explorer clearly marks transport modes that have been saved but not applied yet.
+- The result reports the active number of COV, polling and disabled targets.
+- Older add-ons without managed-target support now receive a clear compatibility message.
+- Structural Home Assistant entity changes retain the separate integration reload action.
+- Added regression coverage for the single-request managed-target synchronization.
+
+**One click, zero reloads — because even BACnet deserves fewer existential crises.**
+
 ## 1.2.3 - 2026-08-04
 
 This patch release makes transport modes immediately recognizable throughout the BACnet Explorer.

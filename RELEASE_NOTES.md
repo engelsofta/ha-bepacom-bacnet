@@ -1,4 +1,14 @@
-# Engelsoft Beacon BACnet/IP 1.2.3
+# Engelsoft Beacon BACnet/IP 1.2.6 B1
+
+This beta introduces batched, integration-controlled transport changes without restarting the integration.
+
+Configure multiple BACnet points as Push/COV, Polling or Disabled, then apply the complete profile once from the Explorer. BACstac receives one desired-state update, performs the target diff and changes only the affected BACnet tasks while the global WebSocket stays connected.
+
+Home Assistant entity structure changes still keep their separate reload option where it is genuinely required.
+
+**One click, zero reloads — because even BACnet deserves fewer existential crises.**
+
+---
 
 Version 1.2.3 makes BACnet transport modes readable at a glance across the Explorer.
 
