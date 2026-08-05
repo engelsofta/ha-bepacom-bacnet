@@ -1,3 +1,18 @@
+# Engelsoft Beacon BACnet/IP 1.2.6
+
+Version 1.2.6 promotes the complete integration-controlled BACnet workflow to the stable channel.
+
+Configure points as Push/COV, Polling or Disabled, collect the changes in the Explorer and apply the full target profile once with **Stac Update**. BACstac calculates the difference and changes only affected BACnet tasks while the Home Assistant integration and global WebSocket remain online.
+
+The release also delivers the redesigned light and dark interface, the full-width Live View, reliable friendly-name resolution, stable table scrolling, and the focused animated Diagnostics pipeline. The permanent status strip now combines Push and Polling activity in one **Updates** card with blue and green indicators.
+
+> [!IMPORTANT]
+> Version 1.2.6 requires [Engelsoft BACstac](https://github.com/engelsofta/engelsoft-bacstac-ha-addon). The legacy Bepacom BACnet add-on is no longer supported. Existing internal Home Assistant identifiers such as `bepacom.*` remain unchanged for backwards compatibility.
+
+**No reloads, no noise — just BACnet in sync.**
+
+---
+
 # Engelsoft Beacon BACnet/IP 1.2.6 B3
 
 This beta completes the Diagnostics redesign with a focused, animated view of the BACnet update path.
