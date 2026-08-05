@@ -93,7 +93,7 @@ export class BepacomExplorerView extends HTMLElement {
   _versionLabel() {
     const cfg = this.panel?.config || {};
     const version = cfg.version || "1.2.3";
-    const build = cfg.frontend_build || "0654";
+    const build = cfg.frontend_build || "0655";
     return `Version ${version} · Frontend-Build ${build}`;
   }
 
@@ -1448,9 +1448,10 @@ export class BepacomExplorerView extends HTMLElement {
   _dashboardHtml() {
     const d = this._diagnostics || {};
     const configured = [
-      ["Push konfiguriert", d.configured_push ?? "-"],
-      ["Polling konfiguriert", d.configured_polling ?? "-"],
-      ["Overrides", d.overrides ?? "-"],
+      ["Push / COV", d.configured_push ?? "-"],
+      ["Polling", d.configured_polling ?? "-"],
+      ["Deaktiviert", d.configured_disabled ?? d.disabled ?? "-"],
+      ["Individuell konfiguriert", d.overrides ?? "-"],
     ];
     if (Array.isArray(d.firmware_versions) && d.firmware_versions.length) {
       configured.push(["Firmware", d.firmware_versions.join(", ")]);
@@ -1469,11 +1470,23 @@ export class BepacomExplorerView extends HTMLElement {
       : "-";
     const pushChangeValue = `${pushNotificationsRaw ?? "-"} / ${averageChangesPerPush}`;
     const runtime = [
-      ["Aktive Subscriptions", d.subscribed ?? d.subscriptions ?? "-"],
-      ["Aktives Polling", d.fallback_polling ?? d.fallback_objects ?? "-"],
+      ["WebSocket", d.connected === undefined ? "-" : (d.connected ? "Verbunden" : "Getrennt")],
       ["Reconnects", d.reconnect_count ?? "-"],
+      ["Verbindungsfehler", d.connection_failures ?? "-"],
+      ["Ø Verarbeitung", d.dispatch_time_avg_ms === undefined ? "-" : `${Number(d.dispatch_time_avg_ms).toFixed(2)} ms`],
+      ["Max. Verarbeitung", d.dispatch_time_max_ms === undefined ? "-" : `${Number(d.dispatch_time_max_ms).toFixed(2)} ms`],
     ];
+    const filterRate = (() => {
+      const inspected = Number(d.websocket_payload_objects || 0);
+      const filtered = Number(d.websocket_prefiltered_no_change_objects || 0);
+      return inspected > 0 ? `${((filtered / inspected) * 100).toFixed(1)} %` : "-";
+    })();
     const developer = [
+      ["Filterquote", filterRate],
+      ["Ø Änderungen / Nachricht", averageChangesPerPush],
+      ["Unterdrückte gleiche Werte", d.suppressed_updates ?? "-"],
+    ];
+    const technical = [
       ["Direkt-Pushs", d.websocket_direct_messages ?? "-"],
       ["Snapshot-Pushs", d.websocket_snapshot_messages ?? "-"],
       ["Fallback-Pushs", d.websocket_fallback_messages ?? "-"],
@@ -2800,6 +2813,29 @@ export class BepacomExplorerView extends HTMLElement {
       .dashboard-diagnostics-grid > .dashboard-group:nth-child(3) .dashboard-cards {
         grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
       }
+      .diagnostic-flow {
+        display:grid;
+        grid-template-columns:minmax(130px,1fr) 22px minmax(130px,1fr) 22px minmax(130px,1fr) 22px minmax(130px,1fr) 22px minmax(130px,1fr);
+        align-items:stretch;
+        gap:6px;
+        margin-bottom:12px;
+      }
+      .diagnostic-flow > i { display:flex; align-items:center; justify-content:center; color:#8f8980; font-style:normal; font-size:18px; }
+      .diagnostic-flow-step { min-width:0; padding:13px 14px; border:1px solid rgba(255,255,255,.075); border-radius:10px; background:rgba(255,255,255,.026); }
+      .diagnostic-flow-step small,.diagnostic-flow-step span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .diagnostic-flow-step small { color:#aaa49a; font-size:9px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; }
+      .diagnostic-flow-step strong { display:block; margin:5px 0 3px; color:#f0ece5; font-size:24px; line-height:1; }
+      .diagnostic-flow-step span { color:#89847c; font-size:10px; }
+      .diagnostic-flow-step.filtered strong { color:#d2aa62; }
+      .diagnostic-flow-step.changed strong { color:#9dc487; }
+      .diagnostic-efficiency-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; margin-bottom:12px; }
+      .diagnostic-technical { border-top:1px solid rgba(255,255,255,.065); padding-top:10px; }
+      .diagnostic-technical summary { display:flex; align-items:center; gap:8px; color:#aaa49a; cursor:pointer; font-size:11px; font-weight:700; list-style:none; }
+      .diagnostic-technical summary::-webkit-details-marker { display:none; }
+      .diagnostic-technical summary::before { content:"›"; font-size:17px; transition:transform .15s ease; }
+      .diagnostic-technical[open] summary::before { transform:rotate(90deg); }
+      .diagnostic-technical summary span { margin-left:auto; color:#77736d; font-size:9px; font-weight:600; text-transform:uppercase; }
+      .diagnostic-technical .dashboard-cards { margin-top:10px; grid-template-columns:repeat(auto-fit,minmax(150px,1fr))!important; }
       /* Automatic light appearance, driven by Home Assistant's active theme. */
       .wrap.theme-light {
         --primary-color:#b87926;
@@ -2926,6 +2962,11 @@ export class BepacomExplorerView extends HTMLElement {
       .theme-light .dashboard-title {
         color:#5e574e; border-bottom-color:rgba(62,52,39,.1);
       }
+      .theme-light .diagnostic-flow-step { border-color:rgba(62,52,39,.1); background:rgba(255,255,255,.58); }
+      .theme-light .diagnostic-flow-step strong { color:#302b25; }
+      .theme-light .diagnostic-flow-step.filtered strong { color:#a66d25; }
+      .theme-light .diagnostic-flow-step.changed strong { color:#5d8c48; }
+      .theme-light .diagnostic-technical { border-top-color:rgba(62,52,39,.1); }
       .theme-light input,
       .theme-light select {
         color:#29251f;
@@ -3005,6 +3046,9 @@ export class BepacomExplorerView extends HTMLElement {
         .dashboard-diagnostics-grid > .dashboard-group:nth-child(3) .dashboard-cards {
           grid-template-columns:repeat(2,minmax(0,1fr));
         }
+        .diagnostic-flow { grid-template-columns:1fr; }
+        .diagnostic-flow > i { transform:rotate(90deg); height:12px; }
+        .diagnostic-efficiency-cards { grid-template-columns:1fr; }
       }
       @media (max-width: 1100px) { :host { height:auto; overflow:visible; } .wrap { height:auto; min-height:100vh; overflow:visible; } .toolbar { align-items:stretch; } .toolbar .toolbar-nav { flex:1 0 100%; border-right:0; border-bottom:1px solid var(--divider-color); padding:2px 2px 8px; } .dashboard-content { grid-template-columns: 1fr; } .dashboard-cards { grid-template-columns: repeat(2, 1fr); } #explorerView { overflow:visible; } .content { grid-template-columns: 1fr; overflow:visible; } .table-wrap { height:70vh; } .side { height:70vh; } }
       @media (max-width: 700px) {
@@ -4064,18 +4108,31 @@ export class BepacomExplorerView extends HTMLElement {
       : "-";
     const pushChangeValue = `${pushNotificationsRaw ?? "-"} / ${averageChangesPerPush}`;
     const configured = [
-      ["Push konfiguriert", d.configured_push ?? "-"],
-      ["Polling konfiguriert", d.configured_polling ?? "-"],
-      ["Overrides", d.overrides ?? "-"],
+      ["Push / COV", d.configured_push ?? "-"],
+      ["Polling", d.configured_polling ?? "-"],
+      ["Deaktiviert", d.configured_disabled ?? d.disabled ?? "-"],
+      ["Individuell konfiguriert", d.overrides ?? "-"],
     ];
     if (Array.isArray(d.firmware_versions) && d.firmware_versions.length) configured.push(["Firmware", d.firmware_versions.join(", ")]);
     if (Array.isArray(d.device_models) && d.device_models.length) configured.push(["Gerätemodelle", d.device_models.join(", ")]);
     const runtime = [
-      ["Aktive Subscriptions", d.subscribed ?? d.subscriptions ?? "-"],
-      ["Aktives Polling", d.fallback_polling ?? d.fallback_objects ?? "-"],
+      ["WebSocket", d.connected === undefined ? "-" : (d.connected ? "Verbunden" : "Getrennt")],
       ["Reconnects", d.reconnect_count ?? "-"],
+      ["Verbindungsfehler", d.connection_failures ?? "-"],
+      ["Ø Verarbeitung", d.dispatch_time_avg_ms === undefined ? "-" : `${Number(d.dispatch_time_avg_ms).toFixed(2)} ms`],
+      ["Max. Verarbeitung", d.dispatch_time_max_ms === undefined ? "-" : `${Number(d.dispatch_time_max_ms).toFixed(2)} ms`],
     ];
+    const filterRate = (() => {
+      const inspected = Number(d.websocket_payload_objects || 0);
+      const filtered = Number(d.websocket_prefiltered_no_change_objects || 0);
+      return inspected > 0 ? `${((filtered / inspected) * 100).toFixed(1)} %` : "-";
+    })();
     const developer = [
+      ["Filterquote", filterRate],
+      ["Ø Änderungen / Nachricht", averageChangesPerPush],
+      ["Unterdrückte gleiche Werte", d.suppressed_updates ?? "-"],
+    ];
+    const technical = [
       ["Direkt-Pushs", d.websocket_direct_messages ?? "-"],
       ["Snapshot-Pushs", d.websocket_snapshot_messages ?? "-"],
       ["Fallback-Pushs", d.websocket_fallback_messages ?? "-"],
@@ -4088,8 +4145,6 @@ export class BepacomExplorerView extends HTMLElement {
       ["Callbacks ohne Änderung", d.websocket_callback_no_changes ?? "-"],
       ["Push-Punktupdates", d.processed_push_updates ?? d.push_updates ?? "-"],
       ["Polling-Punktupdates", d.processed_polling_updates ?? d.polling_updates ?? "-"],
-      ["Unterdrückte gleiche Werte", d.suppressed_updates ?? "-"],
-      ["Max Push-Verarbeitung ms", d.dispatch_time_max_ms === undefined ? "-" : Number(d.dispatch_time_max_ms).toFixed(2)],
     ];
     const cards = (items) => items.map(([label, value]) => ({
       label,
@@ -4110,6 +4165,15 @@ export class BepacomExplorerView extends HTMLElement {
       configured: cards(configured),
       runtime: cards(runtime),
       developer: cards(developer),
+      technical: cards(technical),
+      pipeline: {
+        messages: pushNotificationsRaw ?? "-",
+        inspected: d.websocket_payload_objects ?? "-",
+        filtered: d.websocket_prefiltered_no_change_objects ?? "-",
+        updates: d.websocket_callback_invocations ?? "-",
+        changes: d.websocket_callback_value_changes ?? valueChanges ?? "-",
+        filterRate,
+      },
       livePaused: this._livePaused,
       liveFilters: { ...this._liveFilters },
       liveChanges: this._liveChanges.map((item) => {

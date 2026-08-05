@@ -707,7 +707,7 @@ class BepacomExplorerView extends HTMLElement {
   _versionLabel() {
     const cfg = this.panel?.config || {};
     const version = cfg.version || "1.2.3";
-    const build = cfg.frontend_build || "0654";
+    const build = cfg.frontend_build || "0655";
     return `Version ${version} · Frontend-Build ${build}`;
   }
   connectedCallback() {
@@ -1910,9 +1910,10 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
   _dashboardHtml() {
     const d2 = this._diagnostics || {};
     const configured = [
-      ["Push konfiguriert", d2.configured_push ?? "-"],
-      ["Polling konfiguriert", d2.configured_polling ?? "-"],
-      ["Overrides", d2.overrides ?? "-"]
+      ["Push / COV", d2.configured_push ?? "-"],
+      ["Polling", d2.configured_polling ?? "-"],
+      ["Deaktiviert", d2.configured_disabled ?? d2.disabled ?? "-"],
+      ["Individuell konfiguriert", d2.overrides ?? "-"]
     ];
     if (Array.isArray(d2.firmware_versions) && d2.firmware_versions.length) {
       configured.push(["Firmware", d2.firmware_versions.join(", ")]);
@@ -1929,11 +1930,23 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     }) : "-";
     const pushChangeValue = `${pushNotificationsRaw ?? "-"} / ${averageChangesPerPush}`;
     const runtime = [
-      ["Aktive Subscriptions", d2.subscribed ?? d2.subscriptions ?? "-"],
-      ["Aktives Polling", d2.fallback_polling ?? d2.fallback_objects ?? "-"],
-      ["Reconnects", d2.reconnect_count ?? "-"]
+      ["WebSocket", d2.connected === void 0 ? "-" : d2.connected ? "Verbunden" : "Getrennt"],
+      ["Reconnects", d2.reconnect_count ?? "-"],
+      ["Verbindungsfehler", d2.connection_failures ?? "-"],
+      ["Ø Verarbeitung", d2.dispatch_time_avg_ms === void 0 ? "-" : `${Number(d2.dispatch_time_avg_ms).toFixed(2)} ms`],
+      ["Max. Verarbeitung", d2.dispatch_time_max_ms === void 0 ? "-" : `${Number(d2.dispatch_time_max_ms).toFixed(2)} ms`]
     ];
+    const filterRate = (() => {
+      const inspected = Number(d2.websocket_payload_objects || 0);
+      const filtered = Number(d2.websocket_prefiltered_no_change_objects || 0);
+      return inspected > 0 ? `${(filtered / inspected * 100).toFixed(1)} %` : "-";
+    })();
     const developer = [
+      ["Filterquote", filterRate],
+      ["Ø Änderungen / Nachricht", averageChangesPerPush],
+      ["Unterdrückte gleiche Werte", d2.suppressed_updates ?? "-"]
+    ];
+    [
       ["Direkt-Pushs", d2.websocket_direct_messages ?? "-"],
       ["Snapshot-Pushs", d2.websocket_snapshot_messages ?? "-"],
       ["Fallback-Pushs", d2.websocket_fallback_messages ?? "-"],
@@ -3245,6 +3258,29 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       .dashboard-diagnostics-grid > .dashboard-group:nth-child(3) .dashboard-cards {
         grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
       }
+      .diagnostic-flow {
+        display:grid;
+        grid-template-columns:minmax(130px,1fr) 22px minmax(130px,1fr) 22px minmax(130px,1fr) 22px minmax(130px,1fr) 22px minmax(130px,1fr);
+        align-items:stretch;
+        gap:6px;
+        margin-bottom:12px;
+      }
+      .diagnostic-flow > i { display:flex; align-items:center; justify-content:center; color:#8f8980; font-style:normal; font-size:18px; }
+      .diagnostic-flow-step { min-width:0; padding:13px 14px; border:1px solid rgba(255,255,255,.075); border-radius:10px; background:rgba(255,255,255,.026); }
+      .diagnostic-flow-step small,.diagnostic-flow-step span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      .diagnostic-flow-step small { color:#aaa49a; font-size:9px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; }
+      .diagnostic-flow-step strong { display:block; margin:5px 0 3px; color:#f0ece5; font-size:24px; line-height:1; }
+      .diagnostic-flow-step span { color:#89847c; font-size:10px; }
+      .diagnostic-flow-step.filtered strong { color:#d2aa62; }
+      .diagnostic-flow-step.changed strong { color:#9dc487; }
+      .diagnostic-efficiency-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; margin-bottom:12px; }
+      .diagnostic-technical { border-top:1px solid rgba(255,255,255,.065); padding-top:10px; }
+      .diagnostic-technical summary { display:flex; align-items:center; gap:8px; color:#aaa49a; cursor:pointer; font-size:11px; font-weight:700; list-style:none; }
+      .diagnostic-technical summary::-webkit-details-marker { display:none; }
+      .diagnostic-technical summary::before { content:"›"; font-size:17px; transition:transform .15s ease; }
+      .diagnostic-technical[open] summary::before { transform:rotate(90deg); }
+      .diagnostic-technical summary span { margin-left:auto; color:#77736d; font-size:9px; font-weight:600; text-transform:uppercase; }
+      .diagnostic-technical .dashboard-cards { margin-top:10px; grid-template-columns:repeat(auto-fit,minmax(150px,1fr))!important; }
       /* Automatic light appearance, driven by Home Assistant's active theme. */
       .wrap.theme-light {
         --primary-color:#b87926;
@@ -3371,6 +3407,11 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       .theme-light .dashboard-title {
         color:#5e574e; border-bottom-color:rgba(62,52,39,.1);
       }
+      .theme-light .diagnostic-flow-step { border-color:rgba(62,52,39,.1); background:rgba(255,255,255,.58); }
+      .theme-light .diagnostic-flow-step strong { color:#302b25; }
+      .theme-light .diagnostic-flow-step.filtered strong { color:#a66d25; }
+      .theme-light .diagnostic-flow-step.changed strong { color:#5d8c48; }
+      .theme-light .diagnostic-technical { border-top-color:rgba(62,52,39,.1); }
       .theme-light input,
       .theme-light select {
         color:#29251f;
@@ -3450,6 +3491,9 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         .dashboard-diagnostics-grid > .dashboard-group:nth-child(3) .dashboard-cards {
           grid-template-columns:repeat(2,minmax(0,1fr));
         }
+        .diagnostic-flow { grid-template-columns:1fr; }
+        .diagnostic-flow > i { transform:rotate(90deg); height:12px; }
+        .diagnostic-efficiency-cards { grid-template-columns:1fr; }
       }
       @media (max-width: 1100px) { :host { height:auto; overflow:visible; } .wrap { height:auto; min-height:100vh; overflow:visible; } .toolbar { align-items:stretch; } .toolbar .toolbar-nav { flex:1 0 100%; border-right:0; border-bottom:1px solid var(--divider-color); padding:2px 2px 8px; } .dashboard-content { grid-template-columns: 1fr; } .dashboard-cards { grid-template-columns: repeat(2, 1fr); } #explorerView { overflow:visible; } .content { grid-template-columns: 1fr; overflow:visible; } .table-wrap { height:70vh; } .side { height:70vh; } }
       @media (max-width: 700px) {
@@ -4434,18 +4478,31 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     }) : "-";
     const pushChangeValue = `${pushNotificationsRaw ?? "-"} / ${averageChangesPerPush}`;
     const configured = [
-      ["Push konfiguriert", d2.configured_push ?? "-"],
-      ["Polling konfiguriert", d2.configured_polling ?? "-"],
-      ["Overrides", d2.overrides ?? "-"]
+      ["Push / COV", d2.configured_push ?? "-"],
+      ["Polling", d2.configured_polling ?? "-"],
+      ["Deaktiviert", d2.configured_disabled ?? d2.disabled ?? "-"],
+      ["Individuell konfiguriert", d2.overrides ?? "-"]
     ];
     if (Array.isArray(d2.firmware_versions) && d2.firmware_versions.length) configured.push(["Firmware", d2.firmware_versions.join(", ")]);
     if (Array.isArray(d2.device_models) && d2.device_models.length) configured.push(["Gerätemodelle", d2.device_models.join(", ")]);
     const runtime = [
-      ["Aktive Subscriptions", d2.subscribed ?? d2.subscriptions ?? "-"],
-      ["Aktives Polling", d2.fallback_polling ?? d2.fallback_objects ?? "-"],
-      ["Reconnects", d2.reconnect_count ?? "-"]
+      ["WebSocket", d2.connected === void 0 ? "-" : d2.connected ? "Verbunden" : "Getrennt"],
+      ["Reconnects", d2.reconnect_count ?? "-"],
+      ["Verbindungsfehler", d2.connection_failures ?? "-"],
+      ["Ø Verarbeitung", d2.dispatch_time_avg_ms === void 0 ? "-" : `${Number(d2.dispatch_time_avg_ms).toFixed(2)} ms`],
+      ["Max. Verarbeitung", d2.dispatch_time_max_ms === void 0 ? "-" : `${Number(d2.dispatch_time_max_ms).toFixed(2)} ms`]
     ];
+    const filterRate = (() => {
+      const inspected = Number(d2.websocket_payload_objects || 0);
+      const filtered = Number(d2.websocket_prefiltered_no_change_objects || 0);
+      return inspected > 0 ? `${(filtered / inspected * 100).toFixed(1)} %` : "-";
+    })();
     const developer = [
+      ["Filterquote", filterRate],
+      ["Ø Änderungen / Nachricht", averageChangesPerPush],
+      ["Unterdrückte gleiche Werte", d2.suppressed_updates ?? "-"]
+    ];
+    const technical = [
       ["Direkt-Pushs", d2.websocket_direct_messages ?? "-"],
       ["Snapshot-Pushs", d2.websocket_snapshot_messages ?? "-"],
       ["Fallback-Pushs", d2.websocket_fallback_messages ?? "-"],
@@ -4457,9 +4514,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       ["Callbacks mit Änderung", d2.websocket_callback_value_changes ?? "-"],
       ["Callbacks ohne Änderung", d2.websocket_callback_no_changes ?? "-"],
       ["Push-Punktupdates", d2.processed_push_updates ?? d2.push_updates ?? "-"],
-      ["Polling-Punktupdates", d2.processed_polling_updates ?? d2.polling_updates ?? "-"],
-      ["Unterdrückte gleiche Werte", d2.suppressed_updates ?? "-"],
-      ["Max Push-Verarbeitung ms", d2.dispatch_time_max_ms === void 0 ? "-" : Number(d2.dispatch_time_max_ms).toFixed(2)]
+      ["Polling-Punktupdates", d2.processed_polling_updates ?? d2.polling_updates ?? "-"]
     ];
     const cards = (items) => items.map(([label, value]) => ({
       label,
@@ -4480,6 +4535,15 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       configured: cards(configured),
       runtime: cards(runtime),
       developer: cards(developer),
+      technical: cards(technical),
+      pipeline: {
+        messages: pushNotificationsRaw ?? "-",
+        inspected: d2.websocket_payload_objects ?? "-",
+        filtered: d2.websocket_prefiltered_no_change_objects ?? "-",
+        updates: d2.websocket_callback_invocations ?? "-",
+        changes: d2.websocket_callback_value_changes ?? valueChanges ?? "-",
+        filterRate
+      },
       livePaused: this._livePaused,
       liveFilters: { ...this._liveFilters },
       liveChanges: this._liveChanges.map((item) => {
@@ -6585,6 +6649,8 @@ const EMPTY_MODEL = {
   configured: [],
   runtime: [],
   developer: [],
+  technical: [],
+  pipeline: { messages: "-", inspected: "-", filtered: "-", updates: "-", changes: "-", filterRate: "-" },
   liveChanges: [],
   livePaused: false,
   liveFilters: { search: "", source: "all", object_type: "all" }
@@ -6796,6 +6862,21 @@ let BepacomRuntimeDashboard = class extends i {
       </div>
     `;
   }
+  _diagnosticPipeline() {
+    const pipeline = this.model.pipeline;
+    const step = (label, value, hint, tone = "") => b`
+      <div class=${`diagnostic-flow-step ${tone}`}>
+        <small>${label}</small><strong>${String(value ?? "-")}</strong><span>${hint}</span>
+      </div>`;
+    return b`
+      <div class="diagnostic-flow" aria-label="Verarbeitungskette">
+        ${step("Nachrichten", pipeline.messages, "vom WebSocket")}<i aria-hidden="true">â†’</i>
+        ${step("Objekte geprÃ¼ft", pipeline.inspected, "im Payload")}<i aria-hidden="true">â†’</i>
+        ${step("Gefiltert", pipeline.filtered, `${pipeline.filterRate} unverÃ¤ndert`, "filtered")}<i aria-hidden="true">â†’</i>
+        ${step("Updates", pipeline.updates, "an die Integration")}<i aria-hidden="true">â†’</i>
+        ${step("Ã„nderungen", pipeline.changes, "tatsÃ¤chlich geÃ¤ndert", "changed")}
+      </div>`;
+  }
   render() {
     const model = this.model || EMPTY_MODEL;
     return b`
@@ -6820,8 +6901,13 @@ let BepacomRuntimeDashboard = class extends i {
                     <div class="dashboard-cards">${this._cards(model.runtime)}</div>
                   </section>
                   <section class="dashboard-group dashboard-group-wide dashboard-monitor-group">
-                    <div class="dashboard-title">Push-Diagnose</div>
-                    <div class="dashboard-cards">${this._cards(model.developer)}</div>
+                    <div class="dashboard-title">Datenverarbeitung</div>
+                    ${this._diagnosticPipeline()}
+                    <div class="diagnostic-efficiency-cards">${this._cards(model.developer)}</div>
+                    <details class="diagnostic-technical">
+                      <summary>Technische Details <span>${model.technical.length} Rohwerte</span></summary>
+                      <div class="dashboard-cards">${this._cards(model.technical)}</div>
+                    </details>
                   </section>
                 </div>
               `}

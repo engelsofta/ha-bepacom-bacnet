@@ -1,3 +1,13 @@
+# Engelsoft Beacon BACnet/IP 1.2.6 B2
+
+This beta turns the Diagnostics workspace from a wall of counters into an operational view of the complete update path.
+
+WebSocket messages, inspected objects, unchanged-value filtering, dispatched updates, and effective changes are now presented as one visual processing pipeline. Important health values remain immediately visible, while duplicate low-level counters are preserved under Technical Details.
+
+**Less number soup, more BACnet signal — diagnostics that finally speak human.**
+
+---
+
 # Engelsoft Beacon BACnet/IP 1.2.6 B1
 
 This beta introduces batched, integration-controlled transport changes without restarting the integration.
