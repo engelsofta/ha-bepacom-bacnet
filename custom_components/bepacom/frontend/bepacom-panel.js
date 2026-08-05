@@ -707,7 +707,7 @@ class BepacomExplorerView extends HTMLElement {
   _versionLabel() {
     const cfg = this.panel?.config || {};
     const version = cfg.version || "1.2.3";
-    const build = cfg.frontend_build || "0662";
+    const build = cfg.frontend_build || "0663";
     return `Version ${version} · Frontend-Build ${build}`;
   }
   connectedCallback() {
@@ -1953,7 +1953,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     }).join("");
     const open = !!this._statusOpen;
     const dashboardTab = this._dashboardTab === "developer" ? "developer" : "live";
-    const summary = [
+    [
       `Punkte: ${d2.objects ?? this._total ?? "-"}`,
       `aktiv: ${d2.enabled ?? "-"}`,
       `Push: ${d2.configured_push ?? "-"}/${d2.subscribed ?? "-"}`,
@@ -1965,7 +1965,6 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         <button id="toggleDashboard" class="dashboard-toggle" type="button" title="Status ein-/ausklappen">
           <span class="chevron">${open ? "▾" : "▸"}</span>
           <span class="dashboard-toggle-title">Status / Laufzeit</span>
-          <span class="dashboard-summary">${this._escape(summary)}</span>
         </button>
         ${open ? `<div class="dashboard-content">
           <section class="dashboard-group dashboard-group-wide dashboard-monitor-group">
@@ -3619,7 +3618,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
               <button class="secondary" id="importOverrides">Overrides importieren</button>
               <input id="importOverridesFile" type="file" accept="application/json,.json" hidden>
               ${this._pendingTransportIds.size ? `<span class="pending-reload">${this._pendingTransportIds.size} Modi noch nicht angewendet</span>` : this._pendingReloadIds.size ? `<span class="pending-reload">${this._pendingReloadIds.size} Änderungen warten</span>` : ""}
-              <button class="primary" id="applyUpdateModes" ${!this._pendingTransportIds.size || this._saving ? "disabled" : ""}>Aktualisierungsmodi anwenden${this._pendingTransportIds.size ? ` (${this._pendingTransportIds.size})` : ""}</button>
+              <button class="primary" id="applyUpdateModes" ${!this._pendingTransportIds.size || this._saving ? "disabled" : ""}>Stac Update${this._pendingTransportIds.size ? ` (${this._pendingTransportIds.size})` : ""}</button>
               <button class="secondary" id="reloadIntegration" ${this._saving || this._manualReloadRunning || Date.now() < this._manualReloadUntil ? "disabled" : ""}>Integration neu laden${this._pendingReloadIds.size ? ` (${this._pendingReloadIds.size})` : ""}</button>
               <button class="secondary" id="refresh">Aktualisieren${this._loading ? " …" : ""}</button>
             </div>
@@ -3703,6 +3702,8 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     const connectionTone = diagnostics.connected === false ? "stat-bad" : connectionFailures > 0 ? "stat-warn" : "stat-ok";
     const covPushUpdates = diagnostics.processed_push_updates ?? diagnostics.push_updates ?? "-";
     const pollingUpdates = diagnostics.processed_polling_updates ?? diagnostics.polling_updates ?? "-";
+    const updateCounts = [covPushUpdates, pollingUpdates].map((value) => Number(value)).filter((value) => Number.isFinite(value));
+    const totalUpdates = updateCounts.length ? updateCounts.reduce((total, value) => total + value, 0) : "-";
     const overview = `
       <div class="dashboard-headline-card status-overview">
         <div class="status-overview-grid">
@@ -3731,9 +3732,15 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       </div>`;
     const transportOverview = `
       <div class="dashboard-headline-card status-overview transport-overview">
-        <div class="status-overview-grid">
-          <span class="status-overview-value push"><strong>${this._escape(covPushUpdates)}</strong><small>COV-Pushs</small></span>
-          <span class="status-overview-value polling"><strong>${this._escape(pollingUpdates)}</strong><small>Polling-Updates</small></span>
+        <div class="status-overview-grid status-overview-grid-two">
+          <span class="status-overview-value updates">
+            <strong>${this._escape(totalUpdates)}</strong>
+            <small>Updates</small>
+            <span class="status-transport-line">
+              <i class="push-dot" aria-hidden="true"></i>${this._escape(covPushUpdates)} Push
+              <i class="poll-dot" aria-hidden="true"></i>${this._escape(pollingUpdates)} Polling
+            </span>
+          </span>
           <span class="status-overview-value efficiency"><strong>${this._escape(averageChangesPerPush)}</strong><small>Ø Änderungen/Nachricht</small></span>
         </div>
       </div>`;
@@ -6885,7 +6892,6 @@ let BepacomRuntimeDashboard = class extends i {
       <section class="dashboard-shell">
         <div class="dashboard-page-heading">
           <span class="dashboard-toggle-title">${model.tab === "live" ? "Live-Ansicht" : "Diagnose"}</span>
-          <span class="dashboard-summary">${model.summary}</span>
         </div>
         <div class=${`dashboard-content dashboard-content-${model.tab}`}>
           ${model.tab === "live" ? b`

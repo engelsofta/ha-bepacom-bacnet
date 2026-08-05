@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.2.6 - 2026-08-05
+
+### No reloads, no noise — just BACnet in sync
+
+- Promoted integration-controlled Push/COV, Polling and Disabled modes to the stable release channel.
+- Added the batched **Stac Update** action, which applies all pending transport changes to BACstac without reloading the Home Assistant integration.
+- Added managed-target synchronization so BACstac can diff the desired profile and change only affected BACnet tasks.
+- Reworked Diagnostics into a focused, animated processing pipeline with clearer visual hierarchy and responsive layouts.
+- Simplified the persistent status area and combined Push and Polling activity into one **Updates** card with blue and green transport indicators.
+- Improved Live View sizing, friendly-name resolution and navigation to the matching Point Inspector entry.
+- Added automatic light and dark presentation aligned with the active Home Assistant theme.
+- Improved Explorer scrolling, selection stability, dropdown styling, icons, typography and responsive use of wide screens.
+- Replaced red decrease flashes with neutral violet so normal falling values no longer resemble errors.
+- Reduced noisy logging and kept known network failures compact and rate-limited.
+- Removed support for the legacy Bepacom BACnet add-on; **Engelsoft BACstac is now required**.
+- Preserved existing internal `bepacom.*` identifiers for backwards compatibility.
+
+**No reloads, no noise — just BACnet in sync.**
+
 ## 1.2.6 B3 - 2026-08-05
 
 ### Follow the flow, lose the noise
