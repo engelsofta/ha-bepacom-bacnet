@@ -40,7 +40,6 @@ export interface RuntimeDashboardModel {
   configured: StatusCard[];
   runtime: StatusCard[];
   developer: StatusCard[];
-  technical: StatusCard[];
   pipeline: DiagnosticPipeline;
   liveChanges: LiveChange[];
   livePaused: boolean;
@@ -58,7 +57,6 @@ const EMPTY_MODEL: RuntimeDashboardModel = {
   configured: [],
   runtime: [],
   developer: [],
-  technical: [],
   pipeline: { messages: "-", inspected: "-", filtered: "-", updates: "-", changes: "-", filterRate: "-" },
   liveChanges: [],
   livePaused: false,
@@ -307,17 +305,18 @@ export class BepacomRuntimeDashboard extends LitElement {
 
   private _diagnosticPipeline() {
     const pipeline = this.model.pipeline;
-    const step = (label: string, value: unknown, hint: string, tone = "") => html`
+    const step = (label: string, value: unknown, hint: string, icon: string, tone = "") => html`
       <div class=${`diagnostic-flow-step ${tone}`}>
-        <small>${label}</small><strong>${String(value ?? "-")}</strong><span>${hint}</span>
+        <div class="diagnostic-flow-head"><small>${label}</small><b aria-hidden="true">${icon}</b></div>
+        <strong>${String(value ?? "-")}</strong><span>${hint}</span>
       </div>`;
     return html`
       <div class="diagnostic-flow" aria-label="Verarbeitungskette">
-        ${step("Nachrichten", pipeline.messages, "vom WebSocket")}<i aria-hidden="true">â†’</i>
-        ${step("Objekte geprÃ¼ft", pipeline.inspected, "im Payload")}<i aria-hidden="true">â†’</i>
-        ${step("Gefiltert", pipeline.filtered, `${pipeline.filterRate} unverÃ¤ndert`, "filtered")}<i aria-hidden="true">â†’</i>
-        ${step("Updates", pipeline.updates, "an die Integration")}<i aria-hidden="true">â†’</i>
-        ${step("Ã„nderungen", pipeline.changes, "tatsÃ¤chlich geÃ¤ndert", "changed")}
+        ${step("Nachrichten", pipeline.messages, "vom WebSocket", "\u21af", "incoming")}<i aria-hidden="true"></i>
+        ${step("Objekte gepr\u00fcft", pipeline.inspected, "im Payload", "\u25ce", "inspected")}<i aria-hidden="true"></i>
+        ${step("Gefiltert", pipeline.filtered, `${pipeline.filterRate} unver\u00e4ndert`, "\u25c7", "filtered")}<i aria-hidden="true"></i>
+        ${step("Updates", pipeline.updates, "an die Integration", "\u21e2", "updates")}<i aria-hidden="true"></i>
+        ${step("\u00c4nderungen", pipeline.changes, "tats\u00e4chlich ge\u00e4ndert", "\u2713", "changed")}
       </div>`;
   }
 
@@ -338,22 +337,9 @@ export class BepacomRuntimeDashboard extends LitElement {
               `
             : html`
                 <div class="dashboard-diagnostics-grid">
-                  <section class="dashboard-group">
-                    <div class="dashboard-title">Konfigurationswerte</div>
-                    <div class="dashboard-cards">${this._cards(model.configured)}</div>
-                  </section>
-                  <section class="dashboard-group">
-                    <div class="dashboard-title">System / Laufzeit</div>
-                    <div class="dashboard-cards">${this._cards(model.runtime)}</div>
-                  </section>
-                  <section class="dashboard-group dashboard-group-wide dashboard-monitor-group">
+                  <section class="dashboard-group dashboard-group-wide dashboard-monitor-group diagnostic-processing-group">
                     <div class="dashboard-title">Datenverarbeitung</div>
                     ${this._diagnosticPipeline()}
-                    <div class="diagnostic-efficiency-cards">${this._cards(model.developer)}</div>
-                    <details class="diagnostic-technical">
-                      <summary>Technische Details <span>${model.technical.length} Rohwerte</span></summary>
-                      <div class="dashboard-cards">${this._cards(model.technical)}</div>
-                    </details>
                   </section>
                 </div>
               `}

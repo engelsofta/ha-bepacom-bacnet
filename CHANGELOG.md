@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.6 B3 - 2026-08-05
+
+### Follow the flow, lose the noise
+
+- Reduced the Diagnostics workspace to one focused, full-width data-processing pipeline.
+- Removed duplicate configuration, runtime, efficiency, and technical-detail card groups.
+- Added larger processing cards with distinct stage icons, accents, and improved visual hierarchy.
+- Added a subtle animated signal travelling between processing stages.
+- Added a responsive vertical flow for smaller displays.
+- Automatically disables motion when the operating system requests reduced animation.
+- Moved configured Push and Polling counts into the primary entity status card using blue and green indicators.
+- Replaced the red decrease flash with neutral violet so normal falling values no longer resemble errors.
+- Hardened new diagnostic labels and arrows against character-encoding issues.
+
+**Follow the flow, lose the noise — BACnet diagnostics in motion.**
+
 ## 1.2.6 B2 - 2026-08-05
 
 ### Diagnostics that explain the data path

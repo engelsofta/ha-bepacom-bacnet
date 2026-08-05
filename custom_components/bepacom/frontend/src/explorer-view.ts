@@ -93,7 +93,7 @@ export class BepacomExplorerView extends HTMLElement {
   _versionLabel() {
     const cfg = this.panel?.config || {};
     const version = cfg.version || "1.2.3";
-    const build = cfg.frontend_build || "0655";
+    const build = cfg.frontend_build || "0662";
     return `Version ${version} · Frontend-Build ${build}`;
   }
 
@@ -1473,7 +1473,7 @@ export class BepacomExplorerView extends HTMLElement {
       ["WebSocket", d.connected === undefined ? "-" : (d.connected ? "Verbunden" : "Getrennt")],
       ["Reconnects", d.reconnect_count ?? "-"],
       ["Verbindungsfehler", d.connection_failures ?? "-"],
-      ["Ø Verarbeitung", d.dispatch_time_avg_ms === undefined ? "-" : `${Number(d.dispatch_time_avg_ms).toFixed(2)} ms`],
+      ["\u00d8 Verarbeitung", d.dispatch_time_avg_ms === undefined ? "-" : `${Number(d.dispatch_time_avg_ms).toFixed(2)} ms`],
       ["Max. Verarbeitung", d.dispatch_time_max_ms === undefined ? "-" : `${Number(d.dispatch_time_max_ms).toFixed(2)} ms`],
     ];
     const filterRate = (() => {
@@ -1483,24 +1483,8 @@ export class BepacomExplorerView extends HTMLElement {
     })();
     const developer = [
       ["Filterquote", filterRate],
-      ["Ø Änderungen / Nachricht", averageChangesPerPush],
-      ["Unterdrückte gleiche Werte", d.suppressed_updates ?? "-"],
-    ];
-    const technical = [
-      ["Direkt-Pushs", d.websocket_direct_messages ?? "-"],
-      ["Snapshot-Pushs", d.websocket_snapshot_messages ?? "-"],
-      ["Fallback-Pushs", d.websocket_fallback_messages ?? "-"],
-      ["Payload geprüft", d.websocket_payload_objects ?? "-"],
-      ["Payload verarbeitet", d.websocket_processed_objects ?? "-"],
-      ["Payload ignoriert", d.websocket_ignored_objects ?? "-"],
-      ["Vor Callback gefiltert", d.websocket_prefiltered_no_change_objects ?? "-"],
-      ["Callback-Aufrufe", d.websocket_callback_invocations ?? "-"],
-      ["Callbacks mit Änderung", d.websocket_callback_value_changes ?? "-"],
-      ["Callbacks ohne Änderung", d.websocket_callback_no_changes ?? "-"],
-      ["Push-Punktupdates", d.processed_push_updates ?? d.push_updates ?? "-"],
-      ["Polling-Punktupdates", d.processed_polling_updates ?? d.polling_updates ?? "-"],
-      ["Unterdrückte gleiche Werte", d.suppressed_updates ?? "-"],
-      ["Max Push-Verarbeitung ms", d.dispatch_time_max_ms === undefined ? "-" : Number(d.dispatch_time_max_ms).toFixed(2)],
+      ["\u00d8 \u00c4nderungen / Nachricht", averageChangesPerPush],
+      ["Unterdr\u00fcckte gleiche Werte", d.suppressed_updates ?? "-"],
     ];
     const renderCards = (cards) => cards.map(([label, value]) => {
       const icon = this._statusIcon(label, value);
@@ -1524,14 +1508,6 @@ export class BepacomExplorerView extends HTMLElement {
           <span class="dashboard-summary">${this._escape(summary)}</span>
         </button>
         ${open ? `<div class="dashboard-content">
-          <section class="dashboard-group">
-            <div class="dashboard-title">Konfiguration</div>
-            <div class="dashboard-cards">${renderCards(configured)}</div>
-          </section>
-          <section class="dashboard-group">
-            <div class="dashboard-title">System / Laufzeit</div>
-            <div class="dashboard-cards">${renderCards(runtime)}</div>
-          </section>
           <section class="dashboard-group dashboard-group-wide dashboard-monitor-group">
             <div class="dashboard-monitor-tabs">
               <button class="dashboard-monitor-tab ${dashboardTab === "developer" ? "active" : ""}" data-dashboard-tab="developer">Entwickler / Push-Diagnose</button>
@@ -1887,7 +1863,7 @@ export class BepacomExplorerView extends HTMLElement {
       tr:hover { background: color-mix(in srgb, var(--secondary-background-color) 88%, var(--primary-color)); }
       tr.selected { background: color-mix(in srgb, var(--primary-color) 16%, transparent); outline: 1px solid color-mix(in srgb, var(--primary-color) 28%, transparent); }
       tr.value-up { --bepacom-change-color: var(--success-color, #43a047); }
-      tr.value-down { --bepacom-change-color: var(--error-color, #e53935); }
+      tr.value-down { --bepacom-change-color: #8f7bd8; }
       tr.value-changed { --bepacom-change-color: var(--warning-color, #fb8c00); }
       tr.value-flash td[data-col='value'] .value-link { animation: bepacom-value-pill 3.2s ease-out; }
       tr.value-flash td[data-col='value'] .value-link::after { animation: bepacom-value-ring 1.6s ease-out; }
@@ -2734,6 +2710,13 @@ export class BepacomExplorerView extends HTMLElement {
       .status-overview-value.push strong { color:#69aef1; }
       .status-overview-value.polling strong { color:#8fc486; }
       .status-overview-value.efficiency strong { color:#f2d598; }
+      .status-transport-line {
+        display:flex; align-items:center; gap:5px; margin-top:7px;
+        color:#aaa59c; font-size:9px; font-weight:700; white-space:nowrap;
+      }
+      .status-transport-line i { width:7px; height:7px; flex:0 0 7px; border-radius:50%; box-shadow:0 0 0 3px rgba(255,255,255,.025); }
+      .status-transport-line .push-dot { background:#69aef1; }
+      .status-transport-line .poll-dot { margin-left:5px; background:#8fc486; }
       .main-nav {
         min-height:44px; margin-bottom:14px; padding:4px; border-radius:11px;
         background:rgba(45,44,41,.82); box-shadow:none; backdrop-filter:none;
@@ -2788,7 +2771,8 @@ export class BepacomExplorerView extends HTMLElement {
         border-radius:12px;
         background:rgba(255,255,255,.024);
       }
-      .dashboard-diagnostics-grid > .dashboard-group:nth-child(3) {
+      .dashboard-diagnostics-grid > .dashboard-group,
+      .dashboard-diagnostics-grid > .diagnostic-processing-group {
         grid-column:1 / -1;
       }
       .dashboard-title {
@@ -2805,37 +2789,62 @@ export class BepacomExplorerView extends HTMLElement {
         gap:9px;
       }
       .dashboard-diagnostics-grid > .dashboard-group:nth-child(1) .dashboard-cards {
-        grid-template-columns:repeat(3,minmax(0,1fr));
+        grid-template-columns:repeat(4,minmax(0,1fr));
       }
-      .dashboard-diagnostics-grid > .dashboard-group:nth-child(2) .dashboard-cards {
-        grid-template-columns:repeat(3,minmax(0,1fr));
-      }
-      .dashboard-diagnostics-grid > .dashboard-group:nth-child(3) .dashboard-cards {
+      .dashboard-diagnostics-grid > .diagnostic-processing-group .dashboard-cards {
         grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
       }
       .diagnostic-flow {
         display:grid;
-        grid-template-columns:minmax(130px,1fr) 22px minmax(130px,1fr) 22px minmax(130px,1fr) 22px minmax(130px,1fr) 22px minmax(130px,1fr);
-        align-items:stretch;
-        gap:6px;
-        margin-bottom:12px;
+        grid-template-columns:minmax(150px,1fr) 38px minmax(150px,1fr) 38px minmax(150px,1fr) 38px minmax(150px,1fr) 38px minmax(150px,1fr);
+        align-items:center;
+        gap:8px;
+        padding:5px 2px 3px;
       }
-      .diagnostic-flow > i { display:flex; align-items:center; justify-content:center; color:#8f8980; font-style:normal; font-size:18px; }
-      .diagnostic-flow-step { min-width:0; padding:13px 14px; border:1px solid rgba(255,255,255,.075); border-radius:10px; background:rgba(255,255,255,.026); }
+      .diagnostic-flow > i {
+        position:relative; display:block; width:100%; height:2px; overflow:visible;
+        border-radius:999px; background:linear-gradient(90deg,rgba(105,174,241,.18),rgba(210,170,98,.52),rgba(157,196,135,.2));
+      }
+      .diagnostic-flow > i::before { content:""; position:absolute; inset:-3px 0; border-radius:999px; background:inherit; filter:blur(5px); opacity:.25; }
+      .diagnostic-flow > i::after {
+        content:""; position:absolute; top:50%; left:0; width:7px; height:7px; margin-top:-3.5px;
+        border-radius:50%; background:#e0b96f; box-shadow:0 0 8px rgba(224,185,111,.8);
+        animation:diagnostic-flow-pulse 2.8s ease-in-out infinite;
+      }
+      .diagnostic-flow-step {
+        position:relative; min-width:0; min-height:92px; box-sizing:border-box; padding:16px 17px;
+        overflow:hidden; border:1px solid rgba(255,255,255,.085); border-radius:13px;
+        background:linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.018));
+        box-shadow:0 8px 22px rgba(0,0,0,.1),inset 0 1px 0 rgba(255,255,255,.035);
+        animation:diagnostic-card-in .38s ease-out both;
+        transition:transform .18s ease,border-color .18s ease,background .18s ease;
+      }
+      .diagnostic-flow-step::after { content:""; position:absolute; left:0; right:0; bottom:0; height:2px; background:rgba(105,174,241,.55); }
+      .diagnostic-flow-step:hover { transform:translateY(-2px); border-color:rgba(209,154,66,.25); background:linear-gradient(145deg,rgba(255,255,255,.075),rgba(255,255,255,.025)); }
+      .diagnostic-flow-step:nth-child(3) { animation-delay:.05s; }
+      .diagnostic-flow-step:nth-child(5) { animation-delay:.1s; }
+      .diagnostic-flow-step:nth-child(7) { animation-delay:.15s; }
+      .diagnostic-flow-step:nth-child(9) { animation-delay:.2s; }
+      .diagnostic-flow-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+      .diagnostic-flow-head b { display:flex; align-items:center; justify-content:center; width:25px; height:25px; border-radius:8px; color:#8ebbed; background:rgba(105,174,241,.09); font-size:14px; font-weight:700; }
       .diagnostic-flow-step small,.diagnostic-flow-step span { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .diagnostic-flow-step small { color:#aaa49a; font-size:9px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; }
-      .diagnostic-flow-step strong { display:block; margin:5px 0 3px; color:#f0ece5; font-size:24px; line-height:1; }
+      .diagnostic-flow-step strong { display:block; margin:10px 0 5px; color:#f0ece5; font-size:27px; line-height:1; }
       .diagnostic-flow-step span { color:#89847c; font-size:10px; }
-      .diagnostic-flow-step.filtered strong { color:#d2aa62; }
-      .diagnostic-flow-step.changed strong { color:#9dc487; }
-      .diagnostic-efficiency-cards { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; margin-bottom:12px; }
-      .diagnostic-technical { border-top:1px solid rgba(255,255,255,.065); padding-top:10px; }
-      .diagnostic-technical summary { display:flex; align-items:center; gap:8px; color:#aaa49a; cursor:pointer; font-size:11px; font-weight:700; list-style:none; }
-      .diagnostic-technical summary::-webkit-details-marker { display:none; }
-      .diagnostic-technical summary::before { content:"›"; font-size:17px; transition:transform .15s ease; }
-      .diagnostic-technical[open] summary::before { transform:rotate(90deg); }
-      .diagnostic-technical summary span { margin-left:auto; color:#77736d; font-size:9px; font-weight:600; text-transform:uppercase; }
-      .diagnostic-technical .dashboard-cards { margin-top:10px; grid-template-columns:repeat(auto-fit,minmax(150px,1fr))!important; }
+      .diagnostic-flow-step.inspected::after { background:rgba(141,159,182,.6); }
+      .diagnostic-flow-step.filtered strong,.diagnostic-flow-step.filtered .diagnostic-flow-head b { color:#d2aa62; }
+      .diagnostic-flow-step.filtered .diagnostic-flow-head b { background:rgba(210,170,98,.1); }
+      .diagnostic-flow-step.filtered::after { background:rgba(210,170,98,.72); }
+      .diagnostic-flow-step.updates::after { background:rgba(184,147,217,.62); }
+      .diagnostic-flow-step.changed strong,.diagnostic-flow-step.changed .diagnostic-flow-head b { color:#9dc487; }
+      .diagnostic-flow-step.changed .diagnostic-flow-head b { background:rgba(157,196,135,.1); }
+      .diagnostic-flow-step.changed::after { background:rgba(157,196,135,.75); }
+      @keyframes diagnostic-flow-pulse { 0% { left:0; opacity:0; } 15% { opacity:1; } 85% { opacity:1; } 100% { left:calc(100% - 7px); opacity:0; } }
+      @keyframes diagnostic-card-in { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
+      @media (prefers-reduced-motion:reduce) {
+        .diagnostic-flow > i::after,.diagnostic-flow-step { animation:none!important; }
+        .diagnostic-flow-step { transition:none; }
+      }
       /* Automatic light appearance, driven by Home Assistant's active theme. */
       .wrap.theme-light {
         --primary-color:#b87926;
@@ -2945,6 +2954,9 @@ export class BepacomExplorerView extends HTMLElement {
       .theme-light .status-overview-value.push strong { color:#2676b9; }
       .theme-light .status-overview-value.efficiency strong { color:#a06b20; }
       .theme-light .status-overview-value { border-right-color:rgba(62,52,39,.11); }
+      .theme-light .status-transport-line { color:#797268; }
+      .theme-light .status-transport-line .push-dot { background:#2676b9; }
+      .theme-light .status-transport-line .poll-dot { background:#64815c; }
       .theme-light .main-nav-item { color:#6f685f; }
       .theme-light .main-nav-item:hover:not(:disabled) {
         color:#302b25; background:rgba(62,52,39,.05);
@@ -2962,11 +2974,11 @@ export class BepacomExplorerView extends HTMLElement {
       .theme-light .dashboard-title {
         color:#5e574e; border-bottom-color:rgba(62,52,39,.1);
       }
-      .theme-light .diagnostic-flow-step { border-color:rgba(62,52,39,.1); background:rgba(255,255,255,.58); }
+      .theme-light .diagnostic-flow-step { border-color:rgba(62,52,39,.11); background:linear-gradient(145deg,rgba(255,255,255,.9),rgba(246,242,235,.72)); box-shadow:0 8px 20px rgba(78,61,39,.07),inset 0 1px 0 #fff; }
       .theme-light .diagnostic-flow-step strong { color:#302b25; }
       .theme-light .diagnostic-flow-step.filtered strong { color:#a66d25; }
       .theme-light .diagnostic-flow-step.changed strong { color:#5d8c48; }
-      .theme-light .diagnostic-technical { border-top-color:rgba(62,52,39,.1); }
+      .theme-light .diagnostic-flow > i { background:linear-gradient(90deg,rgba(38,118,185,.18),rgba(166,109,37,.42),rgba(93,140,72,.2)); }
       .theme-light input,
       .theme-light select {
         color:#29251f;
@@ -2989,6 +3001,7 @@ export class BepacomExplorerView extends HTMLElement {
         background:rgba(184,121,38,.09);
         box-shadow:inset 2px 0 0 #b87926;
       }
+      .theme-light tr.value-down { --bepacom-change-color:#735fc2; }
       .theme-light .group-row td {
         color:#39332c!important;
         background:#eee5d7!important;
@@ -3031,25 +3044,22 @@ export class BepacomExplorerView extends HTMLElement {
       }
       .dashboard-content-developer .dashboard-summary { display:none; }
       @media (max-width:1500px) {
-        .dashboard-diagnostics-grid > .dashboard-group:nth-child(2) .dashboard-cards {
-          grid-template-columns:repeat(3,minmax(0,1fr));
-        }
-        .dashboard-diagnostics-grid > .dashboard-group:nth-child(3) .dashboard-cards {
+        .dashboard-diagnostics-grid > .diagnostic-processing-group .dashboard-cards {
           grid-template-columns:repeat(5,minmax(0,1fr));
         }
       }
       @media (max-width:1000px) {
         .dashboard-diagnostics-grid { grid-template-columns:1fr; }
-        .dashboard-diagnostics-grid > .dashboard-group:nth-child(3) { grid-column:auto; }
+        .dashboard-diagnostics-grid > .diagnostic-processing-group { grid-column:auto; }
         .dashboard-diagnostics-grid > .dashboard-group:nth-child(1) .dashboard-cards,
-        .dashboard-diagnostics-grid > .dashboard-group:nth-child(2) .dashboard-cards,
-        .dashboard-diagnostics-grid > .dashboard-group:nth-child(3) .dashboard-cards {
+        .dashboard-diagnostics-grid > .diagnostic-processing-group .dashboard-cards {
           grid-template-columns:repeat(2,minmax(0,1fr));
         }
         .diagnostic-flow { grid-template-columns:1fr; }
-        .diagnostic-flow > i { transform:rotate(90deg); height:12px; }
-        .diagnostic-efficiency-cards { grid-template-columns:1fr; }
+        .diagnostic-flow > i { width:2px; height:24px; justify-self:center; background:linear-gradient(180deg,rgba(105,174,241,.18),rgba(210,170,98,.52),rgba(157,196,135,.2)); }
+        .diagnostic-flow > i::after { top:0; left:50%; margin-top:0; margin-left:-3.5px; animation:diagnostic-flow-pulse-vertical 2.8s ease-in-out infinite; }
       }
+      @keyframes diagnostic-flow-pulse-vertical { 0% { top:0; opacity:0; } 15% { opacity:1; } 85% { opacity:1; } 100% { top:calc(100% - 7px); opacity:0; } }
       @media (max-width: 1100px) { :host { height:auto; overflow:visible; } .wrap { height:auto; min-height:100vh; overflow:visible; } .toolbar { align-items:stretch; } .toolbar .toolbar-nav { flex:1 0 100%; border-right:0; border-bottom:1px solid var(--divider-color); padding:2px 2px 8px; } .dashboard-content { grid-template-columns: 1fr; } .dashboard-cards { grid-template-columns: repeat(2, 1fr); } #explorerView { overflow:visible; } .content { grid-template-columns: 1fr; overflow:visible; } .table-wrap { height:70vh; } .side { height:70vh; } }
       @media (max-width: 700px) {
         .main-nav { grid-template-columns:1fr; }
@@ -3267,7 +3277,14 @@ export class BepacomExplorerView extends HTMLElement {
       <div class="dashboard-headline-card status-overview">
         <div class="status-overview-grid">
           <span class="status-overview-value total"><strong>${this._escape(diagnostics.objects ?? this._total ?? "-")}</strong><small>Punkte insgesamt</small></span>
-          <span class="status-overview-value active"><strong>${this._escape(diagnostics.enabled ?? "-")}</strong><small>Aktive Entitäten</small></span>
+          <span class="status-overview-value active">
+            <strong>${this._escape(diagnostics.enabled ?? "-")}</strong>
+            <small>Aktive Entitäten</small>
+            <span class="status-transport-line">
+              <i class="push-dot" aria-hidden="true"></i>${this._escape(diagnostics.configured_push ?? "-")} Push
+              <i class="poll-dot" aria-hidden="true"></i>${this._escape(diagnostics.configured_polling ?? "-")} Polling
+            </span>
+          </span>
           <span class="status-overview-value disabled"><strong>${this._escape(diagnostics.configured_disabled ?? diagnostics.disabled ?? "-")}</strong><small>Deaktiviert</small></span>
         </div>
       </div>`;
@@ -4119,7 +4136,7 @@ export class BepacomExplorerView extends HTMLElement {
       ["WebSocket", d.connected === undefined ? "-" : (d.connected ? "Verbunden" : "Getrennt")],
       ["Reconnects", d.reconnect_count ?? "-"],
       ["Verbindungsfehler", d.connection_failures ?? "-"],
-      ["Ø Verarbeitung", d.dispatch_time_avg_ms === undefined ? "-" : `${Number(d.dispatch_time_avg_ms).toFixed(2)} ms`],
+      ["\u00d8 Verarbeitung", d.dispatch_time_avg_ms === undefined ? "-" : `${Number(d.dispatch_time_avg_ms).toFixed(2)} ms`],
       ["Max. Verarbeitung", d.dispatch_time_max_ms === undefined ? "-" : `${Number(d.dispatch_time_max_ms).toFixed(2)} ms`],
     ];
     const filterRate = (() => {
@@ -4129,22 +4146,8 @@ export class BepacomExplorerView extends HTMLElement {
     })();
     const developer = [
       ["Filterquote", filterRate],
-      ["Ø Änderungen / Nachricht", averageChangesPerPush],
-      ["Unterdrückte gleiche Werte", d.suppressed_updates ?? "-"],
-    ];
-    const technical = [
-      ["Direkt-Pushs", d.websocket_direct_messages ?? "-"],
-      ["Snapshot-Pushs", d.websocket_snapshot_messages ?? "-"],
-      ["Fallback-Pushs", d.websocket_fallback_messages ?? "-"],
-      ["Payload geprüft", d.websocket_payload_objects ?? "-"],
-      ["Payload verarbeitet", d.websocket_processed_objects ?? "-"],
-      ["Payload ignoriert", d.websocket_ignored_objects ?? "-"],
-      ["Vor Callback gefiltert", d.websocket_prefiltered_no_change_objects ?? "-"],
-      ["Callback-Aufrufe", d.websocket_callback_invocations ?? "-"],
-      ["Callbacks mit Änderung", d.websocket_callback_value_changes ?? "-"],
-      ["Callbacks ohne Änderung", d.websocket_callback_no_changes ?? "-"],
-      ["Push-Punktupdates", d.processed_push_updates ?? d.push_updates ?? "-"],
-      ["Polling-Punktupdates", d.processed_polling_updates ?? d.polling_updates ?? "-"],
+      ["\u00d8 \u00c4nderungen / Nachricht", averageChangesPerPush],
+      ["Unterdr\u00fcckte gleiche Werte", d.suppressed_updates ?? "-"],
     ];
     const cards = (items) => items.map(([label, value]) => ({
       label,
@@ -4165,7 +4168,6 @@ export class BepacomExplorerView extends HTMLElement {
       configured: cards(configured),
       runtime: cards(runtime),
       developer: cards(developer),
-      technical: cards(technical),
       pipeline: {
         messages: pushNotificationsRaw ?? "-",
         inspected: d.websocket_payload_objects ?? "-",

@@ -1,3 +1,15 @@
+# Engelsoft Beacon BACnet/IP 1.2.6 B3
+
+This beta completes the Diagnostics redesign with a focused, animated view of the BACnet update path.
+
+The remaining processing stages now use larger cards, individual visual accents, and a subtle moving signal between steps. Redundant configuration, runtime, efficiency, and raw technical card groups have been removed. Push and Polling configuration counts now live directly in the main entity status card.
+
+Falling numeric values now flash violet instead of red, keeping red reserved for actual error states. Motion automatically stops when reduced animation is enabled at operating-system level.
+
+**Follow the flow, lose the noise — BACnet diagnostics in motion.**
+
+---
+
 # Engelsoft Beacon BACnet/IP 1.2.6 B2
 
 This beta turns the Diagnostics workspace from a wall of counters into an operational view of the complete update path.
