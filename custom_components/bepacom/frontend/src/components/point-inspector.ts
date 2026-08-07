@@ -64,6 +64,38 @@ export class BepacomPointInspector extends LitElement {
     return list.map(([value, label]) => html`<option value=${value} ?selected=${value === current}>${label}</option>`);
   }
 
+  private _desiredTransport(point: Record<string, any>): string {
+    if (point.update_mode === "subscribe") return "Push / COV";
+    if (point.update_mode === "polling") return "Polling";
+    return "Deaktiviert";
+  }
+
+  private _effectiveTransport(point: Record<string, any>): string {
+    const labels: Record<string, string> = {
+      cov_active: "COV aktiv",
+      cov_waiting: "Wartet auf COV",
+      subscribing: "COV-Anmeldung läuft",
+      polling: "Polling aktiv",
+      polling_waiting: "Polling wartet auf Gerät",
+      polling_error: "Polling gestört",
+      polling_fallback: "Polling-Fallback",
+      disabled: "Deaktiviert",
+      cancelled: "Beendet",
+      waiting: "Wartet",
+      unknown: "Noch nicht von BACstac gemeldet",
+    };
+    return labels[point.effective_update_state] || labels[point.effective_update_mode] || String(point.effective_update_state || "Noch nicht gemeldet");
+  }
+
+  private _transportReason(point: Record<string, any>): string {
+    const reasons: Record<string, string> = {
+      cov_limit: "COV-Limit erreicht",
+      cov_silent: "Keine COV-Werte empfangen",
+      cov_failed: "COV-Anmeldung fehlgeschlagen",
+    };
+    return reasons[point.effective_update_reason] || point.effective_update_error || "";
+  }
+
   private _section(id: string, title: string, content: unknown) {
     return html`
       <details class="detail-section" data-section=${id} ?open=${!!this.model.sectionOpen[id]}>
@@ -161,6 +193,12 @@ export class BepacomPointInspector extends LitElement {
         <div><label>Aktualisierungsmodus</label><select id="editUpdateMode">${this._options([
           ["disabled", "Deaktiviert / keine Aktualisierung"], ["subscribe", "🔵 Push / Subscribe"], ["polling", "🟢 Polling"],
         ], updateMode)}</select></div>
+      </div>
+      <div class=${`transport-comparison ${point.effective_update_reason || point.effective_update_error ? "mismatch" : ""}`}>
+        <div><small>Gewünscht</small><strong>${this._desiredTransport(point)}</strong></div>
+        <span aria-hidden="true">→</span>
+        <div><small>Tatsächlich aktiv</small><strong>${this._effectiveTransport(point)}</strong></div>
+        ${this._transportReason(point) ? html`<p>${this._transportReason(point)}</p>` : nothing}
       </div>
       ${multistate ? html`
         <h3 style="margin-top:14px;">Darstellung in Home Assistant</h3>

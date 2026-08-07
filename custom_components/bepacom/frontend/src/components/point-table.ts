@@ -30,6 +30,10 @@ export type PointTableRow =
       writeViaGlt: boolean;
       runtimeState: "off" | "snapshot" | "push" | "poll" | "wait";
       runtimeLabel: string;
+      requestedState: "off" | "push" | "poll" | "wait";
+      requestedLabel: string;
+      effectiveDetail: string;
+      transportMismatch: boolean;
     };
 
 @customElement("bepacom-point-table")
@@ -145,7 +149,19 @@ export class BepacomPointTable extends LitElement {
           <bepacom-write-profile-indicator .glt=${row.writeViaGlt}></bepacom-write-profile-indicator>
         </td>
         <td data-col="status">
-          <bepacom-runtime-indicator .state=${row.runtimeState} .label=${row.runtimeLabel}></bepacom-runtime-indicator>
+          <div class=${`transport-state-stack ${row.transportMismatch ? "mismatch" : ""}`}>
+            <span title=${`Gewünscht: ${row.requestedLabel}`}>
+              <small>Gewünscht</small>
+              <bepacom-runtime-indicator .state=${row.requestedState} .label=${`Gewünscht: ${row.requestedLabel}`}></bepacom-runtime-indicator>
+              <b>${row.requestedLabel}</b>
+            </span>
+            <span title=${row.effectiveDetail || row.runtimeLabel}>
+              <small>Aktiv</small>
+              <bepacom-runtime-indicator .state=${row.runtimeState} .label=${row.runtimeLabel}></bepacom-runtime-indicator>
+              <b>${row.runtimeLabel}</b>
+            </span>
+            ${row.effectiveDetail ? html`<em>${row.effectiveDetail}</em>` : ""}
+          </div>
         </td>
       </tr>
     `;
@@ -171,7 +187,7 @@ export class BepacomPointTable extends LitElement {
             ${this._header("unit", "Einheit")}
             ${this._header("override", "Override")}
             ${this._header("write_profile", "Schreiben", "write-profile-head")}
-            ${this._header("runtime", "", "runtime-head")}
+            ${this._header("runtime", "Aktualisierung", "runtime-head")}
           </tr>
         </thead>
         <tbody>

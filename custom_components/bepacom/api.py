@@ -442,6 +442,13 @@ class BepacomClient:
         self._managed_targets_endpoint_supported = True
         return result
 
+    async def async_get_subscription_diagnostics(self) -> dict[str, Any]:
+        """Return BACstac's effective per-target transport state."""
+        result = await self._get("/apiv1/diagnostics/subscriptions")
+        if not isinstance(result, dict):
+            raise InvalidResponse
+        return result
+
     @staticmethod
     def _managed_targets_payload(
         targets: list[tuple[str, str] | tuple[str, str, str]],
