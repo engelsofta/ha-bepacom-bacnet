@@ -14,10 +14,14 @@ from custom_components.bepacom.coordinator import BepacomCoordinator
 class _Registry:
     def __init__(self, points):
         self._points = points
+        self.refreshed_options = None
 
     def all(self, *, include_disabled: bool = False):
         assert include_disabled is True
         return iter(self._points)
+
+    def refresh_options(self, options):
+        self.refreshed_options = options
 
 
 class _Overrides:
@@ -55,6 +59,34 @@ def test_managed_targets_map_all_integration_modes() -> None:
     ]
 
 
+def test_refresh_options_updates_managed_target_modes_without_reload() -> None:
+    """A saved transport mode is used by Stac Update immediately."""
+    point = SimpleNamespace(
+        unique_id="point", device_id="21", object_type="analogInput", object_id="403"
+    )
+    registry = _Registry([point])
+    coordinator = SimpleNamespace(
+        point_registry=registry,
+        _overrides=_Overrides({"point": "polling"}),
+    )
+    options = {
+        "entity_overrides": {
+            "point": {
+                "update_mode": "subscribe",
+                "enabled": True,
+                "subscribe": True,
+            }
+        }
+    }
+
+    BepacomCoordinator.refresh_options(coordinator, options)
+
+    assert registry.refreshed_options == options
+    assert BepacomCoordinator._iter_managed_targets(coordinator) == [
+        ("21", "analogInput:403", "cov")
+    ]
+
+
 @pytest.mark.asyncio
 async def test_apply_managed_targets_sends_one_complete_profile() -> None:
     """Saved modes are applied in one request without reconnecting WebSocket."""
@@ -79,6 +111,7 @@ async def test_apply_managed_targets_sends_one_complete_profile() -> None:
         _iter_polling_targets=lambda: [("21", "analogInput:404")],
         _snapshot_initial_values=lambda active: {},
         _set_configured_polling_targets=Mock(),
+        async_gateway_target_status=AsyncMock(return_value={}),
     )
 
     result = await BepacomCoordinator.async_apply_managed_targets(coordinator)
@@ -87,6 +120,7 @@ async def test_apply_managed_targets_sends_one_complete_profile() -> None:
     websocket_manager.set_snapshot_targets.assert_called_once_with(
         [("21", "analogInput:403"), ("21", "analogInput:404")], {}
     )
+    coordinator.async_gateway_target_status.assert_awaited_once_with(force=True)
     assert result == {
         "total": 3,
         "cov": 1,

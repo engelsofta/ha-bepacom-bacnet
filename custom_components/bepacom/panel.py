@@ -30,7 +30,7 @@ PANEL_URL = "bepacom_explorer"
 PANEL_NAME = "bepacom-explorer-panel"
 PANEL_STATIC_URL = "/bepacom_static"
 PANEL_EVENT = "bepacom_explorer_updated"
-PANEL_VERSION = "0663"
+PANEL_VERSION = "0664"
 
 _WS_REGISTERED = "websocket_registered"
 _PANEL_REGISTERED = "panel_registered"
@@ -313,6 +313,7 @@ def _serialize_point(
     hass: HomeAssistant | None = None,
     entry_id: str | None = None,
     entity_entries: dict[str, Any] | None = None,
+    target_status: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Serialize one BACnet point for the frontend panel."""
     runtime = registry.runtime(obj)
@@ -335,6 +336,7 @@ def _serialize_point(
     ha_device_class = registry.overrides.get_device_class(obj)
     ha_state_class = registry.overrides.get_state_class(obj)
     update_mode = registry.overrides.get_update_mode(obj, "disabled")
+    effective = _effective_transport(target_status)
     entity_entry = (
         _entity_registry_entry(
             hass, entry_id, obj.unique_id, preferred_entity_domain
@@ -384,6 +386,7 @@ def _serialize_point(
         "object_assistant": _point_assistant_suggestion(obj),
         "subscribe": obj.subscribe,
         "update_mode": update_mode,
+        **effective,
         "subscribed": runtime.subscribed,
         "fallback_polling": runtime.fallback_polling,
         "enabled": registry.overrides.is_enabled(obj),
@@ -408,6 +411,41 @@ def _serialize_point(
             else override.get("entity_name")
         ),
         "entity_original_name": getattr(entity_entry, "original_name", None) if entity_entry else None,
+    }
+
+
+def _effective_transport(status: dict[str, Any] | None) -> dict[str, Any]:
+    """Normalize BACstac target diagnostics for the Explorer frontend."""
+    if not status:
+        return {
+            "gateway_requested_mode": None,
+            "effective_update_mode": "unknown",
+            "effective_update_state": "unknown",
+            "effective_update_reason": None,
+            "effective_update_error": None,
+        }
+
+    state = str(status.get("state") or "waiting").strip().lower()
+    fallback = bool(status.get("fallback_active"))
+    if fallback or state in {"polling", "polling_waiting", "polling_error", "polling_fallback"}:
+        effective_mode = "polling"
+    elif state in {"cov_active", "cov_waiting", "subscribing"} or status.get("cov_task_active"):
+        effective_mode = "cov"
+    elif state in {"disabled", "cancelled"}:
+        effective_mode = "disabled"
+    else:
+        effective_mode = "waiting"
+
+    return {
+        "gateway_requested_mode": status.get("requested_mode"),
+        "effective_update_mode": effective_mode,
+        "effective_update_state": state,
+        "effective_update_reason": status.get("fallback_reason"),
+        "effective_update_error": status.get("last_error"),
+        "effective_subscription_confirmed": bool(status.get("subscription_confirmed")),
+        "effective_last_cov_age": status.get("last_cov_age_seconds"),
+        "effective_last_poll_age": status.get("last_poll_age_seconds"),
+        "effective_value_age": status.get("last_value_age_seconds"),
     }
 
 
@@ -543,9 +581,17 @@ async def websocket_explorer_points(
 
     coordinator = data["coordinator"]
     registry = coordinator.point_registry
+    target_statuses = await coordinator.async_gateway_target_status()
     entity_entries = _entity_registry_entries_by_unique_id(hass, entry_id)
     points = [
-        _serialize_point(obj, registry, hass, entry_id, entity_entries)
+        _serialize_point(
+            obj,
+            registry,
+            hass,
+            entry_id,
+            entity_entries,
+            coordinator.gateway_target_status_for(obj, target_statuses),
+        )
         for obj in registry.all(include_disabled=msg["include_disabled"])
     ]
     points = [point for point in points if _matches_filters(point, msg)]
@@ -565,11 +611,16 @@ async def websocket_explorer_points(
     )
 
 
-def _serialize_point_runtime(obj: BacnetObject, registry) -> dict[str, Any]:
+def _serialize_point_runtime(
+    obj: BacnetObject,
+    registry,
+    target_status: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Serialize only frequently changing point data for the Explorer."""
     runtime = registry.runtime(obj)
     return {
         "unique_id": obj.unique_id,
+        **_effective_transport(target_status),
         "present_value": obj.present_value,
         "subscribed": runtime.subscribed,
         "fallback_polling": runtime.fallback_polling,
@@ -603,11 +654,18 @@ async def websocket_explorer_points_runtime(
 
     coordinator = data["coordinator"]
     registry = coordinator.point_registry
+    target_statuses = await coordinator.async_gateway_target_status()
     points: list[dict[str, Any]] = []
     for unique_id in msg["unique_ids"]:
         obj = registry.get_by_unique_id(unique_id)
         if obj is not None:
-            points.append(_serialize_point_runtime(obj, registry))
+            points.append(
+                _serialize_point_runtime(
+                    obj,
+                    registry,
+                    coordinator.gateway_target_status_for(obj, target_statuses),
+                )
+            )
 
     connection.send_result(
         msg["id"],
@@ -647,11 +705,20 @@ async def websocket_explorer_point(
         connection.send_error(msg["id"], "not_found", "BACnet point not found")
         return
 
+    target_statuses = await coordinator.async_gateway_target_status()
     connection.send_result(
         msg["id"],
         {
             "entry_id": entry_id,
-            "point": _serialize_point(obj, registry, hass, entry_id),
+            "point": _serialize_point(
+                obj,
+                registry,
+                hass,
+                entry_id,
+                target_status=coordinator.gateway_target_status_for(
+                    obj, target_statuses
+                ),
+            ),
             "inspector": registry.inspector_attributes(obj),
             "history": registry.history(obj),
         },
@@ -1073,7 +1140,7 @@ async def _async_apply_override_options(
     entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id)
     coordinator = entry_data.get("coordinator") if isinstance(entry_data, dict) else None
     if coordinator is not None:
-        coordinator.point_registry.refresh_options(options)
+        coordinator.refresh_options(options)
         coordinator.point_registry.load_discovery(
             coordinator.discovery.devices,
             coordinator.discovery.objects,

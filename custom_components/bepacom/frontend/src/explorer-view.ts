@@ -93,7 +93,7 @@ export class BepacomExplorerView extends HTMLElement {
   _versionLabel() {
     const cfg = this.panel?.config || {};
     const version = cfg.version || "1.2.3";
-    const build = cfg.frontend_build || "0663";
+    const build = cfg.frontend_build || "0664";
     return `Version ${version} · Frontend-Build ${build}`;
   }
 
@@ -1802,13 +1802,26 @@ export class BepacomExplorerView extends HTMLElement {
       col.value-col-col { width:108px; }
       col.unit-col-col { width:130px; }
       col.override-col-col { width:90px; }
-      col.runtime-col-col { width:42px; }
+      col.runtime-col-col { width:190px; }
       th, td { text-align:left; padding:9px 12px; border-bottom:1px solid color-mix(in srgb, var(--divider-color) 72%, transparent); font-size:13px; vertical-align:middle; overflow:hidden; text-overflow:ellipsis; }
       th[data-sort='present_value'], td[data-col='value'], th[data-sort='override'], td[data-col='override'], th[data-sort='runtime'], td[data-col='status'] { text-align:center; }
       td[data-col='entity'] { white-space:normal; }
       td[data-col='value'] { padding-left:6px; padding-right:6px; }
       td[data-col='override'] { padding-left:6px; padding-right:6px; }
       td[data-col='status'] { padding-left:6px; padding-right:6px; }
+      .transport-state-stack { display:flex; flex-direction:column; gap:5px; min-width:155px; text-align:left; }
+      .transport-state-stack > span { display:grid; grid-template-columns:54px 12px minmax(0,1fr); gap:6px; align-items:center; }
+      .transport-state-stack small { color:var(--secondary-text-color); font-size:8px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; }
+      .transport-state-stack b { overflow:hidden; color:var(--primary-text-color); font-size:10px; font-weight:700; text-overflow:ellipsis; white-space:nowrap; }
+      .transport-state-stack em { padding-left:72px; color:var(--warning-color,#f0ad4e); font-size:9px; font-style:normal; line-height:1.2; }
+      .transport-state-stack.mismatch { border-left:2px solid var(--warning-color,#f0ad4e); padding-left:7px; }
+      .transport-comparison { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:10px; align-items:center; margin-top:12px; padding:11px 12px; border:1px solid var(--divider-color); border-radius:10px; background:color-mix(in srgb,var(--secondary-background-color) 75%,transparent); }
+      .transport-comparison > div { display:flex; flex-direction:column; gap:4px; }
+      .transport-comparison small { color:var(--secondary-text-color); font-size:9px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; }
+      .transport-comparison strong { color:var(--primary-text-color); font-size:12px; }
+      .transport-comparison > span { color:var(--secondary-text-color); }
+      .transport-comparison p { grid-column:1 / -1; margin:0; color:var(--warning-color,#f0ad4e); font-size:10px; font-weight:700; }
+      .transport-comparison.mismatch { border-color:color-mix(in srgb,var(--warning-color,#f0ad4e) 45%,var(--divider-color)); }
       th { color: var(--secondary-text-color); font-weight:600; font-size:12px; position:sticky; top:0; background: color-mix(in srgb, var(--card-background-color) 94%, var(--primary-background-color)); z-index:20; overflow:hidden; box-shadow: 0 1px 0 var(--divider-color); }
       th.sortable { cursor:pointer; user-select:none; }
       .sort-btn { border:0; border-radius:0; background:transparent; color:inherit; padding:0; font:inherit; cursor:pointer; }
@@ -2250,7 +2263,7 @@ export class BepacomExplorerView extends HTMLElement {
       col.unit-col-col { width:82px; }
       col.override-col-col { width:104px; }
       col.write-profile-col-col { width:86px; }
-      col.runtime-col-col { width:48px; }
+      col.runtime-col-col { width:190px; }
       thead th {
         height:48px;
         padding:0 14px;
@@ -4041,30 +4054,8 @@ export class BepacomExplorerView extends HTMLElement {
             : "Nach dem Neuladen der Integration verfügbar",
         };
       });
-      let runtimeState = "wait";
-      let runtimeLabel = "Wartet";
-      if (point.update_mode === "disabled") {
-        runtimeState = "off";
-        runtimeLabel = "Aus";
-      } else if (
-        point.update_mode === "subscribe"
-        && this._diagnostics?.snapshot_websocket_mode === true
-        && this._diagnostics?.subscriptions_initialized === true
-        && this._diagnostics?.connected === true
-        && Number(this._diagnostics?.snapshot_targets || 0) > 0
-      ) {
-        runtimeState = "snapshot";
-        runtimeLabel = "Snapshot aktiv – Aktualisierung über die gemeinsame Snapshot-Verbindung";
-      } else if (point.subscribed === true) {
-        runtimeState = "push";
-        runtimeLabel = "Push aktiv";
-      } else if (point.fallback_polling === true) {
-        runtimeState = "poll";
-        runtimeLabel = "Polling-Fallback aktiv";
-      } else if (point.update_mode === "polling") {
-        runtimeState = "poll";
-        runtimeLabel = "Polling aktiv";
-      }
+      const requested = this._desiredTransportPresentation(point);
+      const effective = this._effectiveTransportPresentation(point);
       rows.push({
         kind: "point",
         uniqueId: point.unique_id,
@@ -4083,8 +4074,12 @@ export class BepacomExplorerView extends HTMLElement {
         unit: this._displayUnit(point),
         overrideActive: !!point.override_active,
         writeViaGlt: ["glt_set_as", "glt_set_stage"].includes(point.write_profile),
-        runtimeState,
-        runtimeLabel,
+        runtimeState: effective.state,
+        runtimeLabel: effective.label,
+        requestedState: requested.state,
+        requestedLabel: requested.label,
+        effectiveDetail: effective.detail,
+        transportMismatch: effective.mismatch,
       });
     }
     table.rows = rows;
@@ -5118,6 +5113,75 @@ export class BepacomExplorerView extends HTMLElement {
     if (p.fallback_polling === true) return dot("poll", "Polling-Fallback aktiv");
     if (p.update_mode === "polling") return dot("poll", "Polling aktiv");
     return dot("wait", "Wartet");
+  }
+
+  _desiredTransportPresentation(point) {
+    if (point.update_mode === "subscribe") return { mode: "cov", state: "push", label: "Push / COV" };
+    if (point.update_mode === "polling") return { mode: "polling", state: "poll", label: "Polling" };
+    return { mode: "disabled", state: "off", label: "Deaktiviert" };
+  }
+
+  _effectiveTransportPresentation(point) {
+    const desired = this._desiredTransportPresentation(point);
+    const effectiveMode = String(point.effective_update_mode || "unknown");
+    const effectiveState = String(point.effective_update_state || "unknown");
+    const reasonLabels = {
+      cov_limit: "Grund: COV-Limit erreicht",
+      cov_silent: "Grund: keine COV-Werte",
+      cov_failed: "Grund: COV-Anmeldung fehlgeschlagen",
+    };
+    let state = "wait";
+    let label = "Noch nicht gemeldet";
+    if (effectiveState === "cov_active") {
+      state = "push";
+      label = "COV aktiv";
+    } else if (effectiveState === "subscribing") {
+      label = "COV-Anmeldung";
+    } else if (effectiveState === "cov_waiting") {
+      label = "Wartet auf COV";
+    } else if (effectiveState === "polling") {
+      state = "poll";
+      label = "Polling aktiv";
+    } else if (effectiveState === "polling_fallback") {
+      state = "poll";
+      label = "Polling-Fallback";
+    } else if (effectiveState === "polling_waiting") {
+      label = "Wartet auf Gerät";
+    } else if (effectiveState === "polling_error") {
+      label = "Polling gestört";
+    } else if (["disabled", "cancelled"].includes(effectiveState)) {
+      state = "off";
+      label = effectiveState === "disabled" ? "Deaktiviert" : "Beendet";
+    } else if (effectiveMode === "cov") {
+      state = "push";
+      label = "COV aktiv";
+    } else if (effectiveMode === "polling") {
+      state = "poll";
+      label = "Polling aktiv";
+    } else if (effectiveMode === "disabled") {
+      state = "off";
+      label = "Deaktiviert";
+    } else if (point.subscribed === true) {
+      state = "push";
+      label = "Push aktiv (lokal)";
+    } else if (point.fallback_polling === true || point.update_mode === "polling") {
+      state = "poll";
+      label = point.fallback_polling ? "Polling-Fallback (lokal)" : "Polling aktiv (lokal)";
+    }
+
+    let detail = reasonLabels[point.effective_update_reason] || point.effective_update_error || "";
+    const gatewayRequested = point.gateway_requested_mode;
+    if (!detail && gatewayRequested && gatewayRequested !== desired.mode) {
+      detail = `BACstac-Vorgabe: ${gatewayRequested === "cov" ? "COV" : gatewayRequested === "polling" ? "Polling" : "Aus"}`;
+    }
+    const settled = !["unknown", "waiting"].includes(effectiveMode)
+      && !["subscribing", "cov_waiting", "polling_waiting"].includes(effectiveState);
+    return {
+      state,
+      label,
+      detail,
+      mismatch: !!detail || (settled && effectiveMode !== desired.mode),
+    };
   }
 
   _value(value) {
