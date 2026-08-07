@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -34,6 +35,7 @@ _INVENTORY_STABLE_SAMPLES = 3
 _INVENTORY_STABLE_SAMPLE_DELAY_SECONDS = 5
 _INVENTORY_MISSING_POINT_GRACE_SECONDS = 60
 _INVENTORY_MAX_TOLERATED_MISSING_POINTS = 2
+_TARGET_STATUS_REFRESH_SECONDS = 3.0
 
 
 class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
@@ -113,6 +115,73 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # can explain the limitations of the old gateway without guessing from
         # product names or versions.
         self._managed_targets_supported: bool | None = None
+        self._gateway_target_status: dict[tuple[str, str], dict[str, Any]] = {}
+        self._gateway_target_status_refreshed_at = 0.0
+        self._gateway_target_status_lock = asyncio.Lock()
+
+    def refresh_options(self, options: dict[str, Any] | None) -> None:
+        """Refresh every option-backed runtime helper without reloading the entry."""
+        self._overrides = BepacomOverrideManager(options)
+        self.point_registry.refresh_options(options)
+
+    @staticmethod
+    def _target_status_key(device_id: Any, object_id: Any) -> tuple[str, str]:
+        """Normalize integration and BACstac target identifiers for lookup."""
+        device = str(device_id or "").strip().lower()
+        if device.startswith("device:"):
+            device = device.split(":", 1)[1]
+        return device, str(object_id or "").strip().lower()
+
+    async def async_gateway_target_status(
+        self, *, force: bool = False
+    ) -> dict[tuple[str, str], dict[str, Any]]:
+        """Return a short-lived cache of BACstac's effective target states."""
+        now = time.monotonic()
+        if (
+            not force
+            and now - self._gateway_target_status_refreshed_at
+            < _TARGET_STATUS_REFRESH_SECONDS
+        ):
+            return self._gateway_target_status
+
+        async with self._gateway_target_status_lock:
+            now = time.monotonic()
+            if (
+                not force
+                and now - self._gateway_target_status_refreshed_at
+                < _TARGET_STATUS_REFRESH_SECONDS
+            ):
+                return self._gateway_target_status
+            try:
+                diagnostics = await self.client.async_get_subscription_diagnostics()
+            except (CannotConnect, InvalidResponse):
+                _LOGGER.debug("Could not refresh BACstac target status")
+                self._gateway_target_status_refreshed_at = now
+                return self._gateway_target_status
+
+            rows = diagnostics.get("target_status", [])
+            if isinstance(rows, list):
+                self._gateway_target_status = {
+                    self._target_status_key(row.get("device_id"), row.get("object_id")): dict(row)
+                    for row in rows
+                    if isinstance(row, dict)
+                    and row.get("device_id") is not None
+                    and row.get("object_id") is not None
+                }
+            self._gateway_target_status_refreshed_at = now
+            return self._gateway_target_status
+
+    def gateway_target_status_for(
+        self,
+        obj: BacnetObject,
+        statuses: dict[tuple[str, str], dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        """Return BACstac's status row for one discovered object."""
+        return statuses.get(
+            self._target_status_key(
+                obj.device_id, f"{obj.object_type}:{obj.object_id}"
+            )
+        )
 
     @property
     def websocket_diagnostics(self) -> dict[str, Any]:
@@ -588,6 +657,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     self._snapshot_initial_values(active_targets),
                 )
                 self._set_configured_polling_targets(polling_targets)
+                await self.async_gateway_target_status(force=True)
 
         return {**counts, **result}
 
