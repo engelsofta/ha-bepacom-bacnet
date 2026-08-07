@@ -38,6 +38,18 @@ class LegacySchemaClient(BepacomClient):
         return {"paths": {"/apiv1/{deviceid}/{objectid}": {"post": {}}}}
 
 
+class DiagnosticClient(BepacomClient):
+    """Client exposing BACstac target diagnostics."""
+
+    def __init__(self) -> None:
+        super().__init__("gateway.local")
+        self.get_requests: list[str] = []
+
+    async def _get(self, path: str) -> Any:
+        self.get_requests.append(path)
+        return {"target_status": [{"device_id": "device:21", "object_id": "analogInput:403", "state": "cov_active"}]}
+
+
 def test_normalize_device_path_id() -> None:
     """Device identifiers are normalized exactly once."""
     client = BepacomClient("gateway.local")
@@ -115,6 +127,17 @@ def test_managed_targets_payload_keeps_legacy_pairs_compatible() -> None:
             {"device_id": "1", "object_id": "analogInput:7"}
         ]
     }
+
+
+@pytest.mark.asyncio
+async def test_subscription_diagnostics_use_dedicated_endpoint() -> None:
+    """Effective transport state is read from BACstac diagnostics."""
+    client = DiagnosticClient()
+
+    result = await client.async_get_subscription_diagnostics()
+
+    assert result["target_status"][0]["state"] == "cov_active"
+    assert client.get_requests == ["/apiv1/diagnostics/subscriptions"]
 
 
 @pytest.mark.asyncio
