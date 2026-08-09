@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from homeassistant.components.number import NumberEntity, NumberMode
@@ -25,6 +26,22 @@ _LOGGER = logging.getLogger(__name__)
 DEFAULT_ANALOG_VALUE_MIN = -1_000_000.0
 DEFAULT_ANALOG_VALUE_MAX = 1_000_000.0
 DEFAULT_ANALOG_VALUE_STEP = 0.01
+
+
+def native_step_from_resolution(resolution: Any) -> float:
+    """Return a valid number step derived from BACnet resolution."""
+    if resolution in (None, "", "unknown", "unavailable"):
+        return DEFAULT_ANALOG_VALUE_STEP
+
+    try:
+        decimal_resolution = Decimal(str(resolution))
+    except (InvalidOperation, ValueError, TypeError):
+        return DEFAULT_ANALOG_VALUE_STEP
+
+    if not decimal_resolution.is_finite() or decimal_resolution <= 0:
+        return DEFAULT_ANALOG_VALUE_STEP
+
+    return float(decimal_resolution)
 
 
 async def async_setup_entry(
@@ -92,9 +109,7 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
         self._attr_native_max_value = self._overrides.get_number_setting(
             obj, "number_max", DEFAULT_ANALOG_VALUE_MAX
         )
-        self._attr_native_step = self._overrides.get_number_setting(
-            obj, "number_step", DEFAULT_ANALOG_VALUE_STEP
-        )
+        self._attr_native_step = self._effective_native_step()
         self._attr_device_info = self._build_device_info()
         self._attr_extra_state_attributes = self._build_extra_state_attributes()
         self._last_point_revision = coordinator.point_registry.revision(obj)
@@ -104,6 +119,14 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
     def _build_extra_state_attributes(self) -> dict[str, Any]:
         """Build the small stable attribute set exposed on the HA entity."""
         return self.coordinator.point_registry.entity_attributes(self._obj)
+
+    def _effective_native_step(self) -> float:
+        """Return an explicit step override or the BACnet resolution."""
+        return self._overrides.get_number_setting(
+            self._obj,
+            "number_step",
+            native_step_from_resolution(self._obj.resolution),
+        )
 
     def _build_device_info(self) -> DeviceInfo:
         """Build Home Assistant device info for this BACnet device."""
@@ -159,6 +182,7 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
                         self._attr_device_class = self._overrides.get_device_class(
                             self._obj
                         )
+                        self._attr_native_step = self._effective_native_step()
 
         value = self._obj.present_value
 

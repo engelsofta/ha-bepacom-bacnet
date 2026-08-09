@@ -427,6 +427,12 @@ class BacnetObjectTypeMapper:
     @staticmethod
     def get_unit_of_measurement(obj: BacnetObject) -> str | None:
         """Get the unit of measurement for a BACnet object."""
+        # An explicit BACnet no-unit value must suppress name-based inference.
+        # Otherwise names such as "Current operating state" are incorrectly
+        # interpreted as electrical current and exposed in amperes.
+        if BacnetObjectTypeMapper._is_explicitly_unitless(obj.units):
+            return None
+
         normalized_unit = BacnetObjectTypeMapper._normalize_unit_value(obj.units)
         if normalized_unit:
             return normalized_unit
@@ -440,6 +446,18 @@ class BacnetObjectTypeMapper:
                 return mapped_unit
 
         return None
+
+    @staticmethod
+    def _is_explicitly_unitless(unit: Any) -> bool:
+        """Return whether BACnet explicitly declares that no unit applies."""
+        if unit is None:
+            return False
+
+        unit_str = str(unit).strip()
+        if unit_str == "255":
+            return True
+
+        return BacnetObjectTypeMapper._unit_key(unit_str) in {"nounits", "none"}
 
     @staticmethod
     def is_writable(obj: BacnetObject) -> bool:
@@ -554,7 +572,7 @@ class BacnetObjectTypeMapper:
         return normalized in generic_names
 
     @staticmethod
-    def _normalize_unit_value(unit: str | None) -> str | None:
+    def _normalize_unit_value(unit: str | int | None) -> str | None:
         """Normalize BACnet units to Home Assistant units."""
         if unit is None:
             return None

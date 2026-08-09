@@ -18,7 +18,7 @@ class BacnetObject:
 
     present_value: Any = None
     description: str = ""
-    units: str | None = None
+    units: str | int | None = None
     resolution: float | None = None
     reliability: str | None = None
     status_flags: list[bool] | dict[str, bool] | None = None
