@@ -104,13 +104,10 @@ async def test_apply_managed_targets_sends_one_complete_profile() -> None:
     coordinator = SimpleNamespace(
         _snapshot_websocket_mode=True,
         _managed_target_restore_lock=asyncio.Lock(),
-        _managed_targets_supported=None,
         client=client,
         _websocket_manager=websocket_manager,
         _iter_managed_targets=lambda: targets,
-        _iter_polling_targets=lambda: [("21", "analogInput:404")],
         _snapshot_initial_values=lambda active: {},
-        _set_configured_polling_targets=Mock(),
         async_gateway_target_status=AsyncMock(return_value={}),
     )
 

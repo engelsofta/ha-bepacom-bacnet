@@ -9,7 +9,7 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
 
@@ -18,6 +18,7 @@ from .const import DOMAIN
 from .const import CONF_ENTITY_OVERRIDES
 from .coordinator import BepacomCoordinator
 from .entity_factory import BacnetObjectTypeMapper, EntityType
+from .exceptions import CannotConnect, InvalidResponse, UnsupportedGateway
 from .panel import async_register_explorer_panel, async_unregister_explorer_panel_if_unused
 
 _LOGGER = logging.getLogger(__name__)
@@ -411,6 +412,22 @@ async def async_setup_entry(
         host=entry.data["host"],
         port=entry.data["port"],
     )
+
+    try:
+        await client.async_validate_stac()
+    except UnsupportedGateway as err:
+        await client.async_close()
+        raise ConfigEntryError(
+            "This integration requires the current Engelsoft STAC add-on"
+        ) from err
+    except (CannotConnect, InvalidResponse) as err:
+        await client.async_close()
+        raise ConfigEntryNotReady(
+            "Engelsoft STAC is temporarily unavailable"
+        ) from err
+    except Exception:
+        await client.async_close()
+        raise
 
     coordinator = BepacomCoordinator(
         hass=hass,
