@@ -108,13 +108,6 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._write_fallback_refresh_task: asyncio.Task[None] | None = None
         self._data_revision = 0
         self._managed_target_restore_lock = asyncio.Lock()
-        # ``None`` means that capability detection has not completed yet.
-        # The original Bepacom add-on does not expose /apiv1/managed/targets;
-        # newer Engelsoft BACstac builds do, even when configured for legacy
-        # transport.  Keep this distinction available to the frontend so it
-        # can explain the limitations of the old gateway without guessing from
-        # product names or versions.
-        self._managed_targets_supported: bool | None = None
         self._gateway_target_status: dict[tuple[str, str], dict[str, Any]] = {}
         self._gateway_target_status_refreshed_at = 0.0
         self._gateway_target_status_lock = asyncio.Lock()
@@ -199,8 +192,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     self._inventory_missing_configured_points
                 ),
                 "fallback_objects": len(self._fallback_objects),
-                "managed_targets_supported": self._managed_targets_supported,
-                "legacy_addon_detected": self._managed_targets_supported is False,
+                "managed_targets_supported": True,
             }
         )
         return diagnostics
@@ -465,49 +457,27 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             for device_id, object_id, update_mode in managed_targets
             if update_mode != "disabled"
         ]
-        self._set_configured_polling_targets(polling_targets)
 
         if self._snapshot_websocket_mode:
             initial_values = self._snapshot_initial_values(active_managed_targets)
             self._websocket_manager.set_snapshot_targets(
                 active_managed_targets, initial_values
             )
-            try:
-                managed_result = await self.client.async_set_managed_targets(
-                    managed_targets
+            managed_result = await self.client.async_set_managed_targets(
+                managed_targets
+            )
+            if not managed_result.get("accepted"):
+                raise UpdateFailed(
+                    "Engelsoft STAC rejected the managed-target configuration"
                 )
-                self._managed_targets_supported = (
-                    managed_result.get("mode") != "unsupported"
-                )
-                if self._managed_targets_supported is False:
-                    _LOGGER.warning(
-                        "Outdated BACnet add-on detected: integration-managed target modes are not supported. "
-                        "Engelsoft BACstac is recommended for per-object COV, polling and disabled control."
-                    )
-                elif managed_result.get("accepted"):
-                    _LOGGER.debug(
-                        "Bepacom managed targets configured: strategy=%s targets=%s cov=%s polling=%s disabled=%s",
-                        managed_result.get("strategy"),
-                        managed_result.get("targets"),
-                        managed_result.get("cov_targets", "n/a"),
-                        managed_result.get("polling_targets", "n/a"),
-                        managed_result.get("disabled_targets", "n/a"),
-                    )
-                else:
-                    _LOGGER.debug(
-                        "Bepacom gateway keeps %s target handling",
-                        managed_result.get("mode", "legacy"),
-                    )
-            except (CannotConnect, InvalidResponse):
-                self._managed_targets_supported = None
-                _LOGGER.debug(
-                    "Could not synchronize integration-managed target modes; continuing with snapshot compatibility behavior"
-                )
-
-            # Older or legacy add-ons do not execute integration-requested poll
-            # targets. Keep the integration-side polling fallback for them.
-            if polling_targets and self._managed_targets_supported is not True:
-                self._ensure_fallback_polling()
+            _LOGGER.debug(
+                "Bepacom managed targets configured: strategy=%s targets=%s cov=%s polling=%s disabled=%s",
+                managed_result.get("strategy"),
+                managed_result.get("targets"),
+                managed_result.get("cov_targets", "n/a"),
+                managed_result.get("polling_targets", "n/a"),
+                managed_result.get("disabled_targets", "n/a"),
+            )
 
             successful = 0
             if active_managed_targets:
@@ -515,7 +485,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 # to the global feed avoids creating a duplicate COV merely to
                 # obtain the WebSocket URL.
                 successful = int(
-                    await self._websocket_manager.async_connect_legacy_snapshot()
+                    await self._websocket_manager.async_connect_managed_snapshot()
                 )
             self._subscriptions_initialized = True
             self._last_subscription_summary = (
@@ -594,12 +564,6 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if not self._snapshot_websocket_mode or not self.data:
             return
 
-        # The legacy add-on owns its configured COV/poll tasks.  Its global
-        # WebSocket reconnects independently and has no managed targets to
-        # restore.
-        if self._managed_targets_supported is False:
-            return
-
         async with self._managed_target_restore_lock:
             targets = self._iter_managed_targets()
 
@@ -645,19 +609,17 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             for device_id, object_id, mode in targets
             if mode != "disabled"
         ]
-        polling_targets = self._iter_polling_targets()
-
         async with self._managed_target_restore_lock:
             result = await self.client.async_set_managed_targets(targets)
-            self._managed_targets_supported = result.get("mode") != "unsupported"
-
-            if self._managed_targets_supported:
-                self._websocket_manager.set_snapshot_targets(
-                    active_targets,
-                    self._snapshot_initial_values(active_targets),
+            if not result.get("accepted"):
+                raise UpdateFailed(
+                    "Engelsoft STAC rejected the managed-target configuration"
                 )
-                self._set_configured_polling_targets(polling_targets)
-                await self.async_gateway_target_status(force=True)
+            self._websocket_manager.set_snapshot_targets(
+                active_targets,
+                self._snapshot_initial_values(active_targets),
+            )
+            await self.async_gateway_target_status(force=True)
 
         return {**counts, **result}
 
