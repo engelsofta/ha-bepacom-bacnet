@@ -388,19 +388,13 @@ class BepacomWebSocketManager:
         self._log_diagnostics(ws_url, reason="subscribe")
         return True
 
-    async def async_connect_legacy_snapshot(self) -> bool:
-        """Listen to a legacy add-on's global snapshot feed without subscribing.
-
-        Old BACnet add-ons already create COV and polling tasks from their own
-        configuration.  Calling their subscribe endpoint again only creates
-        duplicate-subscription errors, while the global ``/ws`` feed is
-        available without that call.
-        """
-        key = ("__legacy_snapshot__", "__global_ws__")
+    async def async_connect_managed_snapshot(self) -> bool:
+        """Listen to Engelsoft STAC's managed-target snapshot feed."""
+        key = ("__managed_snapshot__", "__global_ws__")
         if key in self._subscriptions:
             return True
 
-        ws_url = self._client.legacy_snapshot_websocket_url()
+        ws_url = self._client.snapshot_websocket_url()
         state = _SubscriptionState(
             device_id=key[0],
             object_id=key[1],
@@ -410,11 +404,11 @@ class BepacomWebSocketManager:
         )
         state.task = asyncio.create_task(
             self._async_run_subscription(state),
-            name="bepacom-legacy-snapshot-websocket",
+            name="bepacom-managed-snapshot-websocket",
         )
         self._subscriptions[key] = state
         self._stats_for_url(ws_url)
-        _LOGGER.info("Connected legacy Bepacom add-on through global snapshot WebSocket")
+        _LOGGER.info("Connected Engelsoft STAC managed-target snapshot WebSocket")
         return True
 
     async def async_unsubscribe(self, device_id: str, object_id: str) -> None:

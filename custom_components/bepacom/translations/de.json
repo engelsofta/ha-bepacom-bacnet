@@ -12,6 +12,7 @@
     },
     "error": {
       "cannot_connect": "Verbindung fehlgeschlagen.",
+      "unsupported_gateway": "Dieses Gateway wird nicht unterstützt. Die Integration benötigt das aktuelle Engelsoft STAC Add-on.",
       "unknown": "Unbekannter Fehler."
     },
     "abort": {

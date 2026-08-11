@@ -16,6 +16,7 @@ from .const import (
     DEFAULT_PORT,
     DOMAIN,
 )
+from .exceptions import CannotConnect, InvalidResponse, UnsupportedGateway
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ class BepacomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
             try:
+                await client.async_validate_stac()
                 if await client.async_ping():
                     await self.async_set_unique_id(
                         f"{user_input[CONF_HOST]}:{user_input[CONF_PORT]}"
@@ -50,6 +52,10 @@ class BepacomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
                 errors["base"] = "cannot_connect"
 
+            except UnsupportedGateway:
+                errors["base"] = "unsupported_gateway"
+            except (CannotConnect, InvalidResponse):
+                errors["base"] = "cannot_connect"
             except AbortFlow:
                 raise
             except Exception:  # noqa: BLE001

@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 
 from custom_components.bepacom.api import BepacomClient
+from custom_components.bepacom.exceptions import UnsupportedGateway
 
 
 class RecordingClient(BepacomClient):
@@ -26,11 +27,11 @@ class RecordingClient(BepacomClient):
         return None
 
 
-class LegacySchemaClient(BepacomClient):
-    """Client exposing an old add-on OpenAPI schema."""
+class UnsupportedSchemaClient(BepacomClient):
+    """Client exposing a gateway without the Engelsoft STAC API."""
 
     def __init__(self) -> None:
-        super().__init__("legacy-gateway.local")
+        super().__init__("unsupported-gateway.local")
         self.get_requests: list[str] = []
 
     async def _get(self, path: str) -> Any:
@@ -67,24 +68,22 @@ def test_normalize_object_path_id() -> None:
 
 
 @pytest.mark.asyncio
-async def test_managed_targets_detects_legacy_schema_without_post() -> None:
-    """Old add-ons are detected without hitting their generic write route."""
-    client = LegacySchemaClient()
+async def test_validate_stac_rejects_gateway_without_managed_targets() -> None:
+    """Only gateways exposing the Engelsoft STAC API are accepted."""
+    client = UnsupportedSchemaClient()
 
-    first = await client.async_set_managed_targets([("1", "analogInput:403")])
-    second = await client.async_set_managed_targets([("1", "analogInput:404")])
+    with pytest.raises(UnsupportedGateway):
+        await client.async_validate_stac()
 
-    assert first == {"accepted": False, "mode": "unsupported"}
-    assert second == {"accepted": False, "mode": "unsupported"}
     assert client.get_requests == ["/openapi.json"]
     assert client._session is None
 
 
-def test_legacy_snapshot_websocket_uses_global_endpoint() -> None:
-    """Legacy compatibility connects directly to the add-on's global feed."""
+def test_managed_snapshot_websocket_uses_stac_global_endpoint() -> None:
+    """Managed targets are read from Engelsoft STAC's global feed."""
     client = BepacomClient("192.0.2.10")
 
-    assert client.legacy_snapshot_websocket_url() == "ws://192.0.2.10:8099/ws"
+    assert client.snapshot_websocket_url() == "ws://192.0.2.10:8099/ws"
 
 
 def test_managed_targets_payload_includes_requested_transport() -> None:
@@ -114,17 +113,6 @@ def test_managed_targets_payload_includes_requested_transport() -> None:
                 "object_id": "analogInput:405",
                 "update_mode": "disabled",
             },
-        ]
-    }
-
-
-def test_managed_targets_payload_keeps_legacy_pairs_compatible() -> None:
-    """Existing gateways still receive the original two-field payload."""
-    assert BepacomClient._managed_targets_payload(
-        [("1", "analogInput:7")]
-    ) == {
-        "targets": [
-            {"device_id": "1", "object_id": "analogInput:7"}
         ]
     }
 

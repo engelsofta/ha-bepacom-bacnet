@@ -1705,10 +1705,6 @@ export class BepacomExplorerView extends HTMLElement {
       .stat { padding:8px 10px; min-height:38px; border-radius:9px; background:var(--secondary-background-color); border:1px solid var(--divider-color); min-width:0; display:flex; align-items:center; }
       .stat-ok { border-color: color-mix(in srgb, var(--success-color, #43a047) 45%, var(--divider-color)); background: color-mix(in srgb, var(--success-color, #43a047) 10%, var(--secondary-background-color)); }
       .stat-warn { border-color: color-mix(in srgb, var(--warning-color, #ffa600) 55%, var(--divider-color)); background: color-mix(in srgb, var(--warning-color, #ffa600) 12%, var(--secondary-background-color)); }
-      .legacy-addon-warning { display:flex; gap:10px; align-items:flex-start; margin:0 0 12px; padding:10px 12px; border-radius:10px; border:1px solid color-mix(in srgb, var(--warning-color, #ffa600) 55%, var(--divider-color)); background:color-mix(in srgb, var(--warning-color, #ffa600) 12%, var(--card-background-color)); color:var(--primary-text-color); }
-      .legacy-addon-warning strong { display:block; margin-bottom:2px; }
-      .legacy-addon-warning small { display:block; line-height:1.4; color:var(--secondary-text-color); }
-      .legacy-addon-warning .warning-icon { color:var(--warning-color, #ffa600); font-size:20px; line-height:1; }
       .stat-bad { border-color: color-mix(in srgb, var(--error-color, #db4437) 55%, var(--divider-color)); background: color-mix(in srgb, var(--error-color, #db4437) 12%, var(--secondary-background-color)); }
       .stat-muted { opacity:.78; }
       .stat-line { display:flex; align-items:center; gap:8px; min-width:0; width:100%; }
@@ -3259,11 +3255,6 @@ export class BepacomExplorerView extends HTMLElement {
 
   _mainStatusHtml() {
     const diagnostics = this._diagnostics || {};
-    const legacyAddonWarning = diagnostics.legacy_addon_detected === true ? `
-      <aside class="legacy-addon-warning" role="status">
-        <span class="warning-icon">&#9888;</span>
-        <span><strong>Veraltetes BACnet-Add-on erkannt</strong><small>Dieses Add-on unterstützt keine verwalteten COV-Ziele. Zuverlässige Push-Aktualisierungen setzen voraus, dass dort alle benötigten Objekte per COV abonniert sind (z.&nbsp;B. <code>CoV_list: all</code>). Empfohlen wird Engelsoft BACstac.</small></span>
-      </aside>` : "";
     const pushTime = diagnostics.dispatch_time_avg_ms === undefined
       ? "-"
       : `${Number(diagnostics.dispatch_time_avg_ms).toFixed(2)} ms`;
@@ -3331,7 +3322,7 @@ export class BepacomExplorerView extends HTMLElement {
           <span class="status-overview-value efficiency"><strong>${this._escape(averageChangesPerPush)}</strong><small>Ø Änderungen/Nachricht</small></span>
         </div>
       </div>`;
-    return `${legacyAddonWarning}<section class="main-status-strip" aria-label="Systemstatus">${overview}${connectionOverview}${processingCard}${transportOverview}</section>`;
+    return `<section class="main-status-strip" aria-label="Systemstatus">${overview}${connectionOverview}${processingCard}${transportOverview}</section>`;
   }
 
   _virtualEntitiesPageHtml() {

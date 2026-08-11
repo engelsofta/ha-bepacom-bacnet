@@ -13,7 +13,7 @@ import aiohttp
 from yarl import URL
 
 from .const import DEFAULT_SUBSCRIPTION_LIFETIME, WEBSOCKET_PING_INTERVAL
-from .exceptions import CannotConnect, InvalidResponse, WriteError
+from .exceptions import CannotConnect, InvalidResponse, UnsupportedGateway, WriteError
 
 _LOGGER = logging.getLogger(__name__)
 # Gateways return different key names depending on firmware/API variant.
@@ -52,7 +52,6 @@ class BepacomClient:
     def __init__(self, host: str, port: int = 8099) -> None:
         self._base = f"http://{host}:{port}"
         self._session: aiohttp.ClientSession | None = None
-        self._managed_targets_endpoint_supported: bool | None = None
         self._subscription_diagnostic_logs = 0
 
     async def async_connect(self) -> None:
@@ -240,8 +239,8 @@ class BepacomClient:
         base_url = URL(self._base).with_scheme("ws")
         return str(base_url.join(URL(_DEFAULT_SUBSCRIPTION_WS_PATH)))
 
-    def legacy_snapshot_websocket_url(self) -> str:
-        """Return the global WebSocket used by legacy snapshot add-ons."""
+    def snapshot_websocket_url(self) -> str:
+        """Return Engelsoft STAC's global managed-target WebSocket."""
         return self._default_subscription_websocket_url()
 
     def _normalize_device_path_id(self, device_id: str) -> str:
@@ -373,6 +372,15 @@ class BepacomClient:
         except Exception:
             return False
 
+    async def async_validate_stac(self) -> None:
+        """Require the managed-target API exposed by Engelsoft STAC."""
+        schema = await self._get("/openapi.json")
+        paths = schema.get("paths") if isinstance(schema, dict) else None
+        if not isinstance(paths, dict) or "/apiv1/managed/targets" not in paths:
+            raise UnsupportedGateway(
+                "Gateway does not expose the Engelsoft STAC managed-target API"
+            )
+
     async def async_get_object(
         self,
         device_id: str,
@@ -390,26 +398,9 @@ class BepacomClient:
 
     async def async_set_managed_targets(
         self,
-        targets: list[tuple[str, str] | tuple[str, str, str]],
+        targets: list[tuple[str, str, str]],
     ) -> dict[str, Any]:
         """Send managed targets and their requested transports to the gateway."""
-        if self._managed_targets_endpoint_supported is None:
-            try:
-                schema = await self._get("/openapi.json")
-            except (CannotConnect, InvalidResponse):
-                # Capability discovery is optional.  If an unusual gateway does
-                # not expose OpenAPI, retain the existing request/response
-                # fallback below.
-                schema = None
-
-            if isinstance(schema, dict) and isinstance(schema.get("paths"), dict):
-                self._managed_targets_endpoint_supported = (
-                    "/apiv1/managed/targets" in schema["paths"]
-                )
-
-        if self._managed_targets_endpoint_supported is False:
-            return {"accepted": False, "mode": "unsupported"}
-
         await self.async_connect()
         assert self._session is not None
 
@@ -418,8 +409,9 @@ class BepacomClient:
         try:
             async with self._session.post(url, json=payload) as response:
                 if response.status == 404:
-                    self._managed_targets_endpoint_supported = False
-                    return {"accepted": False, "mode": "unsupported"}
+                    raise UnsupportedGateway(
+                        "Engelsoft STAC managed-target API is unavailable"
+                    )
                 response.raise_for_status()
                 result = self._decode_response(await response.text())
         except asyncio.TimeoutError as err:
@@ -427,19 +419,8 @@ class BepacomClient:
         except aiohttp.ClientError as err:
             raise CannotConnect from err
 
-        # Legacy add-ons route this unknown URL through their generic
-        # ``/apiv1/{deviceid}/{objectid}`` write handler.  That handler returns
-        # the JSON number 400 with HTTP 200 and logs a misleading failed-write
-        # warning.  Treat that distinctive response as a capability result so
-        # the coordinator can switch to the global snapshot WebSocket and avoid
-        # retrying the unsupported endpoint after every reconnect.
-        if str(result).strip().strip('"').lower() in {"400", "none"}:
-            self._managed_targets_endpoint_supported = False
-            return {"accepted": False, "mode": "unsupported"}
-
         if not isinstance(result, dict):
             raise InvalidResponse
-        self._managed_targets_endpoint_supported = True
         return result
 
     async def async_get_subscription_diagnostics(self) -> dict[str, Any]:
@@ -451,17 +432,19 @@ class BepacomClient:
 
     @staticmethod
     def _managed_targets_payload(
-        targets: list[tuple[str, str] | tuple[str, str, str]],
+        targets: list[tuple[str, str, str]],
     ) -> dict[str, list[dict[str, str]]]:
-        """Serialize legacy pairs and transport-aware managed targets."""
-        payload_targets: list[dict[str, str]] = []
-        for target in targets:
-            device_id, object_id = target[:2]
-            item = {"device_id": device_id, "object_id": object_id}
-            if len(target) > 2:
-                item["update_mode"] = target[2]
-            payload_targets.append(item)
-        return {"targets": payload_targets}
+        """Serialize Engelsoft STAC managed targets."""
+        return {
+            "targets": [
+                {
+                    "device_id": device_id,
+                    "object_id": object_id,
+                    "update_mode": update_mode,
+                }
+                for device_id, object_id, update_mode in targets
+            ]
+        }
 
     async def async_subscribe(
         self,
