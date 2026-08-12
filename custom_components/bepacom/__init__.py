@@ -12,9 +12,10 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady, HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 
 from .api import BepacomClient
-from .const import DOMAIN
+from .const import CONF_API_TOKEN, DOMAIN
 from .const import CONF_ENTITY_OVERRIDES
 from .coordinator import BepacomCoordinator
 from .entity_factory import BacnetObjectTypeMapper, EntityType
@@ -411,23 +412,37 @@ async def async_setup_entry(
     client = BepacomClient(
         host=entry.data["host"],
         port=entry.data["port"],
+        api_token=entry.data.get(CONF_API_TOKEN),
     )
 
     try:
         await client.async_validate_stac()
     except UnsupportedGateway as err:
         await client.async_close()
+        ir.async_create_issue(
+            hass, DOMAIN, f"gateway_incompatible_{entry.entry_id}",
+            is_fixable=False, severity=ir.IssueSeverity.ERROR,
+            translation_key="gateway_incompatible",
+        )
         raise ConfigEntryError(
             "This integration requires the current Engelsoft STAC add-on"
         ) from err
     except (CannotConnect, InvalidResponse) as err:
         await client.async_close()
+        ir.async_create_issue(
+            hass, DOMAIN, f"app_unavailable_{entry.entry_id}",
+            is_fixable=False, severity=ir.IssueSeverity.WARNING,
+            translation_key="app_unavailable",
+        )
         raise ConfigEntryNotReady(
             "Engelsoft STAC is temporarily unavailable"
         ) from err
     except Exception:
         await client.async_close()
         raise
+
+    ir.async_delete_issue(hass, DOMAIN, f"gateway_incompatible_{entry.entry_id}")
+    ir.async_delete_issue(hass, DOMAIN, f"app_unavailable_{entry.entry_id}")
 
     coordinator = BepacomCoordinator(
         hass=hass,

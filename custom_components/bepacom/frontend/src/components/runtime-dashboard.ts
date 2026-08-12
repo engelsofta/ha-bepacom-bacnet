@@ -33,6 +33,19 @@ interface DiagnosticPipeline {
   filterRate: string;
 }
 
+interface ProtocolHealth {
+  active: boolean;
+  connected: boolean;
+  lastEvent: unknown;
+  sequence: unknown;
+  resyncs: unknown;
+  commandSuccesses: unknown;
+  commandErrors: unknown;
+  commandLatency: unknown;
+  appVersion: unknown;
+  protocolVersion: unknown;
+}
+
 export interface RuntimeDashboardModel {
   open: boolean;
   tab: "configuration" | "developer" | "live";
@@ -41,6 +54,7 @@ export interface RuntimeDashboardModel {
   runtime: StatusCard[];
   developer: StatusCard[];
   pipeline: DiagnosticPipeline;
+  protocol: ProtocolHealth;
   liveChanges: LiveChange[];
   livePaused: boolean;
   liveFilters: {
@@ -58,6 +72,7 @@ const EMPTY_MODEL: RuntimeDashboardModel = {
   runtime: [],
   developer: [],
   pipeline: { messages: "-", inspected: "-", filtered: "-", updates: "-", changes: "-", filterRate: "-" },
+  protocol: { active: false, connected: false, lastEvent: "-", sequence: "-", resyncs: 0, commandSuccesses: 0, commandErrors: 0, commandLatency: "-", appVersion: "-", protocolVersion: "-" },
   liveChanges: [],
   livePaused: false,
   liveFilters: { search: "", source: "all", object_type: "all" },
@@ -320,6 +335,29 @@ export class BepacomRuntimeDashboard extends LitElement {
       </div>`;
   }
 
+  private _protocolHealth() {
+    const protocol = this.model.protocol;
+    const commands = `${protocol.commandSuccesses ?? 0} / ${protocol.commandErrors ?? 0}`;
+    return html`
+      <div class=${`protocol-health ${protocol.connected ? "healthy" : "offline"}`}>
+        <div class="protocol-health-lead">
+          <i aria-hidden="true"></i>
+          <span><small>Protocol V2</small><strong>${protocol.connected ? "Aktiv & synchron" : "Getrennt"}</strong></span>
+          <em>${String(protocol.lastEvent ?? "-")}</em>
+        </div>
+        <div class="protocol-health-item">
+          <small>Eventstrom</small><strong>#${String(protocol.sequence ?? "-")}</strong>
+          <span>${String(protocol.resyncs ?? 0)} Resyncs</span>
+        </div>
+        <div class=${`protocol-health-item ${Number(protocol.commandErrors || 0) ? "warn" : ""}`}>
+          <small>Befehle</small><strong>${commands}</strong>
+          <span>Erfolgreich / Fehler · ${String(protocol.commandLatency ?? "-")}</span>
+        </div>
+        <div class="protocol-health-version">App ${String(protocol.appVersion ?? "-")} · Protokoll ${String(protocol.protocolVersion ?? "-")}</div>
+      </div>
+    `;
+  }
+
   protected render() {
     const model = this.model || EMPTY_MODEL;
     return html`
@@ -337,7 +375,8 @@ export class BepacomRuntimeDashboard extends LitElement {
             : html`
                 <div class="dashboard-diagnostics-grid">
                   <section class="dashboard-group dashboard-group-wide dashboard-monitor-group diagnostic-processing-group">
-                    <div class="dashboard-title">Datenverarbeitung</div>
+                    ${model.protocol.active ? this._protocolHealth() : ""}
+                    <div class="dashboard-title diagnostic-data-title">Datenverarbeitung</div>
                     ${this._diagnosticPipeline()}
                   </section>
                 </div>

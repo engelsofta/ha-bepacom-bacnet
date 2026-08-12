@@ -193,6 +193,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 ),
                 "fallback_objects": len(self._fallback_objects),
                 "managed_targets_supported": True,
+                **self.client.transport_diagnostics,
             }
         )
         return diagnostics

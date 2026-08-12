@@ -104,6 +104,8 @@ class BepacomWebSocketManager:
         self._connection_statistics: dict[str, _ConnectionStatistics] = {}
         self._snapshot_targets: set[tuple[str, str]] = set()
         self._last_resubscribe: float | None = None
+        self._protocol_sequence: int | None = None
+        self._protocol_resyncs = 0
 
     def _stats_for_url(self, ws_url: str) -> _ConnectionStatistics:
         """Return diagnostic statistics for one WebSocket URL."""
@@ -126,12 +128,12 @@ class BepacomWebSocketManager:
         age = max(0.0, time.monotonic() - timestamp)
 
         if age < 60:
-            return f"{age:.0f}s ago"
+            return f"vor {age:.0f} s"
 
         if age < 3600:
-            return f"{age / 60:.1f}m ago"
+            return f"vor {age / 60:.1f} min"
 
-        return f"{age / 3600:.1f}h ago"
+        return f"vor {age / 3600:.1f} h"
 
     def _log_diagnostics(self, ws_url: str, *, reason: str) -> None:
         """Write connection diagnostics at debug level."""
@@ -259,6 +261,8 @@ class BepacomWebSocketManager:
             "subscriptions_enabled": self.subscriptions_enabled,
             "push_value_logging": self._push_value_logging,
             "websocket_ping_interval": WEBSOCKET_PING_INTERVAL,
+            "protocol_sequence": self._protocol_sequence,
+            "protocol_resyncs": self._protocol_resyncs,
         }
 
     async def async_subscribe(self, device_id: str, object_id: str) -> bool:
@@ -595,6 +599,17 @@ class BepacomWebSocketManager:
     async def _async_listen(self, state: _SubscriptionState) -> None:
         """Listen for updates on one WebSocket."""
         websocket = await self._client.async_ws_connect(state.ws_url)
+        if self._client.transport == "protocol_v2":
+            await websocket.send_json(
+                {
+                    "type": "hello",
+                    "client": "home-assistant-bepacom",
+                    "protocol_versions": [2],
+                    "token": self._client.api_token,
+                }
+            )
+            self._client.set_protocol_socket(websocket)
+            await self._client.async_restore_protocol_targets()
         now = time.monotonic()
         stats = self._stats_for_url(state.ws_url)
         stats.connect_count += 1
@@ -649,6 +664,34 @@ class BepacomWebSocketManager:
                 if payload is None:
                     continue
 
+                if self._client.transport == "protocol_v2":
+                    message_type = payload.get("type")
+                    if message_type == "welcome":
+                        continue
+                    if message_type == "result":
+                        self._client.handle_protocol_result(payload)
+                        continue
+                    if message_type == "error":
+                        raise InvalidResponse(str(payload.get("error")))
+                    if message_type != "event" or payload.get("event") not in {
+                        "snapshot", "point_changes"
+                    }:
+                        continue
+                    sequence = payload.get("sequence")
+                    if payload.get("event") == "snapshot":
+                        self._protocol_sequence = None
+                    elif isinstance(sequence, int):
+                        if (
+                            self._protocol_sequence is not None
+                            and sequence != self._protocol_sequence + 1
+                        ):
+                            self._protocol_resyncs += 1
+                            raise RuntimeError("Protocol V2 event sequence gap; reconnecting for snapshot")
+                        self._protocol_sequence = sequence
+                    payload = payload.get("payload")
+                    if not isinstance(payload, dict):
+                        continue
+
                 self._websocket_updates += 1
                 stats.push_count += 1
                 stats.last_push = time.monotonic()
@@ -692,6 +735,8 @@ class BepacomWebSocketManager:
             )
             self._log_diagnostics(state.ws_url, reason="disconnected")
             state.websocket = None
+            if self._client.transport == "protocol_v2":
+                self._client.set_protocol_socket(None)
 
     async def _async_promote_shared_connection(self, ws_url: str) -> None:
         """Promote another subscription to own a shared WebSocket connection."""
