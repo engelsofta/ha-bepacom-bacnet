@@ -1970,6 +1970,9 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     }) : "-";
     const pushChangeValue = `${pushNotificationsRaw ?? "-"} / ${averageChangesPerPush}`;
     [
+      ["API / Protokoll", d2.api_transport_label ?? "Legacy API"],
+      ["App-Version", d2.gateway_app_version ?? "-"],
+      ["Protokollversion", d2.gateway_protocol_version ?? "-"],
       ["WebSocket", d2.connected === void 0 ? "-" : d2.connected ? "Verbunden" : "Getrennt"],
       ["Reconnects", d2.reconnect_count ?? "-"],
       ["Verbindungsfehler", d2.connection_failures ?? "-"],
@@ -2925,9 +2928,25 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         line-height:1;
         letter-spacing:-.035em;
       }
-      .api-protocol-card { position:relative; overflow:hidden; background:linear-gradient(135deg,rgba(163,114,55,.14),rgba(255,255,255,.035)); }
-      .api-protocol-card.protocol-v2 { background:linear-gradient(135deg,rgba(74,128,91,.2),rgba(255,255,255,.035)); }
-      .api-protocol-card::after { content:""; position:absolute; width:88px; height:88px; right:-35px; bottom:-52px; border-radius:50%; background:rgba(209,154,66,.09); pointer-events:none; }
+      .api-protocol-card {
+        position:relative;
+        overflow:hidden;
+        background:linear-gradient(135deg,rgba(163,114,55,.14),rgba(255,255,255,.035));
+      }
+      .api-protocol-card.protocol-v2 {
+        background:linear-gradient(135deg,rgba(74,128,91,.2),rgba(255,255,255,.035));
+      }
+      .api-protocol-card::after {
+        content:"";
+        position:absolute;
+        width:88px;
+        height:88px;
+        right:-35px;
+        bottom:-52px;
+        border-radius:50%;
+        background:rgba(209,154,66,.09);
+        pointer-events:none;
+      }
       .api-protocol-card.protocol-v2::after { background:rgba(105,174,116,.1); }
       .api-protocol-content { display:flex; flex-direction:column; gap:6px; width:100%; }
       .api-protocol-title { display:flex; align-items:center; gap:7px; color:#aaa398; font-size:9px; font-weight:750; letter-spacing:.075em; text-transform:uppercase; }
@@ -3320,7 +3339,11 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         gap:8px;
         padding:5px 2px 3px;
       }
-      .protocol-health { position:relative; display:grid; grid-template-columns:minmax(230px,1.25fr) minmax(145px,.7fr) minmax(190px,.9fr); gap:9px; margin-bottom:16px; padding:10px; overflow:hidden; border:1px solid rgba(112,180,124,.15); border-radius:13px; background:linear-gradient(135deg,rgba(74,128,91,.1),rgba(255,255,255,.018)); }
+      .protocol-health {
+        position:relative; display:grid; grid-template-columns:minmax(230px,1.25fr) minmax(145px,.7fr) minmax(190px,.9fr); gap:9px;
+        margin-bottom:16px; padding:10px; overflow:hidden; border:1px solid rgba(112,180,124,.15); border-radius:13px;
+        background:linear-gradient(135deg,rgba(74,128,91,.1),rgba(255,255,255,.018));
+      }
       .protocol-health-lead,.protocol-health-item { min-width:0; min-height:58px; padding:13px 15px; border-radius:10px; background:rgba(255,255,255,.025); }
       .protocol-health-lead { display:flex; align-items:center; gap:11px; }
       .protocol-health-lead > i { width:9px; height:9px; flex:0 0 9px; border-radius:50%; background:#70b47c; box-shadow:0 0 0 5px rgba(112,180,124,.09),0 0 16px rgba(112,180,124,.42); animation:protocol-health-pulse 2.2s ease-in-out infinite; }
@@ -4612,9 +4635,6 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     if (Array.isArray(d2.firmware_versions) && d2.firmware_versions.length) configured.push(["Firmware", d2.firmware_versions.join(", ")]);
     if (Array.isArray(d2.device_models) && d2.device_models.length) configured.push(["Gerätemodelle", d2.device_models.join(", ")]);
     const runtime = [
-      ["API / Protokoll", d2.api_transport_label ?? "Legacy API"],
-      ["App-Version", d2.gateway_app_version ?? "-"],
-      ["Protokollversion", d2.gateway_protocol_version ?? "-"],
       ["WebSocket", d2.connected === void 0 ? "-" : d2.connected ? "Verbunden" : "Getrennt"],
       ["Reconnects", d2.reconnect_count ?? "-"],
       ["Verbindungsfehler", d2.connection_failures ?? "-"],
@@ -7168,10 +7188,17 @@ let BepacomRuntimeDashboard = class extends i {
           <span><small>Protocol V2</small><strong>${protocol.connected ? "Aktiv & synchron" : "Getrennt"}</strong></span>
           <em>${String(protocol.lastEvent ?? "-")}</em>
         </div>
-        <div class="protocol-health-item"><small>Eventstrom</small><strong>#${String(protocol.sequence ?? "-")}</strong><span>${String(protocol.resyncs ?? 0)} Resyncs</span></div>
-        <div class=${`protocol-health-item ${Number(protocol.commandErrors || 0) ? "warn" : ""}`}><small>Befehle</small><strong>${commands}</strong><span>Erfolgreich / Fehler Â· ${String(protocol.commandLatency ?? "-")}</span></div>
-        <div class="protocol-health-version">App ${String(protocol.appVersion ?? "-")} Â· Protokoll ${String(protocol.protocolVersion ?? "-")}</div>
-      </div>`;
+        <div class="protocol-health-item">
+          <small>Eventstrom</small><strong>#${String(protocol.sequence ?? "-")}</strong>
+          <span>${String(protocol.resyncs ?? 0)} Resyncs</span>
+        </div>
+        <div class=${`protocol-health-item ${Number(protocol.commandErrors || 0) ? "warn" : ""}`}>
+          <small>Befehle</small><strong>${commands}</strong>
+          <span>Erfolgreich / Fehler · ${String(protocol.commandLatency ?? "-")}</span>
+        </div>
+        <div class="protocol-health-version">App ${String(protocol.appVersion ?? "-")} · Protokoll ${String(protocol.protocolVersion ?? "-")}</div>
+      </div>
+    `;
   }
   render() {
     const model = this.model || EMPTY_MODEL;
