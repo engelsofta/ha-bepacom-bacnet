@@ -75,7 +75,7 @@ async def test_validate_stac_rejects_gateway_without_managed_targets() -> None:
     with pytest.raises(UnsupportedGateway):
         await client.async_validate_stac()
 
-    assert client.get_requests == ["/openapi.json"]
+    assert client.get_requests == ["/bepacom/info", "/openapi.json"]
     assert client._session is None
 
 
@@ -84,6 +84,28 @@ def test_managed_snapshot_websocket_uses_stac_global_endpoint() -> None:
     client = BepacomClient("192.0.2.10")
 
     assert client.snapshot_websocket_url() == "ws://192.0.2.10:8099/ws"
+
+
+@pytest.mark.asyncio
+async def test_validate_stac_selects_protocol_v2() -> None:
+    """A compatible explicit handshake selects the versioned transport."""
+    class ProtocolClient(BepacomClient):
+        async def _get(self, path: str) -> Any:
+            assert path == "/bepacom/info"
+            return {
+                "product": "engelsoft-bacstac",
+                "app_version": "1.3.0b1",
+                "protocol_version": 2,
+                "protocol_versions": [2],
+                "capabilities": ["inventory", "point_events"],
+            }
+
+    client = ProtocolClient("gateway.local")
+    await client.async_validate_stac()
+
+    assert client.transport == "protocol_v2"
+    assert client.snapshot_websocket_url() == "ws://gateway.local:8099/ws/v2"
+    assert client.transport_diagnostics["gateway_app_version"] == "1.3.0b1"
 
 
 def test_managed_targets_payload_includes_requested_transport() -> None:

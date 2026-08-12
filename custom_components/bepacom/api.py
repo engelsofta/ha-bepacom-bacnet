@@ -6,13 +6,14 @@ import asyncio
 import json
 import logging
 import re
+import time
 from collections import deque
 from typing import Any
 
 import aiohttp
 from yarl import URL
 
-from .const import DEFAULT_SUBSCRIPTION_LIFETIME, WEBSOCKET_PING_INTERVAL
+from .const import DEFAULT_SUBSCRIPTION_LIFETIME, PROTOCOL_VERSION, WEBSOCKET_PING_INTERVAL
 from .exceptions import CannotConnect, InvalidResponse, UnsupportedGateway, WriteError
 
 _LOGGER = logging.getLogger(__name__)
@@ -49,10 +50,58 @@ _DEFAULT_SUBSCRIPTION_WS_PATH = "/ws"
 class BepacomClient:
     """REST client."""
 
-    def __init__(self, host: str, port: int = 8099) -> None:
+    def __init__(self, host: str, port: int = 8099, api_token: str | None = None) -> None:
         self._base = f"http://{host}:{port}"
         self._session: aiohttp.ClientSession | None = None
         self._subscription_diagnostic_logs = 0
+        self._gateway_info: dict[str, Any] = {}
+        self._transport = "legacy"
+        self._transport_reason = "Protocol V2 has not been negotiated"
+        self._protocol_socket: aiohttp.ClientWebSocketResponse | None = None
+        self._protocol_request_id = 0
+        self._managed_targets: list[tuple[str, str, str]] = []
+        self._api_token = str(api_token or "")
+        self._protocol_pending: dict[str, asyncio.Future[Any]] = {}
+        self._protocol_commands = 0
+        self._protocol_command_successes = 0
+        self._protocol_command_errors = 0
+        self._protocol_command_time_total = 0.0
+
+    @property
+    def api_token(self) -> str:
+        """Return the configured V2 authentication token."""
+        return self._api_token
+
+    @property
+    def transport(self) -> str:
+        """Return the selected gateway transport."""
+        return self._transport
+
+    @property
+    def transport_diagnostics(self) -> dict[str, Any]:
+        """Return compatibility information suitable for diagnostics and UI."""
+        return {
+            "api_transport": self._transport,
+            "api_transport_label": (
+                "Protocol V2" if self._transport == "protocol_v2" else "Legacy API"
+            ),
+            "api_transport_reason": self._transport_reason,
+            "gateway_product": self._gateway_info.get("product"),
+            "gateway_app_version": self._gateway_info.get("app_version"),
+            "gateway_protocol_version": self._gateway_info.get("protocol_version"),
+            "gateway_capabilities": self._gateway_info.get("capabilities", []),
+            "protocol_commands": self._protocol_commands,
+            "protocol_command_successes": self._protocol_command_successes,
+            "protocol_command_errors": self._protocol_command_errors,
+            "protocol_commands_pending": len(self._protocol_pending),
+            "protocol_command_avg_ms": (
+                self._protocol_command_time_total
+                / self._protocol_command_successes
+                * 1000
+                if self._protocol_command_successes
+                else 0
+            ),
+        }
 
     async def async_connect(self) -> None:
         """Create HTTP session."""
@@ -65,6 +114,71 @@ class BepacomClient:
         if self._session:
             await self._session.close()
             self._session = None
+        self._protocol_socket = None
+
+    def set_protocol_socket(
+        self, websocket: aiohttp.ClientWebSocketResponse | None
+    ) -> None:
+        """Expose the manager-owned V2 socket for bidirectional commands."""
+        self._protocol_socket = websocket
+
+    async def _async_protocol_command(
+        self, command: str, payload: dict[str, Any], *, wait_result: bool = True
+    ) -> bool:
+        """Send a command over the durable V2 channel when it is available."""
+        websocket = self._protocol_socket
+        if (
+            self._transport != "protocol_v2"
+            or websocket is None
+            or websocket.closed
+        ):
+            return False
+        self._protocol_request_id += 1
+        started = time.monotonic()
+        request_id = f"ha-{self._protocol_request_id}"
+        future: asyncio.Future[Any] | None = None
+        if wait_result:
+            self._protocol_commands += 1
+            future = asyncio.get_running_loop().create_future()
+            self._protocol_pending[request_id] = future
+        await websocket.send_json(
+            {
+                "type": "command",
+                "id": request_id,
+                "command": command,
+                "payload": payload,
+            }
+        )
+        if future is not None:
+            try:
+                await asyncio.wait_for(future, timeout=20)
+                self._protocol_command_successes += 1
+                self._protocol_command_time_total += time.monotonic() - started
+            except Exception:
+                self._protocol_command_errors += 1
+                raise
+            finally:
+                self._protocol_pending.pop(request_id, None)
+        return True
+
+    def handle_protocol_result(self, message: dict[str, Any]) -> None:
+        """Resolve a V2 request from the manager-owned socket reader."""
+        future = self._protocol_pending.get(str(message.get("id")))
+        if future is None or future.done():
+            return
+        if message.get("success"):
+            future.set_result(message.get("payload"))
+        else:
+            error = message.get("error") or {}
+            future.set_exception(InvalidResponse(str(error.get("message", error))))
+
+    async def async_restore_protocol_targets(self) -> None:
+        """Restore the target plan on a newly connected V2 channel."""
+        if self._managed_targets:
+            await self._async_protocol_command(
+                "set_targets", self._managed_targets_payload(self._managed_targets),
+                wait_result=False,
+            )
 
     async def _get(self, path: str) -> Any:
         """Perform a GET request."""
@@ -241,6 +355,9 @@ class BepacomClient:
 
     def snapshot_websocket_url(self) -> str:
         """Return Engelsoft STAC's global managed-target WebSocket."""
+        if self._transport == "protocol_v2":
+            base_url = URL(self._base).with_scheme("ws")
+            return str(base_url.join(URL("/ws/v2")))
         return self._default_subscription_websocket_url()
 
     def _normalize_device_path_id(self, device_id: str) -> str:
@@ -373,13 +490,30 @@ class BepacomClient:
             return False
 
     async def async_validate_stac(self) -> None:
-        """Require the managed-target API exposed by Engelsoft STAC."""
+        """Negotiate Protocol V2 and retain the existing API as fallback."""
+        try:
+            info = await self._get("/bepacom/info")
+            versions = info.get("protocol_versions", [info.get("protocol_version")]) if isinstance(info, dict) else []
+            if (
+                isinstance(info, dict)
+                and info.get("product") == "engelsoft-bacstac"
+                and PROTOCOL_VERSION in versions
+            ):
+                self._gateway_info = info
+                self._transport = "protocol_v2"
+                self._transport_reason = "Gateway and integration support Protocol V2"
+                return
+        except (CannotConnect, InvalidResponse):
+            pass
+
         schema = await self._get("/openapi.json")
         paths = schema.get("paths") if isinstance(schema, dict) else None
         if not isinstance(paths, dict) or "/apiv1/managed/targets" not in paths:
             raise UnsupportedGateway(
                 "Gateway does not expose the Engelsoft STAC managed-target API"
             )
+        self._transport = "legacy"
+        self._transport_reason = "Gateway does not advertise compatible Protocol V2"
 
     async def async_get_object(
         self,
@@ -401,11 +535,15 @@ class BepacomClient:
         targets: list[tuple[str, str, str]],
     ) -> dict[str, Any]:
         """Send managed targets and their requested transports to the gateway."""
+        self._managed_targets = list(targets)
+        payload = self._managed_targets_payload(targets)
+        if await self._async_protocol_command("set_targets", payload):
+            return {"accepted": True, "transport": "protocol_v2", "targets": len(targets)}
+
         await self.async_connect()
         assert self._session is not None
 
         url = f"{self._base}/apiv1/managed/targets"
-        payload = self._managed_targets_payload(targets)
         try:
             async with self._session.post(url, json=payload) as response:
                 if response.status == 404:
@@ -646,6 +784,16 @@ class BepacomClient:
             "priority": priority,
         }
 
+        protocol_object_id = f"{object_type}:{object_id}"
+        if await self._async_protocol_command("write_property", {
+            "device_id": str(device_id),
+            "object_id": protocol_object_id,
+            "property": "presentValue",
+            "value": value,
+            "priority": priority,
+        }):
+            return True
+
         try:
             result = await self._post("/apiv1/write-property", payload)
 
@@ -693,6 +841,12 @@ class BepacomClient:
         device_path_id = self._normalize_device_path_id(str(device_id))
         object_path_id = f"analogValue:{object_id}"
 
+        if await self._async_protocol_command("write_property", {
+            "device_id": str(device_id), "object_id": object_path_id,
+            "property": "presentValue", "value": value, "priority": priority,
+        }):
+            return True
+
         try:
             await self._post(
                 f"/apiv2/{device_path_id}/{object_path_id}/presentValue",
@@ -720,6 +874,12 @@ class BepacomClient:
         device_path_id = self._normalize_device_path_id(str(device_id))
         object_path_id = f"multiStateOutput:{object_id}"
         write_value: int | float = int(value) if float(value).is_integer() else value
+
+        if await self._async_protocol_command("write_property", {
+            "device_id": str(device_id), "object_id": object_path_id,
+            "property": "presentValue", "value": write_value, "priority": priority,
+        }):
+            return True
 
         try:
             await self._post(
@@ -755,6 +915,12 @@ class BepacomClient:
         object_path_id = f"binaryValue:{object_id}"
         write_value = "active" if value else "inactive"
 
+        if await self._async_protocol_command("write_property", {
+            "device_id": str(device_id), "object_id": object_path_id,
+            "property": "presentValue", "value": write_value, "priority": priority,
+        }):
+            return True
+
         try:
             await self._post(
                 f"/apiv2/{device_path_id}/{object_path_id}/presentValue",
@@ -781,6 +947,12 @@ class BepacomClient:
         """Release one command priority slot through gateway API v2."""
         device_path_id = self._normalize_device_path_id(str(device_id))
         object_path_id = f"{object_type}:{object_id}"
+
+        if await self._async_protocol_command("release_priority", {
+            "device_id": str(device_id), "object_id": object_path_id,
+            "priority": priority,
+        }):
+            return True
 
         try:
             await self._post(

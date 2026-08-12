@@ -69,8 +69,9 @@ export class BepacomPointTable extends LitElement {
   private _pointRow(row: Extract<PointTableRow, { kind: "point" }>) {
     return html`
       <tr
-        class=${`${row.selected ? "selected" : ""} ${row.changeClass}`}
+        class=${`point-card ${row.selected ? "selected" : ""} ${row.changeClass}`}
         data-uid=${row.uniqueId}
+        aria-label=${`${row.objectKey}, ${row.entityName}, Wert ${row.value}`}
         @click=${() => this._action("select-point", { uniqueId: row.uniqueId })}
         @dblclick=${(event: MouseEvent) => {
           if ((event.target as HTMLElement)?.closest("input, select, button")) return;
@@ -149,7 +150,7 @@ export class BepacomPointTable extends LitElement {
           <bepacom-write-profile-indicator .glt=${row.writeViaGlt}></bepacom-write-profile-indicator>
         </td>
         <td data-col="status">
-          <div class=${`transport-state-stack ${row.transportMismatch ? "mismatch" : ""}`}>
+          ${row.transportMismatch ? html`<div class="transport-state-stack mismatch">
             <span title=${`Gewünscht: ${row.requestedLabel}`}>
               <small>Gewünscht</small>
               <bepacom-runtime-indicator .state=${row.requestedState} .label=${`Gewünscht: ${row.requestedLabel}`}></bepacom-runtime-indicator>
@@ -161,7 +162,12 @@ export class BepacomPointTable extends LitElement {
               <b>${row.runtimeLabel}</b>
             </span>
             ${row.effectiveDetail ? html`<em>${row.effectiveDetail}</em>` : ""}
-          </div>
+          </div>` : html`
+            <div class="transport-state-ok" title=${row.runtimeLabel}>
+              <bepacom-runtime-indicator .state=${row.runtimeState} .label=${row.runtimeLabel}></bepacom-runtime-indicator>
+              <b>${row.runtimeLabel}</b>
+            </div>
+          `}
         </td>
       </tr>
     `;

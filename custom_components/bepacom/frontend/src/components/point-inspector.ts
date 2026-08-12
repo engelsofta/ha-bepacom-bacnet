@@ -96,6 +96,15 @@ export class BepacomPointInspector extends LitElement {
     return reasons[point.effective_update_reason] || point.effective_update_error || "";
   }
 
+  private _transportMismatch(point: Record<string, any>): boolean {
+    if (this._transportReason(point)) return true;
+    const desired = point.update_mode === "subscribe" ? "cov" : point.update_mode === "polling" ? "polling" : "disabled";
+    const effective = String(point.effective_update_mode || "unknown");
+    const state = String(point.effective_update_state || "unknown");
+    if (["unknown", "waiting", "subscribing", "cov_waiting", "polling_waiting"].includes(state)) return false;
+    return effective !== "unknown" && effective !== desired;
+  }
+
   private _section(id: string, title: string, content: unknown) {
     return html`
       <details class="detail-section" data-section=${id} ?open=${!!this.model.sectionOpen[id]}>
@@ -170,6 +179,8 @@ export class BepacomPointInspector extends LitElement {
     const stateClass = this._current(point.override_state_class);
     const updateMode = point.update_mode || (point.enabled === false ? "disabled" : point.subscribe ? "subscribe" : "disabled");
     const writeProfile = point.write_profile || "direct";
+    const transportMismatch = this._transportMismatch(point);
+    const stateClassRelevant = String(point.entity_id || "").startsWith("sensor.") || !!point.state_class;
 
     return html`
       <div class="edit-grid">
@@ -186,7 +197,7 @@ export class BepacomPointInspector extends LitElement {
           ["current", "Strom"], ["frequency", "Frequenz"], ["pressure", "Druck"], ["distance", "Entfernung"],
           ["illuminance", "Beleuchtungsstärke"], ["duration", "Dauer"], ["co2", "CO₂"], ["pm25", "PM2.5"], ["pm10", "PM10"],
         ], deviceClass)}</select></div>
-        <div><label>State Class</label><select id="editStateClass">${this._options([
+        <div ?hidden=${!stateClassRelevant}><label>State Class</label><select id="editStateClass">${this._options([
           ["__auto__", `Automatisch (${point.state_class || "keine"})`], ["__none__", "Keine"],
           ["measurement", "measurement"], ["total", "total"], ["total_increasing", "total_increasing"],
         ], stateClass)}</select></div>
@@ -194,12 +205,14 @@ export class BepacomPointInspector extends LitElement {
           ["disabled", "Deaktiviert / keine Aktualisierung"], ["subscribe", "🔵 Push / Subscribe"], ["polling", "🟢 Polling"],
         ], updateMode)}</select></div>
       </div>
-      <div class=${`transport-comparison ${point.effective_update_reason || point.effective_update_error ? "mismatch" : ""}`}>
-        <div><small>Gewünscht</small><strong>${this._desiredTransport(point)}</strong></div>
-        <span aria-hidden="true">→</span>
-        <div><small>Tatsächlich aktiv</small><strong>${this._effectiveTransport(point)}</strong></div>
-        ${this._transportReason(point) ? html`<p>${this._transportReason(point)}</p>` : nothing}
-      </div>
+      ${transportMismatch ? html`
+        <div class="transport-comparison mismatch">
+          <div><small>Gewünscht</small><strong>${this._desiredTransport(point)}</strong></div>
+          <span aria-hidden="true">→</span>
+          <div><small>Tatsächlich aktiv</small><strong>${this._effectiveTransport(point)}</strong></div>
+          ${this._transportReason(point) ? html`<p>${this._transportReason(point)}</p>` : nothing}
+        </div>
+      ` : html`<div class="transport-ok">Aktualisierung aktiv: <strong>${this._effectiveTransport(point)}</strong></div>`}
       ${multistate ? html`
         <h3 style="margin-top:14px;">Darstellung in Home Assistant</h3>
         <div class="muted" style="margin-bottom:8px;">Als Schalter wird nur der konfigurierte AUS- bzw. EIN-Wert geschrieben.</div>
@@ -220,7 +233,7 @@ export class BepacomPointInspector extends LitElement {
           <div><label>Mindestwert</label><input id="editNumberMin" type="number" step="any" .value=${String(point.number_min ?? -1000000)}></div>
           <div><label>Höchstwert</label><input id="editNumberMax" type="number" step="any" .value=${String(point.number_max ?? 1000000)}></div>
           <div><label>Schrittweite</label><input id="editNumberStep" type="number" min="0.000001" step="any" .value=${String(point.number_step ?? 0.01)}></div>
-          <div><label>BACnet-Priorität</label><input id="editWritePriority" type="number" min="1" max="16" .value=${String(point.write_priority ?? 8)}></div>
+          <div ?hidden=${point.writable === false}><label>BACnet-Priorität</label><input id="editWritePriority" type="number" min="1" max="16" .value=${String(point.write_priority ?? 8)}></div>
         </div>
         <h3 style="margin-top:14px;">Schreibprofil</h3>
         <div class="edit-grid">
@@ -229,11 +242,11 @@ export class BepacomPointInspector extends LitElement {
             ${analog ? html`<option value="glt_set_as" ?selected=${writeProfile === "glt_set_as"}>GLT → Wert setzen → AS</option>` : nothing}
             ${multistate ? html`<option value="glt_set_stage" ?selected=${writeProfile === "glt_set_stage"}>GLT → Stufe setzen</option>` : nothing}
           </select></div>
-          <div><label>Wartezeit nach GLT aktivieren (ms)</label><input id="editGltDelayMs" type="number" min="0" max="60000" .value=${String(point.glt_delay_ms ?? (multistate ? 2000 : 1200))}></div>
+          <div class="glt-profile-field" ?hidden=${writeProfile === "direct"}><label>Wartezeit nach GLT aktivieren (ms)</label><input id="editGltDelayMs" type="number" min="0" max="60000" .value=${String(point.glt_delay_ms ?? (multistate ? 2000 : 1200))}></div>
           ${analog ? html`
-            <div><label>Wartezeit nach Wert schreiben (ms)</label><input id="editAsDelayMs" type="number" min="0" max="60000" .value=${String(point.as_delay_ms ?? 1200)}></div>
-            <div><label>Wartezeit vor Freigabe (ms)</label><input id="editReleaseDelayMs" type="number" min="0" max="60000" .value=${String(point.release_delay_ms ?? 200)}></div>
-            <div><label>Priorität 8 anschließend freigeben</label><div class="check"><input id="editReleasePriority" type="checkbox" .checked=${point.release_priority !== false}> analogValue und binaryValue freigeben</div></div>
+            <div class="glt-as-profile-field" ?hidden=${writeProfile !== "glt_set_as"}><label>Wartezeit nach Wert schreiben (ms)</label><input id="editAsDelayMs" type="number" min="0" max="60000" .value=${String(point.as_delay_ms ?? 1200)}></div>
+            <div class="glt-as-profile-field" ?hidden=${writeProfile !== "glt_set_as"}><label>Wartezeit vor Freigabe (ms)</label><input id="editReleaseDelayMs" type="number" min="0" max="60000" .value=${String(point.release_delay_ms ?? 200)}></div>
+            <div class="glt-as-profile-field" ?hidden=${writeProfile !== "glt_set_as"}><label>Priorität 8 anschließend freigeben</label><div class="check"><input id="editReleasePriority" type="checkbox" .checked=${point.release_priority !== false}> analogValue und binaryValue freigeben</div></div>
           ` : nothing}
         </div>
       ` : nothing}
@@ -253,6 +266,10 @@ export class BepacomPointInspector extends LitElement {
     ];
     return html`
       <div class="muted" style="margin-bottom:8px;">Erzeugt zusätzlich eine Binary-Sensor-Entität aus diesem Rohwert.</div>
+      <div class="edit-grid">
+        <div><label>Virtuellen Binary Sensor erzeugen</label><div class="check"><input id="virtualBinaryEnabled" type="checkbox" .checked=${!!point.virtual_binary}> aktiv</div></div>
+      </div>
+      <div id="virtualBinaryFields" ?hidden=${!point.virtual_binary}>
       <div class="rule-help"><strong>Regel-Hilfe:</strong> <code>2</code>, <code>&gt;2</code>, <code>1,2,5</code>, <code>2-5</code>, <code>active</code> oder <code>value &gt; 10 &amp;&amp; value &lt; 20</code></div>
       ${assistant ? html`
         <div class="assistant-card">
@@ -268,7 +285,6 @@ export class BepacomPointInspector extends LitElement {
         </div>
       ` : nothing}
       <div class="edit-grid">
-        <div><label>Virtuellen Binary Sensor erzeugen</label><div class="check"><input id="virtualBinaryEnabled" type="checkbox" .checked=${!!point.virtual_binary}> aktiv</div></div>
         <div><label>Name</label><input id="virtualBinaryName" .value=${virtual.name || ""}></div>
         <div><label>Unique ID</label><input id="virtualBinaryUniqueId" .value=${virtual.unique_id || `${point.unique_id}_binary`}></div>
         <div><label>Device Class</label><select id="virtualBinaryDeviceClass">${this._options(deviceClasses, virtual.device_class || "plug")}</select></div>
@@ -281,6 +297,7 @@ export class BepacomPointInspector extends LitElement {
       <div id="virtualRulePreview" class="rule-preview">
         <div><span class="muted">Aktueller BACnet-Wert</span><strong>${this.model.preview.sourceValue}</strong></div>
         <div><span class="muted">Regelergebnis</span><strong class=${`rule-result ${this.model.preview.tone}`}>${this.model.preview.result}</strong></div>
+      </div>
       </div>
     `;
   }

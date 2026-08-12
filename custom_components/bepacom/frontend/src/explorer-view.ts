@@ -17,6 +17,8 @@ export class BepacomExplorerView extends HTMLElement {
     this._saving = false;
     this._error = null;
     this._message = null;
+    this._toast = null;
+    this._toastTimer = null;
     this._filters = {
       search: "",
       object_type: "all",
@@ -54,6 +56,7 @@ export class BepacomExplorerView extends HTMLElement {
     this._keyboardHandler = (ev) => this._handleKeyboard(ev);
     this._rootClickHandler = (ev) => this._handleRootClick(ev);
     this._editorDirty = false;
+    this._dirtyFieldIds = new Set();
     this._editorErrors = [];
     this._pendingReloadIds = new Set();
     this._pendingTransportIds = new Set();
@@ -93,8 +96,19 @@ export class BepacomExplorerView extends HTMLElement {
   _versionLabel() {
     const cfg = this.panel?.config || {};
     const version = cfg.version || "1.2.3";
-    const build = cfg.frontend_build || "0664";
+    const build = cfg.frontend_build || "0665";
     return `Version ${version} · Frontend-Build ${build}`;
+  }
+
+  _showToast(message, tone = "success") {
+    if (this._toastTimer) window.clearTimeout(this._toastTimer);
+    this._toast = { message, tone };
+    this._render();
+    this._toastTimer = window.setTimeout(() => {
+      this._toast = null;
+      this._toastTimer = null;
+      this._render();
+    }, 3600);
   }
 
   connectedCallback() {
@@ -122,6 +136,7 @@ export class BepacomExplorerView extends HTMLElement {
       window.clearTimeout(this._recentChangeTimer);
       this._recentChangeTimer = null;
     }
+    if (this._toastTimer) window.clearTimeout(this._toastTimer);
     window.removeEventListener("keydown", this._keyboardHandler);
     document.removeEventListener("visibilitychange", this._visibilityHandler);
     window.removeEventListener("beforeunload", this._beforeUnloadHandler);
@@ -145,8 +160,9 @@ export class BepacomExplorerView extends HTMLElement {
   _discardEditorChanges() {
     if (!this._selected) return;
     this._editorDirty = false;
+    this._dirtyFieldIds.clear();
     this._editorErrors = [];
-    this._message = "Ungespeicherte Änderungen wurden verworfen.";
+    this._showToast("Ungespeicherte Änderungen wurden verworfen.", "info");
     this._render();
   }
 
@@ -547,6 +563,7 @@ export class BepacomExplorerView extends HTMLElement {
       return;
     }
     this._editorDirty = false;
+    this._dirtyFieldIds.clear();
     this._editorErrors = [];
     this._manualReloadRunning = false;
     this._manualReloadUntil = 0;
@@ -584,6 +601,7 @@ export class BepacomExplorerView extends HTMLElement {
   async _saveSelected() {
     if (!this.hass || !this._selected) return;
     const previousUpdateMode = this._selected.update_mode || "disabled";
+    const changedFields = new Set(this._dirtyFieldIds);
     if (!this._validateEditor()) {
       this._error = "Bitte korrigiere zuerst die markierten Eingaben.";
       return;
@@ -653,16 +671,22 @@ export class BepacomExplorerView extends HTMLElement {
       });
       this._selected = result.point;
       this._editorDirty = false;
+      this._dirtyFieldIds.clear();
       this._editorErrors = [];
-      this._pendingReloadIds.add(this._selected.unique_id);
-      if ((this._selected.update_mode || "disabled") !== previousUpdateMode) {
+      const transportChanged = (this._selected.update_mode || "disabled") !== previousUpdateMode;
+      const requiresReload = [...changedFields].some((field) => field && field !== "editUpdateMode");
+      if (requiresReload) this._pendingReloadIds.add(this._selected.unique_id);
+      if (transportChanged) {
         this._pendingTransportIds.add(this._selected.unique_id);
       }
       this._inspector = result.inspector || {};
       this._setHistoryForSelected(result.history || [], this._selected?.unique_id);
-      this._message = this._pendingTransportIds.has(this._selected.unique_id)
-        ? "Gespeichert. Der Aktualisierungsmodus ist noch nicht aktiv – Änderungen oben gesammelt anwenden."
-        : "Gespeichert. Änderungen an der Home-Assistant-Entity werden beim nächsten Integrations-Reload vollständig wirksam.";
+      this._message = null;
+      this._showToast(
+        transportChanged || requiresReload
+          ? "Gespeichert. Die Änderung wartet auf „Änderungen anwenden“."
+          : "Änderungen gespeichert.",
+      );
       await this._loadPoints(false);
     } catch (err) {
       this._error = this._formatError(err);
@@ -758,6 +782,7 @@ export class BepacomExplorerView extends HTMLElement {
     if (!this.hass || !this._selected) return;
     const previousUpdateMode = this._selected.update_mode || "disabled";
     this._editorDirty = false;
+    this._dirtyFieldIds.clear();
     this._manualReloadRunning = false;
     this._manualReloadUntil = 0;
     this._saving = true;
@@ -834,7 +859,8 @@ export class BepacomExplorerView extends HTMLElement {
         try {
           await this._loadEntries();
           await this._loadPoints(false);
-          this._message = "Integration wurde neu geladen.";
+          this._message = null;
+          this._showToast("Integration wurde neu geladen. Alle Änderungen sind aktiv.");
         } catch (err) {
           this._error = this._formatError(err);
         } finally {
@@ -852,7 +878,7 @@ export class BepacomExplorerView extends HTMLElement {
   }
 
   async _applyUpdateModes() {
-    if (!this.hass || !this._entryId || !this._pendingTransportIds.size || this._saving) return;
+    if (!this.hass || !this._entryId || !this._pendingTransportIds.size || this._saving) return false;
     const changed = this._pendingTransportIds.size;
     this._saving = true;
     this._message = `${changed} Aktualisierungsmodi werden an BACstac übertragen …`;
@@ -864,14 +890,30 @@ export class BepacomExplorerView extends HTMLElement {
         entry_id: this._entryId || undefined,
       });
       this._pendingTransportIds.clear();
-      this._message = `Aktualisierungsmodi aktiv: ${result.cov || 0} Push · ${result.polling || 0} Polling · ${result.disabled || 0} deaktiviert. Kein Reload nötig.`;
+      this._message = null;
+      this._showToast(`Transport aktiv: ${result.cov || 0} Push · ${result.polling || 0} Polling · ${result.disabled || 0} aus.`);
       await this._loadPoints(false);
+      return true;
     } catch (err) {
       this._error = this._formatError(err);
+      return false;
     } finally {
       this._saving = false;
       this._render();
     }
+  }
+
+  async _applyPendingChanges() {
+    if (this._saving || (!this._pendingTransportIds.size && !this._pendingReloadIds.size)) return;
+    if (this._pendingTransportIds.size) {
+      const applied = await this._applyUpdateModes();
+      if (!applied) return;
+    }
+    if (this._pendingReloadIds.size) {
+      await this._reloadIntegration();
+      return;
+    }
+    this._showToast("Alle Änderungen sind aktiv.");
   }
 
   _comparableValue(value) {
@@ -1470,6 +1512,9 @@ export class BepacomExplorerView extends HTMLElement {
       : "-";
     const pushChangeValue = `${pushNotificationsRaw ?? "-"} / ${averageChangesPerPush}`;
     const runtime = [
+      ["API / Protokoll", d.api_transport_label ?? "Legacy API"],
+      ["App-Version", d.gateway_app_version ?? "-"],
+      ["Protokollversion", d.gateway_protocol_version ?? "-"],
       ["WebSocket", d.connected === undefined ? "-" : (d.connected ? "Verbunden" : "Getrennt")],
       ["Reconnects", d.reconnect_count ?? "-"],
       ["Verbindungsfehler", d.connection_failures ?? "-"],
@@ -1640,13 +1685,21 @@ export class BepacomExplorerView extends HTMLElement {
     const selectionStart = typeof active?.selectionStart === "number" ? active.selectionStart : null;
     const selectionEnd = typeof active?.selectionEnd === "number" ? active.selectionEnd : null;
     const selected = this._selected;
+    const pendingChanges = new Set([...this._pendingTransportIds, ...this._pendingReloadIds]).size;
     const styles = `
       :host { display:block; color: var(--primary-text-color); background: var(--primary-background-color); height:100vh; overflow:hidden; }
       .wrap { height:100vh; box-sizing:border-box; padding: 12px 20px 16px; max-width: 1900px; margin: 0 auto; display:flex; flex-direction:column; overflow:hidden; }
       .header { flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:12px; }
+      .header-primary-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
       .header-actions-menu { position:relative; margin:0; }
-      .mobile-actions-toggle { display:none; }
-      .header-action-buttons { display:flex; gap:8px; align-items:center; }
+      .more-actions-toggle { display:flex; align-items:center; justify-content:center; min-width:42px; height:42px; padding:0 12px; }
+      .header-action-buttons { display:none; }
+      .header-actions-menu.open > .header-action-buttons { position:absolute; z-index:100; top:48px; right:0; width:270px; box-sizing:border-box; display:grid; grid-template-columns:1fr; gap:7px; padding:10px; border:1px solid var(--divider-color); border-radius:12px; background:var(--card-background-color); box-shadow:0 8px 28px rgba(0,0,0,.35); }
+      .header-action-buttons button { width:100%; }
+      .toast { position:fixed; z-index:1000; right:20px; bottom:20px; max-width:min(420px,calc(100vw - 32px)); padding:12px 16px; border-radius:12px; color:#fff; background:#2e7d32; box-shadow:0 10px 30px rgba(0,0,0,.32); font-weight:600; animation:toast-in .18s ease-out; }
+      .toast.info { background:#45657d; }
+      .toast.error { background:var(--error-color,#c62828); }
+      @keyframes toast-in { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
       h1 { margin:0; font-size:28px; font-weight:500; }
       h2 { margin:0 0 4px 0; font-size:20px; font-weight:500; }
       h3 { margin:18px 0 8px 0; font-size:15px; font-weight:600; }
@@ -1818,6 +1871,10 @@ export class BepacomExplorerView extends HTMLElement {
       .transport-comparison > span { color:var(--secondary-text-color); }
       .transport-comparison p { grid-column:1 / -1; margin:0; color:var(--warning-color,#f0ad4e); font-size:10px; font-weight:700; }
       .transport-comparison.mismatch { border-color:color-mix(in srgb,var(--warning-color,#f0ad4e) 45%,var(--divider-color)); }
+      .transport-ok { margin-top:10px; color:var(--secondary-text-color); font-size:11px; }
+      .transport-ok strong { color:var(--primary-text-color); }
+      .transport-state-ok { display:flex; align-items:center; gap:7px; min-width:0; }
+      .transport-state-ok b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; }
       th { color: var(--secondary-text-color); font-weight:600; font-size:12px; position:sticky; top:0; background: color-mix(in srgb, var(--card-background-color) 94%, var(--primary-background-color)); z-index:20; overflow:hidden; box-shadow: 0 1px 0 var(--divider-color); }
       th.sortable { cursor:pointer; user-select:none; }
       .sort-btn { border:0; border-radius:0; background:transparent; color:inherit; padding:0; font:inherit; cursor:pointer; }
@@ -2428,6 +2485,36 @@ export class BepacomExplorerView extends HTMLElement {
         line-height:1;
         letter-spacing:-.035em;
       }
+      .api-protocol-card {
+        position:relative;
+        overflow:hidden;
+        background:linear-gradient(135deg,rgba(163,114,55,.14),rgba(255,255,255,.035));
+      }
+      .api-protocol-card.protocol-v2 {
+        background:linear-gradient(135deg,rgba(74,128,91,.2),rgba(255,255,255,.035));
+      }
+      .api-protocol-card::after {
+        content:"";
+        position:absolute;
+        width:88px;
+        height:88px;
+        right:-35px;
+        bottom:-52px;
+        border-radius:50%;
+        background:rgba(209,154,66,.09);
+        pointer-events:none;
+      }
+      .api-protocol-card.protocol-v2::after { background:rgba(105,174,116,.1); }
+      .api-protocol-content { display:flex; flex-direction:column; gap:6px; width:100%; }
+      .api-protocol-title { display:flex; align-items:center; gap:7px; color:#aaa398; font-size:9px; font-weight:750; letter-spacing:.075em; text-transform:uppercase; }
+      .api-protocol-dot { width:7px; height:7px; flex:0 0 7px; border-radius:50%; background:#d19a42; box-shadow:0 0 0 4px rgba(209,154,66,.1); }
+      .protocol-v2 .api-protocol-dot { background:#70b47c; box-shadow:0 0 0 4px rgba(112,180,124,.1); }
+      .api-protocol-row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+      .api-protocol-card .api-protocol-name { color:#ead395; font-size:19px; line-height:1.05; letter-spacing:-.025em; }
+      .api-protocol-card.protocol-v2 .api-protocol-name { color:#b9d9b8; }
+      .api-protocol-badge { padding:3px 7px; border:1px solid rgba(209,154,66,.25); border-radius:999px; background:rgba(209,154,66,.08); color:#cdb47c; font-size:9px; font-weight:750; letter-spacing:.045em; text-transform:uppercase; white-space:nowrap; }
+      .protocol-v2 .api-protocol-badge { border-color:rgba(112,180,124,.28); background:rgba(112,180,124,.09); color:#a8cea9; }
+      .api-protocol-meta { color:#8f8a82; font-size:9px; font-weight:650; letter-spacing:.035em; text-transform:uppercase; }
       .dashboard-nav {
         display:grid;
         grid-template-columns:repeat(3,minmax(0,1fr));
@@ -2809,6 +2896,26 @@ export class BepacomExplorerView extends HTMLElement {
         gap:8px;
         padding:5px 2px 3px;
       }
+      .protocol-health {
+        position:relative; display:grid; grid-template-columns:minmax(230px,1.25fr) minmax(145px,.7fr) minmax(190px,.9fr); gap:9px;
+        margin-bottom:16px; padding:10px; overflow:hidden; border:1px solid rgba(112,180,124,.15); border-radius:13px;
+        background:linear-gradient(135deg,rgba(74,128,91,.1),rgba(255,255,255,.018));
+      }
+      .protocol-health-lead,.protocol-health-item { min-width:0; min-height:58px; padding:13px 15px; border-radius:10px; background:rgba(255,255,255,.025); }
+      .protocol-health-lead { display:flex; align-items:center; gap:11px; }
+      .protocol-health-lead > i { width:9px; height:9px; flex:0 0 9px; border-radius:50%; background:#70b47c; box-shadow:0 0 0 5px rgba(112,180,124,.09),0 0 16px rgba(112,180,124,.42); animation:protocol-health-pulse 2.2s ease-in-out infinite; }
+      .protocol-health.offline .protocol-health-lead > i { background:#bf685f; box-shadow:0 0 0 5px rgba(191,104,95,.09); animation:none; }
+      .protocol-health-lead span { min-width:0; display:flex; flex-direction:column; gap:3px; }
+      .protocol-health small { color:#aaa59d; font-size:10px; font-weight:800; letter-spacing:.075em; text-transform:uppercase; }
+      .protocol-health strong { color:#f3efe8; font-size:17px; line-height:1.15; }
+      .protocol-health-lead em { margin-left:auto; color:#aaa59d; font-size:11px; font-weight:650; font-style:normal; white-space:nowrap; }
+      .protocol-health-item { display:flex; flex-direction:column; justify-content:center; gap:3px; }
+      .protocol-health-item strong { color:#c6ddbd; font-size:20px; }
+      .protocol-health-item span { color:#9d9890; font-size:11px; }
+      .protocol-health-item.warn strong { color:#df8378; }
+      .protocol-health-version { position:absolute; right:14px; top:7px; color:#969189; font-size:10px; font-weight:650; }
+      .diagnostic-data-title { margin-top:2px; }
+      @keyframes protocol-health-pulse { 0%,100% { transform:scale(.88); opacity:.72; } 50% { transform:scale(1.08); opacity:1; } }
       .diagnostic-flow > i {
         position:relative; display:block; width:100%; height:2px; overflow:visible;
         border-radius:999px; background:linear-gradient(90deg,rgba(105,174,241,.18),rgba(210,170,98,.52),rgba(157,196,135,.2));
@@ -2850,7 +2957,7 @@ export class BepacomExplorerView extends HTMLElement {
       @keyframes diagnostic-flow-pulse { 0% { left:0; opacity:0; } 15% { opacity:1; } 85% { opacity:1; } 100% { left:calc(100% - 7px); opacity:0; } }
       @keyframes diagnostic-card-in { from { opacity:0; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
       @media (prefers-reduced-motion:reduce) {
-        .diagnostic-flow > i::after,.diagnostic-flow-step { animation:none!important; }
+        .diagnostic-flow > i::after,.diagnostic-flow-step,.protocol-health-lead > i { animation:none!important; }
         .diagnostic-flow-step { transition:none; }
       }
       /* Automatic light appearance, driven by Home Assistant's active theme. */
@@ -2987,6 +3094,10 @@ export class BepacomExplorerView extends HTMLElement {
       .theme-light .diagnostic-flow-step.filtered strong { color:#a66d25; }
       .theme-light .diagnostic-flow-step.changed strong { color:#5d8c48; }
       .theme-light .diagnostic-flow > i { background:linear-gradient(90deg,rgba(38,118,185,.18),rgba(166,109,37,.42),rgba(93,140,72,.2)); }
+      .theme-light .protocol-health { border-color:rgba(93,140,72,.18); background:linear-gradient(135deg,rgba(93,140,72,.09),rgba(255,255,255,.7)); }
+      .theme-light .protocol-health-lead,.theme-light .protocol-health-item { background:rgba(255,255,255,.62); }
+      .theme-light .protocol-health strong { color:#302b25; }
+      .theme-light .protocol-health-item strong { color:#5d8c48; }
       .theme-light input,
       .theme-light select {
         color:#29251f;
@@ -3064,12 +3175,17 @@ export class BepacomExplorerView extends HTMLElement {
           grid-template-columns:repeat(2,minmax(0,1fr));
         }
         .diagnostic-flow { grid-template-columns:1fr; }
+        .protocol-health { grid-template-columns:1fr; }
         .diagnostic-flow > i { width:2px; height:24px; justify-self:center; background:linear-gradient(180deg,rgba(105,174,241,.18),rgba(210,170,98,.52),rgba(157,196,135,.2)); }
         .diagnostic-flow > i::after { top:0; left:50%; margin-top:0; margin-left:-3.5px; animation:diagnostic-flow-pulse-vertical 2.8s ease-in-out infinite; }
       }
       @keyframes diagnostic-flow-pulse-vertical { 0% { top:0; opacity:0; } 15% { opacity:1; } 85% { opacity:1; } 100% { top:calc(100% - 7px); opacity:0; } }
       @media (max-width: 1100px) { :host { height:auto; overflow:visible; } .wrap { height:auto; min-height:100vh; overflow:visible; } .toolbar { align-items:stretch; } .toolbar .toolbar-nav { flex:1 0 100%; border-right:0; border-bottom:1px solid var(--divider-color); padding:2px 2px 8px; } .dashboard-content { grid-template-columns: 1fr; } .dashboard-cards { grid-template-columns: repeat(2, 1fr); } #explorerView { overflow:visible; } .content { grid-template-columns: 1fr; overflow:visible; } .table-wrap { height:70vh; } .side { height:70vh; } }
       @media (max-width: 700px) {
+        .header-primary-actions { width:100%; display:grid; grid-template-columns:minmax(0,1fr) auto auto; }
+        .header-primary-actions .pending-reload { grid-column:1 / -1; }
+        #applyChanges { min-width:0; padding-inline:10px; }
+        .toast { right:12px; bottom:12px; }
         .main-nav { grid-template-columns:1fr; }
         .main-nav-item { justify-content:flex-start; }
         .main-status-strip { grid-template-columns:1fr 1fr; }
@@ -3120,6 +3236,11 @@ export class BepacomExplorerView extends HTMLElement {
         .table-wrap > table > tbody > tr:not(.group-row):not(.virtual-spacer) { display:block; margin:0 0 10px; border:1px solid var(--divider-color); border-radius:12px; background:var(--card-background-color); box-shadow:var(--ha-card-box-shadow, 0 1px 3px rgba(0,0,0,.18)); overflow:hidden; }
         .table-wrap > table > tbody > tr:not(.group-row):not(.virtual-spacer) > td { position:static !important; display:grid; grid-template-columns:86px minmax(0,1fr); gap:10px; align-items:center; width:auto; min-height:38px; padding:7px 10px; text-align:left !important; white-space:normal; overflow:visible; border-bottom:1px solid color-mix(in srgb, var(--divider-color) 65%, transparent); background:transparent !important; box-shadow:none !important; }
         .table-wrap > table > tbody > tr:not(.group-row):not(.virtual-spacer) > td:last-child { border-bottom:0; }
+        .table-wrap > table > tbody > tr.point-card > td[data-col='unit'],
+        .table-wrap > table > tbody > tr.point-card > td[data-col='override'],
+        .table-wrap > table > tbody > tr.point-card > td[data-col='write-profile'] { display:none !important; }
+        .table-wrap > table > tbody > tr.point-card > td[data-col='object'] { background:color-mix(in srgb,var(--secondary-background-color) 72%,transparent) !important; }
+        .table-wrap > table > tbody > tr.point-card > td[data-col='value'] .value-link { font-size:18px; font-weight:700; }
         .table-wrap td::before { color:var(--secondary-text-color); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
         .table-wrap td.select-col { display:flex !important; justify-content:flex-end; min-height:28px !important; padding:5px 10px !important; }
         .table-wrap td.select-col::before { content:"Auswahl"; margin-right:auto; }
@@ -3173,8 +3294,12 @@ export class BepacomExplorerView extends HTMLElement {
             <div class="frontend-version">${this._versionLabel()}</div>
             </div>
           </div>
-          <div class="header-actions-menu">
-            <button id="mobileActionsToggle" class="mobile-actions-toggle" type="button" title="Aktionen" aria-label="Aktionen öffnen" aria-expanded="false">☰</button>
+          <div class="header-primary-actions">
+            ${pendingChanges ? `<span class="pending-reload">${pendingChanges} Änderung${pendingChanges === 1 ? "" : "en"} wartet${pendingChanges === 1 ? "" : "en"}</span>` : ""}
+            <button class="primary" id="applyChanges" ${(!pendingChanges || this._saving) ? "disabled" : ""}>Änderungen anwenden${pendingChanges ? ` (${pendingChanges})` : ""}</button>
+            <button class="secondary" id="refresh">Aktualisieren${this._loading ? " …" : ""}</button>
+            <div class="header-actions-menu">
+            <button id="moreActionsToggle" class="secondary more-actions-toggle" type="button" title="Weitere Aktionen" aria-label="Weitere Aktionen öffnen" aria-expanded="false">⋮ Mehr</button>
             <div class="header-action-buttons">
               <button class="secondary" id="exportJson">JSON</button>
               <button class="secondary" id="exportCsv">CSV</button>
@@ -3182,16 +3307,15 @@ export class BepacomExplorerView extends HTMLElement {
               <button class="secondary" id="exportOverrides">Overrides exportieren</button>
               <button class="secondary" id="importOverrides">Overrides importieren</button>
               <input id="importOverridesFile" type="file" accept="application/json,.json" hidden>
-              ${this._pendingTransportIds.size ? `<span class="pending-reload">${this._pendingTransportIds.size} Modi noch nicht angewendet</span>` : (this._pendingReloadIds.size ? `<span class="pending-reload">${this._pendingReloadIds.size} Änderungen warten</span>` : "")}
-              <button class="primary" id="applyUpdateModes" ${(!this._pendingTransportIds.size || this._saving) ? "disabled" : ""}>Stac Update${this._pendingTransportIds.size ? ` (${this._pendingTransportIds.size})` : ""}</button>
               <button class="secondary" id="reloadIntegration" ${(this._saving || this._manualReloadRunning || Date.now() < this._manualReloadUntil) ? "disabled" : ""}>Integration neu laden${this._pendingReloadIds.size ? ` (${this._pendingReloadIds.size})` : ""}</button>
-              <button class="secondary" id="refresh">Aktualisieren${this._loading ? " …" : ""}</button>
+            </div>
             </div>
           </div>
         </div>
 
         ${this._error ? `<div class="error">${this._escape(this._error)}</div>` : ""}
         ${this._message ? `<div class="notice">${this._escape(this._message)}</div>` : ""}
+        ${this._toast ? `<div class="toast ${this._escape(this._toast.tone)}" role="status">${this._escape(this._toast.message)}</div>` : ""}
 
         ${this._mainStatusHtml()}
         ${this._mainNavigationHtml()}
@@ -3304,9 +3428,17 @@ export class BepacomExplorerView extends HTMLElement {
           <span class="status-overview-value errors"><strong>${this._escape(connectionFailures)}</strong><small>Verbindungsfehler</small></span>
         </div>
       </div>`;
+    const protocolV2 = diagnostics.api_transport === "protocol_v2";
     const processingCard = `
-      <div class="dashboard-headline-card">
-        <span><small>Push-Verarbeitung</small><strong>${this._escape(pushTime)}</strong></span>
+      <div class="dashboard-headline-card api-protocol-card ${protocolV2 ? "protocol-v2" : "legacy-api"}">
+        <div class="api-protocol-content">
+          <div class="api-protocol-title"><i class="api-protocol-dot" aria-hidden="true"></i>API / Protokoll</div>
+          <div class="api-protocol-row">
+            <strong class="api-protocol-name">${this._escape(diagnostics.api_transport_label ?? "Legacy API")}</strong>
+            <span class="api-protocol-badge">${protocolV2 ? "Aktiv" : "Fallback"}</span>
+          </div>
+          <div class="api-protocol-meta">Push-Verarbeitung · ${this._escape(pushTime)}</div>
+        </div>
       </div>`;
     const transportOverview = `
       <div class="dashboard-headline-card status-overview transport-overview">
@@ -3851,7 +3983,7 @@ export class BepacomExplorerView extends HTMLElement {
 
   _bulkToolbarHtml() {
     const count = this._selectedIds.size;
-    if (!count) return `<div class="bulkbar bulkbar-empty"><span>Mehrfachbearbeitung: Wähle links Objekte aus.</span></div>`;
+    if (!count) return "";
     return `
       <div class="bulkbar card">
         <b>${count} ausgewählt</b>
@@ -3889,12 +4021,13 @@ export class BepacomExplorerView extends HTMLElement {
           entity_id: p.entity_id || "",
           entity_name: p.entity_name || "",
         });
-        this._pendingReloadIds.add(p.unique_id);
+        if (unit || deviceClass || stateClass) this._pendingReloadIds.add(p.unique_id);
         if (updateMode && updateMode !== (p.update_mode || "disabled")) {
           this._pendingTransportIds.add(p.unique_id);
         }
       }
-      this._message = `${targets.length} Objekte wurden aktualisiert. Wenn du fertig bist, bitte Integration neu laden.`;
+      this._message = null;
+      this._showToast(`${targets.length} Objekte gespeichert. Mit „Änderungen anwenden“ aktivieren.`);
       await this._loadPoints(false);
     } catch (err) {
       this._error = this._formatError(err);
@@ -3917,7 +4050,8 @@ export class BepacomExplorerView extends HTMLElement {
         this._pendingReloadIds.add(p.unique_id);
         this._pendingTransportIds.add(p.unique_id);
       }
-      this._message = `${targets.length} Overrides wurden zurückgesetzt.`;
+      this._message = null;
+      this._showToast(`${targets.length} Overrides wurden zurückgesetzt.`);
       await this._loadPoints(false);
     } catch (err) {
       this._error = this._formatError(err);
@@ -3981,6 +4115,7 @@ export class BepacomExplorerView extends HTMLElement {
       if (action === "view") {
         if (this._editorDirty && !window.confirm("Ungespeicherte Änderungen verwerfen und Ansicht wechseln?")) return;
         this._editorDirty = false;
+        this._dirtyFieldIds.clear();
         this._editorErrors = [];
         this._activeView = value || "explorer";
         this._setSetting("bepacom_active_view", this._activeView);
@@ -4156,6 +4291,7 @@ export class BepacomExplorerView extends HTMLElement {
       open: !!this._statusOpen,
       tab: ["configuration", "developer"].includes(this._dashboardTab) ? this._dashboardTab : "live",
       summary: [
+        `API: ${d.api_transport_label ?? "Legacy API"}`,
         `Punkte: ${d.objects ?? this._total ?? "-"}`,
         `aktiv: ${d.enabled ?? "-"}`,
         `Push: ${d.configured_push ?? "-"}/${d.subscribed ?? "-"}`,
@@ -4172,6 +4308,18 @@ export class BepacomExplorerView extends HTMLElement {
         updates: d.websocket_callback_invocations ?? "-",
         changes: d.websocket_callback_value_changes ?? valueChanges ?? "-",
         filterRate,
+      },
+      protocol: {
+        active: d.api_transport === "protocol_v2",
+        connected: d.connected === true,
+        lastEvent: d.last_push_age ?? "-",
+        sequence: d.protocol_sequence ?? "-",
+        resyncs: d.protocol_resyncs ?? 0,
+        commandSuccesses: d.protocol_command_successes ?? 0,
+        commandErrors: d.protocol_command_errors ?? 0,
+        commandLatency: Number(d.protocol_command_successes || 0) > 0 ? `${Number(d.protocol_command_avg_ms).toFixed(1)} ms` : "-",
+        appVersion: d.gateway_app_version ?? "-",
+        protocolVersion: d.gateway_protocol_version ?? "-",
       },
       livePaused: this._livePaused,
       liveFilters: { ...this._liveFilters },
@@ -4287,6 +4435,7 @@ export class BepacomExplorerView extends HTMLElement {
           && !window.confirm("Ungespeicherte Änderungen verwerfen und den Bereich wechseln?")
         ) return;
         this._editorDirty = false;
+        this._dirtyFieldIds.clear();
         this._editorErrors = [];
         this._mainSection = ["live", "diagnostics"].includes(section) ? section : "configuration";
         this._dashboardTab = this._mainSection === "live" ? "live" : "developer";
@@ -4299,14 +4448,14 @@ export class BepacomExplorerView extends HTMLElement {
         }
       });
     });
-    const mobileActionsToggle = this.shadowRoot.getElementById("mobileActionsToggle");
-    mobileActionsToggle?.addEventListener("click", (ev) => {
+    const moreActionsToggle = this.shadowRoot.getElementById("moreActionsToggle");
+    moreActionsToggle?.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
-      const menu = mobileActionsToggle.closest(".header-actions-menu");
+      const menu = moreActionsToggle.closest(".header-actions-menu");
       const open = menu?.classList.toggle("open") || false;
-      mobileActionsToggle.setAttribute("aria-expanded", open ? "true" : "false");
-      mobileActionsToggle.setAttribute(
+      moreActionsToggle.setAttribute("aria-expanded", open ? "true" : "false");
+      moreActionsToggle.setAttribute(
         "aria-label",
         open ? "Aktionen schließen" : "Aktionen öffnen",
       );
@@ -4316,6 +4465,7 @@ export class BepacomExplorerView extends HTMLElement {
         ev.preventDefault();
         if (this._editorDirty && !window.confirm("Ungespeicherte Änderungen verwerfen und Ansicht wechseln?")) return;
         this._editorDirty = false;
+        this._dirtyFieldIds.clear();
         this._editorErrors = [];
         this._activeView = button.getAttribute("data-view-tab") || "explorer";
         this._setSetting("bepacom_active_view", this._activeView);
@@ -4335,7 +4485,7 @@ export class BepacomExplorerView extends HTMLElement {
     this.shadowRoot.getElementById("importOverrides")?.addEventListener("click", () => this._openOverrideImport());
     this.shadowRoot.getElementById("importOverridesFile")?.addEventListener("change", (ev) => this._importOverrides(ev.target.files?.[0]));
     this.shadowRoot.getElementById("reloadIntegration")?.addEventListener("click", () => this._reloadIntegration());
-    this.shadowRoot.getElementById("applyUpdateModes")?.addEventListener("click", () => this._applyUpdateModes());
+    this.shadowRoot.getElementById("applyChanges")?.addEventListener("click", () => this._applyPendingChanges());
     this.shadowRoot.getElementById("search")?.addEventListener("input", (ev) => this._setFilter("search", ev.target.value));
     this.shadowRoot.getElementById("virtualSearch")?.addEventListener("input", (ev) => {
       this._virtualSearch = ev.target.value || "";
@@ -4407,14 +4557,19 @@ export class BepacomExplorerView extends HTMLElement {
       const switchValues = this.shadowRoot.getElementById("multistateSwitchValues");
       if (switchValues) switchValues.style.display = ev.target.value === "switch" ? "contents" : "none";
     });
+    this._syncContextualEditorFields();
     this.shadowRoot.querySelectorAll(".side input, .side select, .side textarea").forEach((el) => {
       el.addEventListener("input", () => {
         this._editorDirty = true;
+        if (el.id) this._dirtyFieldIds.add(el.id);
+        this._syncContextualEditorFields();
         this._updateEditorState();
         if (el.id && el.id.startsWith("virtualBinary")) this._refreshVirtualRulePreview();
       });
       el.addEventListener("change", () => {
         this._editorDirty = true;
+        if (el.id) this._dirtyFieldIds.add(el.id);
+        this._syncContextualEditorFields();
         this._updateEditorState();
         if (el.id && el.id.startsWith("virtualBinary")) this._refreshVirtualRulePreview();
       });
@@ -4477,6 +4632,19 @@ export class BepacomExplorerView extends HTMLElement {
         this._sideScrollPositions.set(this._sideScrollKey(), sideBody.scrollTop);
       };
     }
+  }
+
+  _syncContextualEditorFields() {
+    const profile = this.shadowRoot?.getElementById("editWriteProfile")?.value || "direct";
+    this.shadowRoot?.querySelectorAll(".glt-profile-field").forEach((field) => {
+      field.hidden = profile === "direct";
+    });
+    this.shadowRoot?.querySelectorAll(".glt-as-profile-field").forEach((field) => {
+      field.hidden = profile !== "glt_set_as";
+    });
+    const virtualEnabled = !!this.shadowRoot?.getElementById("virtualBinaryEnabled")?.checked;
+    const virtualFields = this.shadowRoot?.getElementById("virtualBinaryFields");
+    if (virtualFields) virtualFields.hidden = !virtualEnabled;
   }
 
 
