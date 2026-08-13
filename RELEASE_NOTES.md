@@ -1,8 +1,10 @@
-# 🌍 Engelsoft Beacon BACnet/IP 1.3.0b2
+# 🌍 Engelsoft Beacon BACnet/IP 1.3.0
 
 > **BACnet now speaks human — well, at least German and English. 😄**
 
-This beta makes the integrated BACnet Explorer follow the active Home Assistant user language. German users keep the familiar German interface, English users get a fully translated Explorer, and every unknown locale falls back to English.
+## English
+
+This release makes the integrated BACnet Explorer follow the active Home Assistant user language. German users keep the familiar German interface, English users get a fully translated Explorer, and every unknown locale falls back to English.
 
 ## Highlights
 
@@ -18,7 +20,27 @@ This beta makes the integrated BACnet Explorer follow the active Home Assistant 
 
 Restart Home Assistant after installing the update. If the Explorer still shows the previous language or frontend build, reload the page while bypassing the browser cache.
 
-This is a **pre-release** based on the Protocol V2 `1.3.0` beta line and still requires [Engelsoft BACstac](https://github.com/engelsofta/engelsoft-bacstac-ha-addon).
+This is the stable `1.3.0` release and requires [Engelsoft BACstac](https://github.com/engelsofta/engelsoft-bacstac-ha-addon).
+
+## Deutsch
+
+Mit diesem Release richtet sich der integrierte BACnet Explorer nach der aktiven Home-Assistant-Benutzersprache. Deutsche Benutzer behalten die vertraute deutsche Oberfläche, englische Benutzer erhalten einen vollständig übersetzten Explorer und unbekannte Spracheinstellungen verwenden Englisch als Fallback.
+
+### Highlights
+
+- automatische deutsche und englische Explorer-Oberfläche
+- Englisch als Fallback für unbekannte oder fehlende Home-Assistant-Spracheinstellungen
+- übersetzte Konfiguration, Live-Ansicht, Diagnose, Point Inspector, Dialoge, Filter und Transportzustände
+- sprachabhängige Dezimalformatierung (`1,28` auf Deutsch, `1.28` auf Englisch)
+- sichere Übersetzung nach verzögertem Lit-Rendering und partiellen Live-Aktualisierungen ohne dauerhafte DOM-Beobachter
+- vollständige deutsche und englische README-Dokumentation
+- Frontend-Cache-Build `0679`
+
+### Hinweise zum Update
+
+Starte Home Assistant nach der Installation vollständig neu. Falls der Explorer noch die vorherige Sprache oder Frontend-Version zeigt, lade die Seite einmal ohne Browser-Cache neu.
+
+Dies ist das stabile Release `1.3.0` und benötigt [Engelsoft BACstac](https://github.com/engelsofta/engelsoft-bacstac-ha-addon).
 
 ---
 

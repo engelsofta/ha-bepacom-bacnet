@@ -1,6 +1,8 @@
 # Changelog
 
-## 1.3.0b2 - 2026-08-13
+## 1.3.0 - 2026-08-13
+
+### English
 
 - added automatic German/English BACnet Explorer localization based on the active Home Assistant user language
 - English is now used as the fallback for unknown or missing locales
@@ -9,6 +11,16 @@
 - added a complete German README and language links between both documentation versions
 - fixed frontend localization across delayed Lit renders and live partial updates without persistent DOM observers
 - bumped the Explorer frontend cache build to `0679`
+
+### Deutsch
+
+- automatische deutsch-/englischsprachige Explorer-Oberfläche anhand der aktiven Home-Assistant-Benutzersprache
+- Englisch als Fallback für unbekannte oder fehlende Spracheinstellungen
+- übersetzte Statuskarten, Point Inspector, Diagnose, Dialoge, Filter und dynamische BACnet-Transportzustände
+- sprachabhängige Zahlenformatierung für Deutsch und Englisch
+- vollständige deutsche README und gegenseitige Sprachlinks in beiden Dokumentationen
+- zuverlässige Übersetzung nach verzögertem Lit-Rendering und partiellen Live-Aktualisierungen ohne dauerhafte DOM-Beobachter
+- Explorer-Frontend-Build auf `0679` erhöht
 
 ## 1.2.6 - 2026-08-05
 
