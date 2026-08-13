@@ -1,3 +1,27 @@
+# 🌍 Engelsoft Beacon BACnet/IP 1.3.0b2
+
+> **BACnet now speaks human — well, at least German and English. 😄**
+
+This beta makes the integrated BACnet Explorer follow the active Home Assistant user language. German users keep the familiar German interface, English users get a fully translated Explorer, and every unknown locale falls back to English.
+
+## Highlights
+
+- automatic German and English Explorer localization
+- English fallback for unknown or missing Home Assistant locales
+- translated configuration, live view, diagnostics, Point Inspector, dialogs, filters, and runtime transport labels
+- locale-aware decimal formatting (`1,28` in German, `1.28` in English)
+- safe localization after delayed Lit rendering and live partial updates, without persistent DOM observers
+- complete German and English README documentation
+- frontend cache build `0679`
+
+## Upgrade notes
+
+Restart Home Assistant after installing the update. If the Explorer still shows the previous language or frontend build, reload the page while bypassing the browser cache.
+
+This is a **pre-release** based on the Protocol V2 `1.3.0` beta line and still requires [Engelsoft BACstac](https://github.com/engelsofta/engelsoft-bacstac-ha-addon).
+
+---
+
 # Engelsoft Beacon BACnet/IP 1.2.6
 
 Version 1.2.6 promotes the complete integration-controlled BACnet workflow to the stable channel.

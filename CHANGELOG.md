@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.0b2 - 2026-08-13
+
+- added automatic German/English BACnet Explorer localization based on the active Home Assistant user language
+- English is now used as the fallback for unknown or missing locales
+- localized live status cards, Point Inspector, diagnostics, dialogs, filters, and dynamic BACnet transport states
+- added locale-aware English and German number formatting
+- added a complete German README and language links between both documentation versions
+- fixed frontend localization across delayed Lit renders and live partial updates without persistent DOM observers
+- bumped the Explorer frontend cache build to `0679`
+
 ## 1.2.6 - 2026-08-05
 
 ### No reloads, no noise — just BACnet in sync
