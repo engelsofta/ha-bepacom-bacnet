@@ -6,8 +6,15 @@
 
 This release makes the integrated BACnet Explorer follow the active Home Assistant user language. German users keep the familiar German interface, English users get a fully translated Explorer, and every unknown locale falls back to English.
 
-## Highlights
+### Highlights
 
+- Protocol V2 communication with capability negotiation and gateway compatibility checks
+- optional API-token authentication for BACstac access
+- clear Home Assistant repair issues for incompatible gateways and unavailable BACstac applications
+- stronger WebSocket lifecycle, reconnect behavior, sequence tracking, resynchronization, command metrics, and diagnostics
+- improved setup validation, error handling, connection diagnostics, and runtime transport visibility
+- expanded Protocol V2 health, live activity, Point Inspector, and transport-state details in the Explorer
+- reproducible frontend builds and reload-safe custom-element registration
 - automatic German and English Explorer localization
 - English fallback for unknown or missing Home Assistant locales
 - translated configuration, live view, diagnostics, Point Inspector, dialogs, filters, and runtime transport labels
@@ -16,7 +23,7 @@ This release makes the integrated BACnet Explorer follow the active Home Assista
 - complete German and English README documentation
 - frontend cache build `0679`
 
-## Upgrade notes
+### Upgrade notes
 
 Restart Home Assistant after installing the update. If the Explorer still shows the previous language or frontend build, reload the page while bypassing the browser cache.
 
@@ -28,6 +35,13 @@ Mit diesem Release richtet sich der integrierte BACnet Explorer nach der aktiven
 
 ### Highlights
 
+- Protocol-V2-Kommunikation mit Funktionsaushandlung und Gateway-Kompatibilitätsprüfung
+- optionale API-Token-Authentifizierung für den BACstac-Zugriff
+- verständliche Home-Assistant-Reparaturhinweise für inkompatible Gateways und nicht verfügbare BACstac-Anwendungen
+- robusterer WebSocket-Lebenszyklus mit Wiederverbindung, Sequenzverfolgung, Resynchronisation, Befehlsmetriken und Diagnose
+- verbesserte Einrichtungsprüfung, Fehlerbehandlung, Verbindungsdiagnose und Sichtbarkeit der aktiven Transportzustände
+- erweiterter Protocol-V2-Status, Live-Aktivität, Point Inspector und Transportdetails im Explorer
+- reproduzierbare Frontend-Builds und sicheres erneutes Laden von Custom Elements
 - automatische deutsche und englische Explorer-Oberfläche
 - Englisch als Fallback für unbekannte oder fehlende Home-Assistant-Spracheinstellungen
 - übersetzte Konfiguration, Live-Ansicht, Diagnose, Point Inspector, Dialoge, Filter und Transportzustände

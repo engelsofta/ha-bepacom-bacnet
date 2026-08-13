@@ -4,6 +4,13 @@
 
 ### English
 
+- introduced Protocol V2 communication with explicit capability negotiation and gateway compatibility checks
+- added authenticated BACstac API access using an optional API token
+- added clear repair issues for incompatible gateways and unavailable BACstac applications
+- expanded WebSocket lifecycle management, reconnect behavior, diagnostics, command metrics, sequence tracking, and resynchronization reporting
+- improved setup validation, error handling, connection diagnostics, and runtime transport visibility
+- extended Explorer Protocol V2 health, live activity, Point Inspector, and transport-state details
+- made frontend builds reproducible and safe when custom elements are reloaded
 - added automatic German/English BACnet Explorer localization based on the active Home Assistant user language
 - English is now used as the fallback for unknown or missing locales
 - localized live status cards, Point Inspector, diagnostics, dialogs, filters, and dynamic BACnet transport states
@@ -14,6 +21,13 @@
 
 ### Deutsch
 
+- Protocol-V2-Kommunikation mit expliziter Funktionsaushandlung und Gateway-Kompatibilitätsprüfung eingeführt
+- authentifizierten BACstac-API-Zugriff über ein optionales API-Token ergänzt
+- verständliche Reparaturhinweise für inkompatible Gateways und nicht verfügbare BACstac-Anwendungen ergänzt
+- WebSocket-Lebenszyklus, Wiederverbindung, Diagnose, Befehlsmetriken, Sequenzverfolgung und Resynchronisationsanzeige erweitert
+- Einrichtungsprüfung, Fehlerbehandlung, Verbindungsdiagnose und Sichtbarkeit der aktiven Transportzustände verbessert
+- Protocol-V2-Status, Live-Aktivität, Point Inspector und Transportdetails im Explorer erweitert
+- reproduzierbare Frontend-Builds und sicheres erneutes Laden von Custom Elements ergänzt
 - automatische deutsch-/englischsprachige Explorer-Oberfläche anhand der aktiven Home-Assistant-Benutzersprache
 - Englisch als Fallback für unbekannte oder fehlende Spracheinstellungen
 - übersetzte Statuskarten, Point Inspector, Diagnose, Dialoge, Filter und dynamische BACnet-Transportzustände
