@@ -7411,10 +7411,24 @@ let BepacomRuntimeDashboard = class extends i {
       if (age >= 0 && age < 60) bins[59 - age] += 1;
     }
     const peak = Math.max(0, ...bins);
+    const lastMinute = bins.reduce((sum, count) => sum + count, 0);
+    const average = (lastMinute / 60).toLocaleString("de-DE", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
     const sources = [...new Set(this.model.liveChanges.map((item) => String(item.source || "unknown")))].sort();
     const types = [...new Set(this.model.liveChanges.map((item) => String(item.object_type || "unknown")))].sort();
     return b`
       <div class="live-monitor">
+        <div class="live-summary">
+          <span><b>${this.model.liveChanges.length.toLocaleString("de-DE")}</b> gespeichert</span>
+          <span><b>${filtered.length.toLocaleString("de-DE")}</b> im Filter</span>
+          <span><b>${average}/s</b> letzte Minute</span>
+          <span><b>${peak}/s</b> Spitze</span>
+          <button class="secondary live-small-btn" @click=${() => this._action("toggle-live")}>
+            ${this.model.livePaused ? "Fortsetzen" : "Pausieren"}
+          </button>
+        </div>
         <div class="live-chart" aria-label="Änderungen der letzten 60 Sekunden">
           ${bins.map((count) => {
       const height = peak ? Math.max(3, Math.round(count / peak * 50)) : 3;
@@ -7453,9 +7467,6 @@ let BepacomRuntimeDashboard = class extends i {
           <button class="secondary live-small-btn" title="Monitorverlauf leeren" @click=${() => this._action("clear-live")}>
             Leeren
           </button>
-          <button class="secondary live-small-btn" @click=${() => this._action("toggle-live")}>
-            ${this.model.livePaused ? "Fortsetzen" : "Pausieren"}
-          </button>
         </div>
         <div class="live-table-wrap">
           <table class="live-table">
@@ -7463,14 +7474,14 @@ let BepacomRuntimeDashboard = class extends i {
             <tbody>
               ${filtered.length ? filtered.slice(-120).reverse().map(
       (item) => b`
-                      <tr class=${item.source === "write" ? "live-write" : ""}
+                      <tr
                         title=${`${item.device_id}/${item.object_type}:${item.object_id} · Im Point Inspector öffnen`}
                         @click=${() => this._action("select-point", { uniqueId: item.resolved_unique_id || item.unique_id })}
                       >
                         <td>${this._formatTime(item.ts)}</td>
                         <td><b>${item.friendly_name || item.object_name || item.object_key || item.unique_id}</b><small>${item.entity_id || item.object_key || item.unique_id}</small></td>
-                        <td class="live-value">${this._displayValue(item.previous_value)}<span>→</span>${item.activity === "release" ? `Freigabe P${item.priority ?? "-"}` : this._displayValue(item.value)}</td>
-                        <td><span class=${`live-source ${item.source === "write" ? "write" : ""}`}>${item.source === "write" ? item.activity === "release" ? "Freigabe" : "Schreiben" : item.source || "-"}</span></td>
+                        <td class="live-value">${this._displayValue(item.previous_value)}<span>→</span>${this._displayValue(item.value)}</td>
+                        <td><span class="live-source">${item.source || "-"}</span></td>
                       </tr>
                     `
     ) : b`<tr><td colspan="4" class="muted">Noch keine passenden Wertänderungen.</td></tr>`}
@@ -7513,9 +7524,9 @@ let BepacomRuntimeDashboard = class extends i {
         </div>
         <div class=${`protocol-health-item ${Number(protocol.commandErrors || 0) ? "warn" : ""}`}>
           <small>Befehle</small><strong>${commands}</strong>
-          <span>Erfolgreich / Fehler &middot; ${String(protocol.commandLatency ?? "-")}</span>
+          <span>Erfolgreich / Fehler · ${String(protocol.commandLatency ?? "-")}</span>
         </div>
-        <div class="protocol-health-version">App ${String(protocol.appVersion ?? "-")} &middot; Protokoll ${String(protocol.protocolVersion ?? "-")}</div>
+        <div class="protocol-health-version">App ${String(protocol.appVersion ?? "-")} · Protokoll ${String(protocol.protocolVersion ?? "-")}</div>
       </div>
     `;
   }
