@@ -622,6 +622,303 @@ class ExplorerPreferences {
     return value === "1" || value === "true";
   }
 }
+function normalizeLanguage(value) {
+  return String(value || "").toLowerCase().startsWith("de") ? "de" : "en";
+}
+const ENGLISH = [
+  ["Entity-ID: nur Kleinbuchstaben, Zahlen und Unterstriche im Format domain.name.", "Entity ID: use only lowercase letters, numbers and underscores in the format domain.name."],
+  ["Der Mindestwert muss kleiner als der Höchstwert sein.", "The minimum must be lower than the maximum."],
+  ["Die Schrittweite muss größer als 0 sein.", "The step size must be greater than 0."],
+  ["BACnet-Priorität muss zwischen 1 und 16 liegen.", "BACnet priority must be between 1 and 16."],
+  ["Zeitüberschreitung bei der Verbindung zu Home Assistant", "Timed out while connecting to Home Assistant"],
+  ["Keiner der importierten Punkte ist in diesem Gateway vorhanden.", "None of the imported points exists on this gateway."],
+  ["Gespeichert. Die Änderung wartet auf „Änderungen anwenden“.", "Saved. The change is waiting for Apply changes."],
+  ["Virtuelle Entität wurde als Kopie in den Editor übernommen. Zum Anlegen bitte Speichern klicken.", "A copy of the virtual entity was loaded into the editor. Click Save to create it."],
+  ["Virtuelle Entität wurde in den Editor übernommen. Zum Anwenden bitte Speichern klicken.", "The virtual entity was loaded into the editor. Click Save to apply it."],
+  ["Integration wurde neu geladen. Alle Änderungen sind aktiv.", "The integration was reloaded. All changes are active."],
+  ["Inline-Änderung gespeichert. Für Entity-Änderungen bitte Integration neu laden.", "Inline change saved. Reload the integration for entity changes."],
+  ["Objekt-Assistent: Vorschlag übernommen. Zum Anwenden bitte Speichern klicken.", "Object assistant: suggestion applied. Click Save to apply it."],
+  ["Alle Änderungen sind aktiv.", "All changes are active."],
+  ["Änderungen gespeichert.", "Changes saved."],
+  ["Unbekannter Fehler", "Unknown error"],
+  ["Entity-ID wird bereits von", "Entity ID is already used by"],
+  ["Beim GLT/Stufe-Profil wird zuerst das binaryValue mit derselben Objekt-ID aktiviert und danach der Multi-State Output geschrieben. Beide Schreibvorgänge erfolgen fest auf BACnet-Priorität 8.", "With the GLT/stage profile, the binaryValue with the same object ID is enabled first, followed by writing the multi-state output. Both writes use BACnet priority 8."],
+  ["Snapshot aktiv – Aktualisierung über die gemeinsame Snapshot-Verbindung", "Snapshot active – updates use the shared snapshot connection"],
+  ["Aktualisierungsmodus gespeichert. Wenn du fertig bist, oben gesammelt anwenden.", "Update mode saved. When finished, apply all changes above."],
+  ["Deaktiviert / keine Aktualisierung", "Disabled / no updates"],
+  ["Erzeugt zusätzlich eine Binary-Sensor-Entität aus diesem Rohwert.", "Also creates a binary sensor entity from this raw value."],
+  ["Aktualisierung über die gemeinsame Snapshot-Verbindung", "Updates use the shared snapshot connection"],
+  ["Änderungen der letzten 60 Sekunden", "Changes during the last 60 seconds"],
+  ["Objekte gespeichert. Mit „Änderungen anwenden“ aktivieren.", "objects saved. Activate them with Apply changes."],
+  ["Neue Einträge werden im Point Inspector unter „Virtuelle Entität konfigurieren“ angelegt.", "Create new entries in the Point Inspector under Configure virtual entity."],
+  ["Virtuelle Entität konfigurieren", "Configure virtual entity"],
+  ["vor 8 s", "8 s ago"],
+  ["vom WebSocket", "from WebSocket"],
+  ["im Payload", "in payload"],
+  ["an die Integration", "to the integration"],
+  ["tatsächlich geändert", "actually changed"],
+  ["Objekte geprüft", "Objects inspected"],
+  ["Nachrichten", "Messages"],
+  ["Gefiltert", "Filtered"],
+  ["unverändert", "unchanged"],
+  ["Änderungen", "Changes"],
+  ["Aktives Polling", "Active polling"],
+  ["Letztes Update", "Last update"],
+  ["Schreibbar", "Writable"],
+  ["Modus", "Mode"],
+  ["keine Aktualisierung", "no updates"],
+  ["keine", "none"],
+  ["COV aktiv", "COV active"],
+  ["Polling aktiv", "Polling active"],
+  ["Push aktiv", "Push active"],
+  ["Polling-Fallback aktiv", "Polling fallback active"],
+  ["Beendet", "Stopped"],
+  ["Luftfeuchtigkeit", "Humidity"],
+  ["Kohlenmonoxid", "Carbon monoxide"],
+  ["Kälte", "Cold"],
+  ["Verbindung", "Connectivity"],
+  ["Bewegung / Stillstand", "Motion / no motion"],
+  ["Belegung", "Occupancy"],
+  ["Öffnung", "Opening"],
+  ["Batterie", "Battery"],
+  ["Garagentor", "Garage door"],
+  ["Steckdose / Plug", "Outlet / plug"],
+  ["Nicht verbunden", "Disconnected"],
+  ["Nicht ändern", "Do not change"],
+  ["Konfiguration der Entity", "Entity configuration"],
+  ["HA ENTITY ID", "HA ENTITY ID"],
+  ["Wartet auf COV", "Waiting for COV"],
+  ["COV-Anmeldung läuft", "COV subscription in progress"],
+  ["Polling wartet auf Gerät", "Polling is waiting for device"],
+  ["Polling gestört", "Polling error"],
+  ["Noch nicht von BACstac gemeldet", "Not yet reported by BACstac"],
+  ["Noch nicht gemeldet", "Not reported yet"],
+  ["COV-Limit erreicht", "COV limit reached"],
+  ["Keine COV-Werte empfangen", "No COV values received"],
+  ["COV-Anmeldung fehlgeschlagen", "COV subscription failed"],
+  ["Nach Reload verfügbar", "Available after reload"],
+  ["Verarbeitungskette", "Processing pipeline"],
+  ["Protokoll", "Protocol"],
+  ["Vorschlag übernehmen", "Apply suggestion"],
+  ["Objekt-Assistent", "Object assistant"],
+  ["Vorschlag", "Suggestion"],
+  ["aktuell", "current"],
+  ["Energie", "Energy"],
+  ["Spannung", "Voltage"],
+  ["Strom", "Current"],
+  ["Frequenz", "Frequency"],
+  ["Druck", "Pressure"],
+  ["Entfernung", "Distance"],
+  ["Beleuchtungsstärke", "Illuminance"],
+  ["Tür", "Door"],
+  ["Hitze", "Heat"],
+  ["Licht", "Light"],
+  ["Schloss", "Lock"],
+  ["Feuchtigkeit", "Moisture"],
+  ["Bewegung", "Motion"],
+  ["Anwesenheit", "Presence"],
+  ["Läuft", "Running"],
+  ["Sicherheit", "Safety"],
+  ["Rauch", "Smoke"],
+  ["Geräusch", "Sound"],
+  ["Manipulation", "Tamper"],
+  ["Fenster", "Window"],
+  ["Stufe setzen", "Set stage"],
+  ["Wert setzen", "Set value"],
+  ["Ungespeicherte Änderungen verwerfen und einen anderen Punkt öffnen?", "Discard unsaved changes and open another point?"],
+  ["Ungespeicherte Änderungen verwerfen und den Bereich wechseln?", "Discard unsaved changes and switch section?"],
+  ["Ungespeicherte Änderungen verwerfen und Ansicht wechseln?", "Discard unsaved changes and switch view?"],
+  ["Diese Aktion entfernt die virtuelle Entität aus der Engelsoft-Beacon-Konfiguration und aus der Home-Assistant-Entity-Registry. Danach bitte die Integration neu laden.", "This removes the virtual entity from the Engelsoft Beacon configuration and the Home Assistant entity registry. Reload the integration afterwards."],
+  ["Erzeugt zusätzlich eine neue Binary-Sensor-Entität aus diesem Rohwert. Die vorhandene BACnet-Entität bleibt bestehen. Für mehrere virtuelle Entitäten einfach eine andere Unique ID verwenden und erneut speichern.", "Also creates a new binary sensor entity from this raw value. The existing BACnet entity remains unchanged. To create multiple virtual entities, use a different unique ID and save again."],
+  ["Hier werden ausschließlich die virtuellen Entitäten angezeigt, die dem aktuell ausgewählten BACnet-Punkt zugeordnet sind. Neue Einträge werden im Reiter „Point Inspector“ unter „Konfiguration der Entität“ angelegt.", "Only virtual entities assigned to the currently selected BACnet point are shown here. Create new entries in the Point Inspector under Entity configuration."],
+  ["Wähle links einen BACnet-Punkt aus. Anschließend werden hier nur dessen zugeordnete virtuelle Entitäten angezeigt.", "Select a BACnet point on the left. Its assigned virtual entities will then be shown here."],
+  ["Noch keine virtuellen Entitäten angelegt. Öffne im Explorer einen BACnet-Datenpunkt und erstelle dort unter „Virtuelle Entität“ einen neuen Eintrag.", "No virtual entities have been created yet. Open a BACnet point in Explorer and create one under Virtual entity."],
+  ["Eigene Übersicht aller aus BACnet-Datenpunkten erzeugten virtuellen Home-Assistant-Entitäten.", "Overview of all virtual Home Assistant entities created from BACnet points."],
+  ["Grenzen und Schrittweite der Home-Assistant-Number sowie die BACnet-Schreibpriorität für direktes Schreiben.", "Limits and step size of the Home Assistant number entity and the BACnet write priority for direct writes."],
+  ["Als Schalter wird nur der konfigurierte AUS- bzw. EIN-Wert geschrieben. Andere aktuelle Werte werden als unbekannt angezeigt.", "In switch mode only the configured OFF or ON value is written. Other current values are shown as unknown."],
+  ["Änderungen werden gespeichert, ohne die Integration sofort neu zu laden. Wenn du fertig bist, oben „Integration neu laden“ klicken.", "Changes are saved without immediately reloading the integration. When finished, click Reload integration above."],
+  ["Eine BACnet-Priorität zwischen 1 und 7 übersteuert den üblichen Bedienwert auf Priorität 8.", "A BACnet priority from 1 to 7 overrides the usual operator value at priority 8."],
+  ["Ringpuffer: maximal 10.000 Änderungen · angezeigt werden die neuesten 120 Treffer", "Ring buffer: up to 10,000 changes · showing the latest 120 matches"],
+  ["Noch kein Verlauf vorhanden. Der Verlauf füllt sich mit eingehenden Wertänderungen.", "No history yet. Incoming value changes will appear here."],
+  ["Dieser BACnet-Punkt ist laut Discovery nicht schreibbar.", "This BACnet point is not writable according to discovery."],
+  ["Keine zusätzlichen Engineering-Daten vorhanden.", "No additional engineering data available."],
+  ["Noch keine passenden Wertänderungen.", "No matching value changes yet."],
+  ["Ungespeicherte Änderungen wurden verworfen.", "Unsaved changes were discarded."],
+  ["Ungespeicherte Änderungen", "Unsaved changes"],
+  ["bitte speichern oder verwerfen.", "please save or discard."],
+  ["Virtuelle Entität löschen?", "Delete virtual entity?"],
+  ["Virtuelle Entitäten", "Virtual entities"],
+  ["Virtuelle Entität", "Virtual entity"],
+  ["Neue virtuelle Entität", "New virtual entity"],
+  ["Konfiguration der Entität", "Entity configuration"],
+  ["Virtuellen Binary Sensor erzeugen", "Create virtual binary sensor"],
+  ["Suche virtuelle Entitäten", "Search virtual entities"],
+  ["Suche BACnet-Objekte", "Search BACnet objects"],
+  ["Keine BACnet-Objekte gefunden.", "No BACnet objects found."],
+  ["Alle Objekttypen", "All object types"],
+  ["Alle Devices", "All devices"],
+  ["Alle Quellen", "All sources"],
+  ["Alle Typen", "All types"],
+  ["Weitere Aktionen öffnen", "Open more actions"],
+  ["Weitere Aktionen", "More actions"],
+  ["Details nach rechts einklappen", "Collapse details to the right"],
+  ["Details von rechts ausklappen", "Expand details from the right"],
+  ["Details einklappen", "Collapse details"],
+  ["Details ausklappen", "Expand details"],
+  ["Integration neu laden", "Reload integration"],
+  ["Änderungen anwenden", "Apply changes"],
+  ["Änderungen verwerfen", "Discard changes"],
+  ["Overrides exportieren", "Export overrides"],
+  ["Overrides importieren", "Import overrides"],
+  ["Overrides zurücksetzen", "Reset overrides"],
+  ["Override zurücksetzen", "Reset override"],
+  ["Auswahl leeren", "Clear selection"],
+  ["Monitorverlauf leeren", "Clear monitor history"],
+  ["Aktualisieren", "Refresh"],
+  ["Konfiguration", "Configuration"],
+  ["Explorer und virtuelle Entitäten", "Explorer and virtual entities"],
+  ["Live-Ansicht", "Live view"],
+  ["Diagramm und Live-Log", "Chart and live log"],
+  ["Diagnose", "Diagnostics"],
+  ["Status, Laufzeit und Push-Werte", "Status, runtime and push values"],
+  ["Hauptbereiche", "Main sections"],
+  ["Punkte insgesamt", "Total points"],
+  ["Aktive Entitäten", "Active entities"],
+  ["Verbindungsfehler", "Connection failures"],
+  ["Verbunden", "Connected"],
+  ["API / Protokoll", "API / protocol"],
+  ["Push-Verarbeitung", "Push processing"],
+  ["Änderungen/Nachricht", "changes/message"],
+  ["Status / Laufzeit", "Status / runtime"],
+  ["Entwickler / Push-Diagnose", "Developer / push diagnostics"],
+  ["Datenverarbeitung", "Data processing"],
+  ["Aktiv & synchron", "Active & synchronized"],
+  ["Getrennt", "Disconnected"],
+  ["Eventstrom", "Event stream"],
+  ["Befehle", "Commands"],
+  ["Erfolgreich / Fehler", "Successful / errors"],
+  ["Gruppierung", "Grouping"],
+  ["Nach BACnet-Typ", "By BACnet type"],
+  ["Nach Device", "By device"],
+  ["nur Overrides", "overrides only"],
+  ["Objekttyp", "Object type"],
+  ["Alle", "All"],
+  ["Keine", "None"],
+  ["Aktiv", "Active"],
+  ["Deaktiviert", "Disabled"],
+  ["Gewünscht", "Requested"],
+  ["Tatsächlich aktiv", "Actually active"],
+  ["Aktualisierung aktiv:", "Update active:"],
+  ["Aktualisierung", "Update"],
+  ["Aktualisierungsmodus", "Update mode"],
+  ["Sichtbare auswählen", "Select visible"],
+  ["Objekt", "Object"],
+  ["Punkte", "Points"],
+  ["HA Entität", "HA entity"],
+  ["HA Entitätsname", "HA entity name"],
+  ["Wert", "Value"],
+  ["Einheit", "Unit"],
+  ["Schreiben", "Write"],
+  ["Freigabe", "Release"],
+  ["Direkt schreiben", "Write directly"],
+  ["Über GLT schreiben", "Write via GLT"],
+  ["Wert schreiben", "Write value"],
+  ["Neuer Wert", "New value"],
+  ["Darstellung in Home Assistant", "Display in Home Assistant"],
+  ["Entitätstyp", "Entity type"],
+  ["Zahlenwert", "Numeric value"],
+  ["Schalter", "Switch"],
+  ["AUS-Wert", "OFF value"],
+  ["EIN-Wert", "ON value"],
+  ["Stellbereich", "Value range"],
+  ["Mindestwert", "Minimum"],
+  ["Höchstwert", "Maximum"],
+  ["Schrittweite", "Step size"],
+  ["BACnet-Priorität", "BACnet priority"],
+  ["Schreibprofil", "Write profile"],
+  ["Profil", "Profile"],
+  ["Wartezeit nach GLT aktivieren (ms)", "Delay after enabling GLT (ms)"],
+  ["Wartezeit nach Wert schreiben (ms)", "Delay after writing value (ms)"],
+  ["Wartezeit vor Freigabe (ms)", "Delay before release (ms)"],
+  ["Priorität 8 anschließend freigeben", "Release priority 8 afterwards"],
+  ["analogValue und binaryValue freigeben", "release analogValue and binaryValue"],
+  ["Regel-Hilfe:", "Rule help:"],
+  ["Aktueller BACnet-Wert", "Current BACnet value"],
+  ["Regelergebnis", "Rule result"],
+  ["EIN wenn", "ON when"],
+  ["AUS wenn", "OFF when"],
+  ["Sonst", "Otherwise"],
+  ["Quelle", "Source"],
+  ["Zustand", "State"],
+  ["Aktionen", "Actions"],
+  ["Bearbeiten", "Edit"],
+  ["Duplizieren", "Duplicate"],
+  ["Löschen", "Delete"],
+  ["Speichern", "Save"],
+  ["Anwenden", "Apply"],
+  ["Nicht ändern", "Do not change"],
+  ["Automatisch", "Automatic"],
+  ["Keine Einheit", "No unit"],
+  ["Temperatur", "Temperature"],
+  ["Leistung", "Power"],
+  ["Dauer", "Duration"],
+  ["Wähle links ein Objekt aus.", "Select an object on the left."],
+  ["Wähle links einen BACnet-Punkt aus.", "Select a BACnet point on the left."],
+  ["Für diesen Punkt sind noch keine virtuellen Entitäten vorhanden.", "This point has no virtual entities yet."],
+  ["Zeit", "Time"],
+  ["Punkt", "Point"],
+  ["Alt → Neu", "Old → New"],
+  ["Mehr", "More"],
+  ["Leeren", "Clear"],
+  ["Ja", "Yes"],
+  ["Nein", "No"],
+  ["Achtung:", "Warning:"],
+  ["leer = Standardname", "blank = default name"],
+  ["Gerätemodelle", "Device models"],
+  ["BACnet-Punkte", "BACnet points"],
+  ["Polling-Fallback", "Polling fallback"],
+  ["Wartet", "Waiting"],
+  ["Name, ID, Quelle · * und ? möglich", "Name, ID, source · * and ? supported"]
+];
+const ORDERED_ENGLISH = [...ENGLISH].sort((a2, b2) => b2[0].length - a2[0].length);
+function translateText(value, language) {
+  if (language !== "en" || !value) return value;
+  const exact = {
+    aktiv: "active",
+    aus: "off",
+    freigeben: "release",
+    aktivieren: "enable"
+  };
+  const trimmed = value.trim();
+  if (exact[trimmed]) return value.replace(trimmed, exact[trimmed]);
+  let result = value;
+  for (const [german, english] of ORDERED_ENGLISH) result = result.split(german).join(english);
+  result = result.replace(/vor (\d+)\s*(ms|s|min|h)\b/g, "$1 $2 ago").replace(/(\d+) Änderungen? wartet(?:en)?/g, (_match, count) => `${count} pending change${count === "1" ? "" : "s"}`).replace(/(\d+) verknüpfte Entität(?:en)?/g, (_match, count) => `${count} linked entit${count === "1" ? "y" : "ies"}`).replace(/(\d+) Änderungen?/g, (_match, count) => `${count} change${count === "1" ? "" : "s"}`).replace(/(\d+) Overrides importieren/g, "$1 Import overrides").replace(/(\d+) unbekannte überspringen/g, "$1 unknown skipped");
+  return result;
+}
+const TRANSLATED_ATTRIBUTES = ["title", "aria-label", "placeholder"];
+function localizeDom(root, language) {
+  if (language !== "en") return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node;
+  while (node = walker.nextNode()) {
+    const parent = node.parentElement;
+    if (parent?.closest("style,script,code")) continue;
+    const current = node.nodeValue || "";
+    const translated = translateText(current, language);
+    if (translated !== current) node.nodeValue = translated;
+  }
+  root.querySelectorAll("*").forEach((element) => {
+    for (const attribute of TRANSLATED_ATTRIBUTES) {
+      if (element.hasAttribute(attribute)) {
+        const current = element.getAttribute(attribute) || "";
+        const translated = translateText(current, language);
+        if (translated !== current) element.setAttribute(attribute, translated);
+      }
+    }
+    if (element.shadowRoot) localizeDom(element.shadowRoot, language);
+  });
+}
 class BepacomExplorerView extends HTMLElement {
   constructor() {
     super();
@@ -706,6 +1003,8 @@ class BepacomExplorerView extends HTMLElement {
     if (this._mainSection === "diagnostics") this._dashboardTab = "developer";
     this._liveFilters = { search: "", source: "all", object_type: "all" };
     this._api = null;
+    this._language = "en";
+    this._localizationFrame = null;
   }
   _versionLabel() {
     const cfg = this.panel?.config || {};
@@ -748,6 +1047,7 @@ class BepacomExplorerView extends HTMLElement {
       this._recentChangeTimer = null;
     }
     if (this._toastTimer) window.clearTimeout(this._toastTimer);
+    if (this._localizationFrame !== null) window.cancelAnimationFrame(this._localizationFrame);
     window.removeEventListener("keydown", this._keyboardHandler);
     document.removeEventListener("visibilitychange", this._visibilityHandler);
     window.removeEventListener("beforeunload", this._beforeUnloadHandler);
@@ -811,6 +1111,9 @@ class BepacomExplorerView extends HTMLElement {
     this._validateEditor();
   }
   set hass(hass) {
+    const language = normalizeLanguage(hass?.language || hass?.locale?.language);
+    const languageChanged = language !== this._language;
+    this._language = language;
     this._hass = hass;
     this._api = hass ? new ExplorerApi(hass) : null;
     const wrap = this.shadowRoot?.querySelector(".wrap");
@@ -824,9 +1127,21 @@ class BepacomExplorerView extends HTMLElement {
       this._hasHass = true;
       this._startInitialLoad();
     }
+    if (languageChanged && this._connected) this._render();
   }
   get hass() {
     return this._hass;
+  }
+  _scheduleLocalization() {
+    if (this._language !== "en" || !this.shadowRoot) return;
+    if (this._localizationFrame !== null) window.cancelAnimationFrame(this._localizationFrame);
+    this._localizationFrame = window.requestAnimationFrame(() => {
+      this._localizationFrame = null;
+      if (this._connected && this._language === "en") localizeDom(this.shadowRoot, this._language);
+    });
+  }
+  _confirm(message) {
+    return window.confirm(translateText(message, this._language));
   }
   _isDarkTheme(hass = this._hass) {
     if (typeof hass?.themes?.darkMode === "boolean") return hass.themes.darkMode;
@@ -1088,6 +1403,7 @@ class BepacomExplorerView extends HTMLElement {
         this._configureRuntimeDashboard();
       }
     }
+    this._scheduleLocalization();
   }
   _updateListDom() {
     const wrap = this.shadowRoot?.getElementById("tableWrap");
@@ -1110,7 +1426,7 @@ class BepacomExplorerView extends HTMLElement {
     this._debounce = window.setTimeout(() => this._loadPoints(false), 250);
   }
   _selectPoint(point) {
-    if (this._editorDirty && this._selected?.unique_id !== point?.unique_id && !window.confirm("Ungespeicherte Änderungen verwerfen und einen anderen Punkt öffnen?")) {
+    if (this._editorDirty && this._selected?.unique_id !== point?.unique_id && !this._confirm("Ungespeicherte Änderungen verwerfen und einen anderen Punkt öffnen?")) {
       return;
     }
     this._editorDirty = false;
@@ -1283,7 +1599,7 @@ class BepacomExplorerView extends HTMLElement {
   async _deleteVirtualEntity(sourceUid, virtualUid, virtualName = "") {
     if (!this.hass || !sourceUid || !virtualUid) return;
     const label = virtualName || virtualUid;
-    const ok = window.confirm(`Virtuelle Entität löschen?
+    const ok = this._confirm(`Virtuelle Entität löschen?
 
 ${label}
 
@@ -1356,7 +1672,7 @@ Diese Aktion entfernt die virtuelle Entität aus der Engelsoft-Beacon-Konfigurat
       return;
     }
     const preview = this._reloadPreview();
-    if (preview.changed > 0 && !window.confirm(
+    if (preview.changed > 0 && !this._confirm(
       `Integration neu laden?
 
 ${preview.changed} geänderte Punkte werden angewendet.
@@ -1709,7 +2025,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       const items = document2.overrides.filter((item) => item && known.has(item.unique_id));
       const skipped = document2.overrides.length - items.length;
       if (!items.length) throw new Error("Keiner der importierten Punkte ist in diesem Gateway vorhanden.");
-      if (!window.confirm(`${items.length} Overrides importieren${skipped ? ` (${skipped} unbekannte überspringen)` : ""}?`)) return;
+      if (!this._confirm(`${items.length} Overrides importieren${skipped ? ` (${skipped} unbekannte überspringen)` : ""}?`)) return;
       this._saving = true;
       this._error = null;
       this._render();
@@ -1861,8 +2177,6 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       if (age >= 0 && age < 60) bins[59 - age] += 1;
     }
     const peak = Math.max(0, ...bins);
-    const lastMinute = bins.reduce((sum, count) => sum + count, 0);
-    const average = (lastMinute / 60).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const bars = bins.map((count) => {
       const height = peak ? Math.max(3, Math.round(count / peak * 50)) : 3;
       return `<i style="height:${height}px" title="${count} Änderung${count === 1 ? "" : "en"}"></i>`;
@@ -1881,19 +2195,13 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       </tr>`;
     }).join("");
     return `<div class="live-monitor">
-      <div class="live-summary">
-        <span><b>${this._liveChanges.length.toLocaleString("de-DE")}</b> gespeichert</span>
-        <span><b>${filtered.length.toLocaleString("de-DE")}</b> im Filter</span>
-        <span><b>${average}/s</b> letzte Minute</span>
-        <span><b>${peak}/s</b> Spitze</span>
-        <button id="livePause" class="secondary live-small-btn">${this._livePaused ? "Fortsetzen" : "Pausieren"}</button>
-      </div>
       <div class="live-chart" aria-label="Änderungen der letzten 60 Sekunden">${bars}</div>
       <div class="live-filters">
         <input id="liveSearch" value="${this._escape(this._liveFilters.search)}" placeholder="Filter / Wildcards …">
         <select id="liveSource"><option value="all">Alle Quellen</option>${options(sources, this._liveFilters.source)}</select>
         <select id="liveObjectType"><option value="all">Alle Typen</option>${options(types, this._liveFilters.object_type)}</select>
         <button id="liveClear" class="secondary live-small-btn" title="Monitorverlauf leeren">Leeren</button>
+        <button id="livePause" class="secondary live-small-btn">${this._livePaused ? "Fortsetzen" : "Pausieren"}</button>
       </div>
       <div class="live-table-wrap">
         <table class="live-table"><thead><tr><th>Zeit</th><th>Punkt</th><th>Alt → Neu</th><th>Quelle</th></tr></thead>
@@ -1964,7 +2272,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     const valueChanges = this._dashboardValueChanges(d2);
     const pushNotificationsRaw = d2.bacnet_push_notifications ?? d2.websocket_updates ?? d2.push_count;
     const pushNotifications = Number(pushNotificationsRaw);
-    const averageChangesPerPush = Number.isFinite(pushNotifications) && pushNotifications > 0 ? (Number(valueChanges) / pushNotifications).toLocaleString("de-DE", {
+    const averageChangesPerPush = Number.isFinite(pushNotifications) && pushNotifications > 0 ? (Number(valueChanges) / pushNotifications).toLocaleString(this._language === "de" ? "de-DE" : "en-US", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }) : "-";
@@ -2190,12 +2498,15 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       .live-table td { padding:5px 7px; border-top:1px solid color-mix(in srgb, var(--divider-color) 65%, transparent); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .live-table tbody tr { cursor:pointer; }
       .live-table tbody tr:hover { background:color-mix(in srgb, var(--primary-color) 9%, transparent); }
+      .live-table tbody tr.live-write { background:color-mix(in srgb, #4f9fcf 10%, transparent); box-shadow:inset 3px 0 0 #4f9fcf; }
+      .live-table tbody tr.live-write:hover { background:color-mix(in srgb, #4f9fcf 16%, transparent); }
       .live-table th:nth-child(1), .live-table td:nth-child(1) { width:72px; }
       .live-table th:nth-child(3), .live-table td:nth-child(3) { width:150px; }
       .live-table th:nth-child(4), .live-table td:nth-child(4) { width:70px; }
       .live-table td small { display:block; color:var(--secondary-text-color); overflow:hidden; text-overflow:ellipsis; }
       .live-value span { color:var(--primary-color); padding:0 5px; }
       .live-source { display:inline-flex; border:1px solid var(--divider-color); border-radius:10px; padding:1px 5px; font-size:10px; }
+      .live-source.write { color:#80c8ef; border-color:rgba(79,159,207,.42); background:rgba(79,159,207,.10); }
       .live-foot { color:var(--secondary-text-color); font-size:9px; margin-top:4px; text-align:right; }
       .dashboard-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr)); gap:7px; }
       .stat { padding:8px 10px; min-height:38px; border-radius:9px; background:var(--secondary-background-color); border:1px solid var(--divider-color); min-width:0; display:flex; align-items:center; }
@@ -3724,9 +4035,19 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         .inspector-head-actions { width:100%; justify-content:flex-start; }
       }
     `;
+    const languageStyles = this._language === "en" ? `
+      @media (max-width: 760px) {
+        .virtual-table td:nth-child(1)::before { content:"Source"; }
+        .virtual-table td:nth-child(2)::before { content:"HA entity"; }
+        .virtual-table td:nth-child(3)::before { content:"Type"; }
+        .virtual-table td:nth-child(4)::before { content:"State"; }
+        .virtual-table td:nth-child(8)::before { content:"Actions"; }
+        .table-wrap td[data-col='write-profile']::before { content:"Write"; }
+      }
+    ` : "";
     this.shadowRoot.innerHTML = `
-      <style>${styles}</style>
-      <div class="wrap ${this._isDarkTheme() ? "theme-dark" : "theme-light"}">
+      <style>${styles}${languageStyles}</style>
+      <div class="wrap ${this._isDarkTheme() ? "theme-dark" : "theme-light"} lang-${this._language}">
         <div class="header">
           <div class="brand-lockup">
             <div class="brand-mark" aria-hidden="true">B</div>
@@ -3783,6 +4104,10 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       </div>
     `;
     this._bindEvents();
+    if (this._language === "en") {
+      localizeDom(this.shadowRoot, this._language);
+      this._scheduleLocalization();
+    }
     const tableWrap = this.shadowRoot.getElementById("tableWrap");
     if (tableWrap) tableWrap.scrollTop = tableScrollTop;
     this._restoreSideScroll(sideScrollTop);
@@ -3819,7 +4144,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     const valueChanges = this._dashboardValueChanges(diagnostics);
     const pushNotificationsRaw = diagnostics.bacnet_push_notifications ?? diagnostics.websocket_updates ?? diagnostics.push_count;
     const pushNotifications = Number(pushNotificationsRaw);
-    const averageChangesPerPush = Number.isFinite(pushNotifications) && pushNotifications > 0 ? (Number(valueChanges) / pushNotifications).toLocaleString("de-DE", {
+    const averageChangesPerPush = Number.isFinite(pushNotifications) && pushNotifications > 0 ? (Number(valueChanges) / pushNotifications).toLocaleString(this._language === "de" ? "de-DE" : "en-US", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }) : "-";
@@ -4491,10 +4816,11 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       new Set((this._points || []).map((point) => String(point.object_type || "")).filter(Boolean))
     ).sort();
     toolbar.groupBy = this._groupBy || "none";
+    this._scheduleLocalization();
     toolbar.addEventListener("bepacom-toolbar-action", (event) => {
       const { action, key, value } = event.detail || {};
       if (action === "view") {
-        if (this._editorDirty && !window.confirm("Ungespeicherte Änderungen verwerfen und Ansicht wechseln?")) return;
+        if (this._editorDirty && !this._confirm("Ungespeicherte Änderungen verwerfen und Ansicht wechseln?")) return;
         this._editorDirty = false;
         this._dirtyFieldIds.clear();
         this._editorErrors = [];
@@ -4587,6 +4913,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     table.emptyMessage = "Keine BACnet-Objekte gefunden.";
     table.sortKey = this._sortKey;
     table.sortDirection = this._sortDir;
+    this._scheduleLocalization();
     if (table.dataset.actionsBound === "1") return;
     table.dataset.actionsBound = "1";
     table.addEventListener("bepacom-table-action", (event) => {
@@ -4621,7 +4948,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     const valueChanges = this._dashboardValueChanges(d2);
     const pushNotificationsRaw = d2.bacnet_push_notifications ?? d2.websocket_updates ?? d2.push_count;
     const pushNotifications = Number(pushNotificationsRaw);
-    const averageChangesPerPush = Number.isFinite(pushNotifications) && pushNotifications > 0 ? (Number(valueChanges) / pushNotifications).toLocaleString("de-DE", {
+    const averageChangesPerPush = Number.isFinite(pushNotifications) && pushNotifications > 0 ? (Number(valueChanges) / pushNotifications).toLocaleString(this._language === "de" ? "de-DE" : "en-US", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }) : "-";
@@ -4703,6 +5030,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         };
       })
     };
+    this._scheduleLocalization();
     if (dashboard.dataset.actionsBound === "1") return;
     dashboard.dataset.actionsBound = "1";
     dashboard.addEventListener("bepacom-dashboard-action", (event) => {
@@ -4758,6 +5086,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       sectionOpen,
       preview: this._selected ? this._virtualRulePreviewData(this._selected) : { sourceValue: "-", result: "unavailable", tone: "unav" }
     };
+    this._scheduleLocalization();
     if (inspector.dataset.actionsBound !== "1") {
       inspector.dataset.actionsBound = "1";
       inspector.addEventListener("bepacom-inspector-action", (event) => {
@@ -4782,6 +5111,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       });
     }
     inspector.addEventListener("bepacom-inspector-rendered", () => {
+      if (this._language === "en") localizeDom(inspector, this._language);
       this._bindInspectorEvents();
       this._restoreSideScroll();
     }, { once: true });
@@ -4795,7 +5125,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       button.addEventListener("click", (event) => {
         event.preventDefault();
         const section = button.getAttribute("data-main-section") || "configuration";
-        if (section !== "configuration" && this._editorDirty && !window.confirm("Ungespeicherte Änderungen verwerfen und den Bereich wechseln?")) return;
+        if (section !== "configuration" && this._editorDirty && !this._confirm("Ungespeicherte Änderungen verwerfen und den Bereich wechseln?")) return;
         this._editorDirty = false;
         this._dirtyFieldIds.clear();
         this._editorErrors = [];
@@ -4825,7 +5155,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     this.shadowRoot.querySelectorAll("[data-view-tab]").forEach((button) => {
       button.addEventListener("click", (ev) => {
         ev.preventDefault();
-        if (this._editorDirty && !window.confirm("Ungespeicherte Änderungen verwerfen und Ansicht wechseln?")) return;
+        if (this._editorDirty && !this._confirm("Ungespeicherte Änderungen verwerfen und Ansicht wechseln?")) return;
         this._editorDirty = false;
         this._dirtyFieldIds.clear();
         this._editorErrors = [];
@@ -7081,24 +7411,10 @@ let BepacomRuntimeDashboard = class extends i {
       if (age >= 0 && age < 60) bins[59 - age] += 1;
     }
     const peak = Math.max(0, ...bins);
-    const lastMinute = bins.reduce((sum, count) => sum + count, 0);
-    const average = (lastMinute / 60).toLocaleString("de-DE", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
     const sources = [...new Set(this.model.liveChanges.map((item) => String(item.source || "unknown")))].sort();
     const types = [...new Set(this.model.liveChanges.map((item) => String(item.object_type || "unknown")))].sort();
     return b`
       <div class="live-monitor">
-        <div class="live-summary">
-          <span><b>${this.model.liveChanges.length.toLocaleString("de-DE")}</b> gespeichert</span>
-          <span><b>${filtered.length.toLocaleString("de-DE")}</b> im Filter</span>
-          <span><b>${average}/s</b> letzte Minute</span>
-          <span><b>${peak}/s</b> Spitze</span>
-          <button class="secondary live-small-btn" @click=${() => this._action("toggle-live")}>
-            ${this.model.livePaused ? "Fortsetzen" : "Pausieren"}
-          </button>
-        </div>
         <div class="live-chart" aria-label="Änderungen der letzten 60 Sekunden">
           ${bins.map((count) => {
       const height = peak ? Math.max(3, Math.round(count / peak * 50)) : 3;
@@ -7137,6 +7453,9 @@ let BepacomRuntimeDashboard = class extends i {
           <button class="secondary live-small-btn" title="Monitorverlauf leeren" @click=${() => this._action("clear-live")}>
             Leeren
           </button>
+          <button class="secondary live-small-btn" @click=${() => this._action("toggle-live")}>
+            ${this.model.livePaused ? "Fortsetzen" : "Pausieren"}
+          </button>
         </div>
         <div class="live-table-wrap">
           <table class="live-table">
@@ -7144,14 +7463,14 @@ let BepacomRuntimeDashboard = class extends i {
             <tbody>
               ${filtered.length ? filtered.slice(-120).reverse().map(
       (item) => b`
-                      <tr
+                      <tr class=${item.source === "write" ? "live-write" : ""}
                         title=${`${item.device_id}/${item.object_type}:${item.object_id} · Im Point Inspector öffnen`}
                         @click=${() => this._action("select-point", { uniqueId: item.resolved_unique_id || item.unique_id })}
                       >
                         <td>${this._formatTime(item.ts)}</td>
                         <td><b>${item.friendly_name || item.object_name || item.object_key || item.unique_id}</b><small>${item.entity_id || item.object_key || item.unique_id}</small></td>
-                        <td class="live-value">${this._displayValue(item.previous_value)}<span>→</span>${this._displayValue(item.value)}</td>
-                        <td><span class="live-source">${item.source || "-"}</span></td>
+                        <td class="live-value">${this._displayValue(item.previous_value)}<span>→</span>${item.activity === "release" ? `Freigabe P${item.priority ?? "-"}` : this._displayValue(item.value)}</td>
+                        <td><span class=${`live-source ${item.source === "write" ? "write" : ""}`}>${item.source === "write" ? item.activity === "release" ? "Freigabe" : "Schreiben" : item.source || "-"}</span></td>
                       </tr>
                     `
     ) : b`<tr><td colspan="4" class="muted">Noch keine passenden Wertänderungen.</td></tr>`}
@@ -7194,9 +7513,9 @@ let BepacomRuntimeDashboard = class extends i {
         </div>
         <div class=${`protocol-health-item ${Number(protocol.commandErrors || 0) ? "warn" : ""}`}>
           <small>Befehle</small><strong>${commands}</strong>
-          <span>Erfolgreich / Fehler · ${String(protocol.commandLatency ?? "-")}</span>
+          <span>Erfolgreich / Fehler &middot; ${String(protocol.commandLatency ?? "-")}</span>
         </div>
-        <div class="protocol-health-version">App ${String(protocol.appVersion ?? "-")} · Protokoll ${String(protocol.protocolVersion ?? "-")}</div>
+        <div class="protocol-health-version">App ${String(protocol.appVersion ?? "-")} &middot; Protokoll ${String(protocol.protocolVersion ?? "-")}</div>
       </div>
     `;
   }

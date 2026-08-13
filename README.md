@@ -1,5 +1,7 @@
 # Engelsoft Beacon BACnet/IP for Home Assistant
 
+**English** | [Deutsch](README.de.md)
+
 ![Version](https://img.shields.io/badge/Version-1.2.6-gold)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.6.0%2B-41BDF5)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)

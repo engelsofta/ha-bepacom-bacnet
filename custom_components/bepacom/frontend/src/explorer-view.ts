@@ -2,6 +2,7 @@
 
 import { ExplorerApi } from "./explorer-api";
 import { ExplorerPreferences } from "./explorer-state";
+import { localizeDom, normalizeLanguage, translateText } from "./i18n";
 
 export class BepacomExplorerView extends HTMLElement {
   constructor() {
@@ -91,6 +92,8 @@ export class BepacomExplorerView extends HTMLElement {
     if (this._mainSection === "diagnostics") this._dashboardTab = "developer";
     this._liveFilters = { search: "", source: "all", object_type: "all" };
     this._api = null;
+    this._language = "en";
+    this._localizationFrame = null;
   }
 
   _versionLabel() {
@@ -137,6 +140,7 @@ export class BepacomExplorerView extends HTMLElement {
       this._recentChangeTimer = null;
     }
     if (this._toastTimer) window.clearTimeout(this._toastTimer);
+    if (this._localizationFrame !== null) window.cancelAnimationFrame(this._localizationFrame);
     window.removeEventListener("keydown", this._keyboardHandler);
     document.removeEventListener("visibilitychange", this._visibilityHandler);
     window.removeEventListener("beforeunload", this._beforeUnloadHandler);
@@ -207,6 +211,9 @@ export class BepacomExplorerView extends HTMLElement {
   }
 
   set hass(hass) {
+    const language = normalizeLanguage(hass?.language || hass?.locale?.language);
+    const languageChanged = language !== this._language;
+    this._language = language;
     this._hass = hass;
     this._api = hass ? new ExplorerApi(hass) : null;
     const wrap = this.shadowRoot?.querySelector(".wrap");
@@ -220,10 +227,24 @@ export class BepacomExplorerView extends HTMLElement {
       this._hasHass = true;
       this._startInitialLoad();
     }
+    if (languageChanged && this._connected) this._render();
   }
 
   get hass() {
     return this._hass;
+  }
+
+  _scheduleLocalization() {
+    if (this._language !== "en" || !this.shadowRoot) return;
+    if (this._localizationFrame !== null) window.cancelAnimationFrame(this._localizationFrame);
+    this._localizationFrame = window.requestAnimationFrame(() => {
+      this._localizationFrame = null;
+      if (this._connected && this._language === "en") localizeDom(this.shadowRoot, this._language);
+    });
+  }
+
+  _confirm(message) {
+    return window.confirm(translateText(message, this._language));
   }
 
   _isDarkTheme(hass = this._hass) {
@@ -525,6 +546,7 @@ export class BepacomExplorerView extends HTMLElement {
         this._configureRuntimeDashboard();
       }
     }
+    this._scheduleLocalization();
   }
 
   _updateListDom() {
@@ -558,7 +580,7 @@ export class BepacomExplorerView extends HTMLElement {
     if (
       this._editorDirty
       && this._selected?.unique_id !== point?.unique_id
-      && !window.confirm("Ungespeicherte Änderungen verwerfen und einen anderen Punkt öffnen?")
+      && !this._confirm("Ungespeicherte Änderungen verwerfen und einen anderen Punkt öffnen?")
     ) {
       return;
     }
@@ -747,7 +769,7 @@ export class BepacomExplorerView extends HTMLElement {
   async _deleteVirtualEntity(sourceUid, virtualUid, virtualName = "") {
     if (!this.hass || !sourceUid || !virtualUid) return;
     const label = virtualName || virtualUid;
-    const ok = window.confirm(`Virtuelle Entität löschen?\n\n${label}\n\nDiese Aktion entfernt die virtuelle Entität aus der Engelsoft-Beacon-Konfiguration und aus der Home-Assistant-Entity-Registry. Danach bitte die Integration neu laden.`);
+    const ok = this._confirm(`Virtuelle Entität löschen?\n\n${label}\n\nDiese Aktion entfernt die virtuelle Entität aus der Engelsoft-Beacon-Konfiguration und aus der Home-Assistant-Entity-Registry. Danach bitte die Integration neu laden.`);
     if (!ok) return;
 
     this._saving = true;
@@ -826,7 +848,7 @@ export class BepacomExplorerView extends HTMLElement {
     const preview = this._reloadPreview();
     if (
       preview.changed > 0
-      && !window.confirm(
+      && !this._confirm(
         `Integration neu laden?\n\n${preview.changed} geänderte Punkte werden angewendet.\n`
         + `${preview.enabled} aktiv · ${preview.disabled} deaktiviert.\n\n`
         + "Während des Reloads können Entitäten kurz nicht verfügbar sein.",
@@ -1215,7 +1237,7 @@ export class BepacomExplorerView extends HTMLElement {
       const items = document.overrides.filter((item) => item && known.has(item.unique_id));
       const skipped = document.overrides.length - items.length;
       if (!items.length) throw new Error("Keiner der importierten Punkte ist in diesem Gateway vorhanden.");
-      if (!window.confirm(`${items.length} Overrides importieren${skipped ? ` (${skipped} unbekannte überspringen)` : ""}?`)) return;
+      if (!this._confirm(`${items.length} Overrides importieren${skipped ? ` (${skipped} unbekannte überspringen)` : ""}?`)) return;
 
       this._saving = true;
       this._error = null;
@@ -1396,8 +1418,6 @@ export class BepacomExplorerView extends HTMLElement {
       if (age >= 0 && age < 60) bins[59 - age] += 1;
     }
     const peak = Math.max(0, ...bins);
-    const lastMinute = bins.reduce((sum, count) => sum + count, 0);
-    const average = (lastMinute / 60).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     const bars = bins.map((count) => {
       const height = peak ? Math.max(3, Math.round((count / peak) * 50)) : 3;
       return `<i style="height:${height}px" title="${count} Änderung${count === 1 ? "" : "en"}"></i>`;
@@ -1416,19 +1436,13 @@ export class BepacomExplorerView extends HTMLElement {
       </tr>`;
     }).join("");
     return `<div class="live-monitor">
-      <div class="live-summary">
-        <span><b>${this._liveChanges.length.toLocaleString("de-DE")}</b> gespeichert</span>
-        <span><b>${filtered.length.toLocaleString("de-DE")}</b> im Filter</span>
-        <span><b>${average}/s</b> letzte Minute</span>
-        <span><b>${peak}/s</b> Spitze</span>
-        <button id="livePause" class="secondary live-small-btn">${this._livePaused ? "Fortsetzen" : "Pausieren"}</button>
-      </div>
       <div class="live-chart" aria-label="Änderungen der letzten 60 Sekunden">${bars}</div>
       <div class="live-filters">
         <input id="liveSearch" value="${this._escape(this._liveFilters.search)}" placeholder="Filter / Wildcards …">
         <select id="liveSource"><option value="all">Alle Quellen</option>${options(sources, this._liveFilters.source)}</select>
         <select id="liveObjectType"><option value="all">Alle Typen</option>${options(types, this._liveFilters.object_type)}</select>
         <button id="liveClear" class="secondary live-small-btn" title="Monitorverlauf leeren">Leeren</button>
+        <button id="livePause" class="secondary live-small-btn">${this._livePaused ? "Fortsetzen" : "Pausieren"}</button>
       </div>
       <div class="live-table-wrap">
         <table class="live-table"><thead><tr><th>Zeit</th><th>Punkt</th><th>Alt → Neu</th><th>Quelle</th></tr></thead>
@@ -1505,7 +1519,7 @@ export class BepacomExplorerView extends HTMLElement {
     const pushNotificationsRaw = d.bacnet_push_notifications ?? d.websocket_updates ?? d.push_count;
     const pushNotifications = Number(pushNotificationsRaw);
     const averageChangesPerPush = Number.isFinite(pushNotifications) && pushNotifications > 0
-      ? (Number(valueChanges) / pushNotifications).toLocaleString("de-DE", {
+      ? (Number(valueChanges) / pushNotifications).toLocaleString(this._language === "de" ? "de-DE" : "en-US", {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         })
@@ -1747,12 +1761,15 @@ export class BepacomExplorerView extends HTMLElement {
       .live-table td { padding:5px 7px; border-top:1px solid color-mix(in srgb, var(--divider-color) 65%, transparent); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
       .live-table tbody tr { cursor:pointer; }
       .live-table tbody tr:hover { background:color-mix(in srgb, var(--primary-color) 9%, transparent); }
+      .live-table tbody tr.live-write { background:color-mix(in srgb, #4f9fcf 10%, transparent); box-shadow:inset 3px 0 0 #4f9fcf; }
+      .live-table tbody tr.live-write:hover { background:color-mix(in srgb, #4f9fcf 16%, transparent); }
       .live-table th:nth-child(1), .live-table td:nth-child(1) { width:72px; }
       .live-table th:nth-child(3), .live-table td:nth-child(3) { width:150px; }
       .live-table th:nth-child(4), .live-table td:nth-child(4) { width:70px; }
       .live-table td small { display:block; color:var(--secondary-text-color); overflow:hidden; text-overflow:ellipsis; }
       .live-value span { color:var(--primary-color); padding:0 5px; }
       .live-source { display:inline-flex; border:1px solid var(--divider-color); border-radius:10px; padding:1px 5px; font-size:10px; }
+      .live-source.write { color:#80c8ef; border-color:rgba(79,159,207,.42); background:rgba(79,159,207,.10); }
       .live-foot { color:var(--secondary-text-color); font-size:9px; margin-top:4px; text-align:right; }
       .dashboard-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr)); gap:7px; }
       .stat { padding:8px 10px; min-height:38px; border-radius:9px; background:var(--secondary-background-color); border:1px solid var(--divider-color); min-width:0; display:flex; align-items:center; }
@@ -3282,9 +3299,19 @@ export class BepacomExplorerView extends HTMLElement {
       }
     `;
 
+    const languageStyles = this._language === "en" ? `
+      @media (max-width: 760px) {
+        .virtual-table td:nth-child(1)::before { content:"Source"; }
+        .virtual-table td:nth-child(2)::before { content:"HA entity"; }
+        .virtual-table td:nth-child(3)::before { content:"Type"; }
+        .virtual-table td:nth-child(4)::before { content:"State"; }
+        .virtual-table td:nth-child(8)::before { content:"Actions"; }
+        .table-wrap td[data-col='write-profile']::before { content:"Write"; }
+      }
+    ` : "";
     this.shadowRoot.innerHTML = `
-      <style>${styles}</style>
-      <div class="wrap ${this._isDarkTheme() ? "theme-dark" : "theme-light"}">
+      <style>${styles}${languageStyles}</style>
+      <div class="wrap ${this._isDarkTheme() ? "theme-dark" : "theme-light"} lang-${this._language}">
         <div class="header">
           <div class="brand-lockup">
             <div class="brand-mark" aria-hidden="true">B</div>
@@ -3342,6 +3369,10 @@ export class BepacomExplorerView extends HTMLElement {
     `;
 
     this._bindEvents();
+    if (this._language === "en") {
+      localizeDom(this.shadowRoot, this._language);
+      this._scheduleLocalization();
+    }
     const tableWrap = this.shadowRoot.getElementById("tableWrap");
     if (tableWrap) tableWrap.scrollTop = tableScrollTop;
     this._restoreSideScroll(sideScrollTop);
@@ -3388,7 +3419,7 @@ export class BepacomExplorerView extends HTMLElement {
       ?? diagnostics.push_count;
     const pushNotifications = Number(pushNotificationsRaw);
     const averageChangesPerPush = Number.isFinite(pushNotifications) && pushNotifications > 0
-      ? (Number(valueChanges) / pushNotifications).toLocaleString("de-DE", {
+      ? (Number(valueChanges) / pushNotifications).toLocaleString(this._language === "de" ? "de-DE" : "en-US", {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         })
@@ -4110,10 +4141,11 @@ export class BepacomExplorerView extends HTMLElement {
       new Set((this._points || []).map((point) => String(point.object_type || "")).filter(Boolean)),
     ).sort();
     toolbar.groupBy = this._groupBy || "none";
+    this._scheduleLocalization();
     toolbar.addEventListener("bepacom-toolbar-action", (event) => {
       const { action, key, value } = event.detail || {};
       if (action === "view") {
-        if (this._editorDirty && !window.confirm("Ungespeicherte Änderungen verwerfen und Ansicht wechseln?")) return;
+        if (this._editorDirty && !this._confirm("Ungespeicherte Änderungen verwerfen und Ansicht wechseln?")) return;
         this._editorDirty = false;
         this._dirtyFieldIds.clear();
         this._editorErrors = [];
@@ -4212,6 +4244,7 @@ export class BepacomExplorerView extends HTMLElement {
     table.emptyMessage = "Keine BACnet-Objekte gefunden.";
     table.sortKey = this._sortKey;
     table.sortDirection = this._sortDir;
+    this._scheduleLocalization();
     if (table.dataset.actionsBound === "1") return;
     table.dataset.actionsBound = "1";
     table.addEventListener("bepacom-table-action", (event) => {
@@ -4250,7 +4283,7 @@ export class BepacomExplorerView extends HTMLElement {
     const pushNotificationsRaw = d.bacnet_push_notifications ?? d.websocket_updates ?? d.push_count;
     const pushNotifications = Number(pushNotificationsRaw);
     const averageChangesPerPush = Number.isFinite(pushNotifications) && pushNotifications > 0
-      ? (Number(valueChanges) / pushNotifications).toLocaleString("de-DE", {
+      ? (Number(valueChanges) / pushNotifications).toLocaleString(this._language === "de" ? "de-DE" : "en-US", {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         })
@@ -4333,6 +4366,7 @@ export class BepacomExplorerView extends HTMLElement {
         };
       }),
     };
+    this._scheduleLocalization();
     if (dashboard.dataset.actionsBound === "1") return;
     dashboard.dataset.actionsBound = "1";
     dashboard.addEventListener("bepacom-dashboard-action", (event) => {
@@ -4391,6 +4425,7 @@ export class BepacomExplorerView extends HTMLElement {
         ? this._virtualRulePreviewData(this._selected)
         : { sourceValue: "-", result: "unavailable", tone: "unav" },
     };
+    this._scheduleLocalization();
     if (inspector.dataset.actionsBound !== "1") {
       inspector.dataset.actionsBound = "1";
       inspector.addEventListener("bepacom-inspector-action", (event) => {
@@ -4415,6 +4450,7 @@ export class BepacomExplorerView extends HTMLElement {
       });
     }
     inspector.addEventListener("bepacom-inspector-rendered", () => {
+      if (this._language === "en") localizeDom(inspector, this._language);
       this._bindInspectorEvents();
       this._restoreSideScroll();
     }, { once: true });
@@ -4432,7 +4468,7 @@ export class BepacomExplorerView extends HTMLElement {
         if (
           section !== "configuration"
           && this._editorDirty
-          && !window.confirm("Ungespeicherte Änderungen verwerfen und den Bereich wechseln?")
+          && !this._confirm("Ungespeicherte Änderungen verwerfen und den Bereich wechseln?")
         ) return;
         this._editorDirty = false;
         this._dirtyFieldIds.clear();
@@ -4463,7 +4499,7 @@ export class BepacomExplorerView extends HTMLElement {
     this.shadowRoot.querySelectorAll("[data-view-tab]").forEach((button) => {
       button.addEventListener("click", (ev) => {
         ev.preventDefault();
-        if (this._editorDirty && !window.confirm("Ungespeicherte Änderungen verwerfen und Ansicht wechseln?")) return;
+        if (this._editorDirty && !this._confirm("Ungespeicherte Änderungen verwerfen und Ansicht wechseln?")) return;
         this._editorDirty = false;
         this._dirtyFieldIds.clear();
         this._editorErrors = [];
