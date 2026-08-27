@@ -77,7 +77,7 @@ async def async_register_explorer_panel(hass: HomeAssistant, entry: ConfigEntry)
         await result
 
     hass.data[DOMAIN][_PANEL_REGISTERED] = True
-    _LOGGER.info("Bepacom BACnet Explorer sidebar panel registered")
+    _LOGGER.info("Engelsoft Beacon BACnet Explorer sidebar panel registered")
 
 
 async def async_unregister_explorer_panel_if_unused(

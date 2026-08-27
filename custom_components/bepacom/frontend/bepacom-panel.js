@@ -2018,7 +2018,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     try {
       const document2 = JSON.parse(await file.text());
       if (document2?.format !== "bepacom-overrides" || !Array.isArray(document2.overrides)) {
-        throw new Error("Die Datei ist kein Bepacom-Override-Export.");
+        throw new Error("Die Datei ist kein Engelsoft-Beacon-Override-Export.");
       }
       if (document2.overrides.length > 2e3) throw new Error("Die Importdatei enthält mehr als 2000 Overrides.");
       const known = new Set(this._points.map((point) => point.unique_id));

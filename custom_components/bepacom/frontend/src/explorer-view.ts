@@ -1230,7 +1230,7 @@ export class BepacomExplorerView extends HTMLElement {
     try {
       const document = JSON.parse(await file.text());
       if (document?.format !== "bepacom-overrides" || !Array.isArray(document.overrides)) {
-        throw new Error("Die Datei ist kein Bepacom-Override-Export.");
+        throw new Error("Die Datei ist kein Engelsoft-Beacon-Override-Export.");
       }
       if (document.overrides.length > 2000) throw new Error("Die Importdatei enthält mehr als 2000 Overrides.");
       const known = new Set(this._points.map((point) => point.unique_id));

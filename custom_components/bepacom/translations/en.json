@@ -1,15 +1,15 @@
 {
   "config": {
     "step": {
-      "user": {"title": "Engelsoft Beacon BACnet/IP", "menu_options": {"automatic": "Find the local Bepacom app", "manual": "Configure an external gateway"}},
-      "automatic": {"title": "Local Bepacom app"},
+      "user": {"title": "Engelsoft Beacon BACnet/IP", "menu_options": {"automatic": "Find local Engelsoft BACstac", "manual": "Configure an external gateway"}},
+      "automatic": {"title": "Local Engelsoft BACstac"},
       "manual": {"title": "External gateway", "data": {"host": "Host", "port": "Port", "api_token": "API token (optional)"}}
     },
     "error": {"cannot_connect": "Cannot connect.", "unsupported_gateway": "This gateway is not supported.", "unknown": "Unknown error."},
-    "abort": {"already_configured": "Gateway is already configured.", "app_not_found": "The local Bepacom app was not found. Start it or use manual setup."}
+    "abort": {"already_configured": "Gateway is already configured.", "app_not_found": "Local Engelsoft BACstac was not found. Start it or use manual setup."}
   },
   "issues": {
-    "app_unavailable": {"title": "Bepacom app unavailable", "description": "The Bepacom app or external gateway cannot be reached. Check that it is running and port 8099 is reachable."},
-    "gateway_incompatible": {"title": "Incompatible Bepacom version", "description": "The gateway supports neither Protocol V2 nor the required legacy API. Update the app and integration together."}
+    "app_unavailable": {"title": "Engelsoft BACstac unavailable", "description": "Engelsoft BACstac or the external gateway cannot be reached. Check that it is running and port 8099 is reachable."},
+    "gateway_incompatible": {"title": "Incompatible BACstac version", "description": "The gateway supports neither Protocol V2 nor the required legacy API. Update the app and integration together."}
   }
 }

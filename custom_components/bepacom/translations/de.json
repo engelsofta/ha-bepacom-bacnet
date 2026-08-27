@@ -1,15 +1,15 @@
 {
   "config": {
     "step": {
-      "user": {"title": "Engelsoft Beacon BACnet/IP", "menu_options": {"automatic": "Lokale Bepacom App automatisch finden", "manual": "Externes Gateway einrichten"}},
-      "automatic": {"title": "Lokale Bepacom App"},
+      "user": {"title": "Engelsoft Beacon BACnet/IP", "menu_options": {"automatic": "Lokale Engelsoft-BACstac-App automatisch finden", "manual": "Externes Gateway einrichten"}},
+      "automatic": {"title": "Lokale Engelsoft-BACstac-App"},
       "manual": {"title": "Externes Gateway", "data": {"host": "Host", "port": "Port", "api_token": "API-Token (optional)"}}
     },
     "error": {"cannot_connect": "Verbindung fehlgeschlagen.", "unsupported_gateway": "Dieses Gateway wird nicht unterstützt.", "unknown": "Unbekannter Fehler."},
-    "abort": {"already_configured": "Gateway ist bereits eingerichtet.", "app_not_found": "Die lokale Bepacom App wurde nicht gefunden. Starte sie oder verwende die manuelle Einrichtung."}
+    "abort": {"already_configured": "Gateway ist bereits eingerichtet.", "app_not_found": "Die lokale Engelsoft-BACstac-App wurde nicht gefunden. Starte sie oder verwende die manuelle Einrichtung."}
   },
   "issues": {
-    "app_unavailable": {"title": "Bepacom App nicht erreichbar", "description": "Die Bepacom App oder das externe Gateway ist nicht erreichbar. Prüfe, ob die App gestartet ist und Port 8099 erreichbar ist."},
-    "gateway_incompatible": {"title": "Bepacom Version nicht kompatibel", "description": "Das Gateway unterstützt weder Protocol V2 noch die benötigte Legacy-API. Aktualisiere App und Integration gemeinsam."}
+    "app_unavailable": {"title": "Engelsoft BACstac nicht erreichbar", "description": "Engelsoft BACstac oder das externe Gateway ist nicht erreichbar. Prüfe, ob die App gestartet ist und Port 8099 erreichbar ist."},
+    "gateway_incompatible": {"title": "BACstac-Version nicht kompatibel", "description": "Das Gateway unterstützt weder Protocol V2 noch die benötigte Legacy-API. Aktualisiere App und Integration gemeinsam."}
   }
 }

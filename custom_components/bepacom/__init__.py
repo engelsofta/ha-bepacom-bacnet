@@ -402,7 +402,7 @@ async def async_setup_entry(
 ) -> bool:
     """Set up Bepacom from a config entry."""
 
-    _LOGGER.info("Starting Bepacom integration")
+    _LOGGER.info("Starting Engelsoft Beacon BACnet/IP integration")
 
     # Migrate saved Explorer IDs before the coordinator snapshots entry.options.
     # Otherwise a legacy override can rename an entity back after the registry
@@ -489,7 +489,7 @@ async def async_setup_entry(
 
     await async_register_explorer_panel(hass, entry)
 
-    _LOGGER.info("Bepacom integration started successfully")
+    _LOGGER.info("Engelsoft Beacon BACnet/IP integration started successfully")
 
     return True
 

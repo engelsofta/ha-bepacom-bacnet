@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for considering contributing to Bepacom BACnet/IP.
+Thanks for considering contributing to Engelsoft Beacon BACnet/IP.
 
 ## Development setup
 
