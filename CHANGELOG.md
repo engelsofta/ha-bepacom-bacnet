@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.3.1 - 2026-08-27
+
+### **The old name has left the building (mostly)**
+
+### English
+
+- replaced remaining user-facing Bepacom branding with Engelsoft Beacon BACnet/IP and Engelsoft BACstac
+- updated setup choices, repair messages, integration startup logs, Explorer messages, and the bundled brand manifest
+- kept the internal `bepacom` domain, service names, entity IDs, API paths, and storage keys unchanged for backwards compatibility — because renaming the plumbing just to repaint the door is how leaks happen
+
+### Deutsch
+
+- verbliebene sichtbare Bepacom-Bezeichnungen durch Engelsoft Beacon BACnet/IP und Engelsoft BACstac ersetzt
+- Einrichtungsoptionen, Reparaturmeldungen, Startprotokolle, Explorer-Texte und das mitgelieferte Branding-Manifest aktualisiert
+- die interne Domain `bepacom`, Dienstnamen, Entity-IDs, API-Pfade und Speicherschlüssel aus Kompatibilitätsgründen unverändert gelassen — denn nur wegen eines neuen Türschilds reißt man nicht gleich die Leitungen aus der Wand
+
 ## 1.3.0 - 2026-08-13
 
 ### English
