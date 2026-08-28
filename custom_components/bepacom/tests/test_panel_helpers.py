@@ -18,7 +18,7 @@ def test_effective_transport_normalizes_gateway_state() -> None:
 
 def test_search_supports_terms_and_wildcards() -> None:
     assert matches_search_query("Heating supply temperature", "heating temp*")
-    assert matches_search_query("analogInput:169", "analog?input:16*")
+    assert matches_search_query("analogInput:169", "analog?nput:16*")
     assert not matches_search_query("Heating return", "supply")
 
 
