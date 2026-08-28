@@ -30,7 +30,7 @@ PANEL_URL = "bepacom_explorer"
 PANEL_NAME = "bepacom-explorer-panel"
 PANEL_STATIC_URL = "/bepacom_static"
 PANEL_EVENT = "bepacom_explorer_updated"
-PANEL_VERSION = "0679"
+PANEL_VERSION = "0680"
 
 _WS_REGISTERED = "websocket_registered"
 _PANEL_REGISTERED = "panel_registered"
@@ -390,7 +390,8 @@ def _serialize_point(
         "subscribed": runtime.subscribed,
         "fallback_polling": runtime.fallback_polling,
         "enabled": registry.overrides.is_enabled(obj),
-        "writable": bool(obj.writable),
+        "writable": obj.effective_writable,
+        "writable_reported": obj.writable,
         "last_update": runtime.last_update.isoformat() if runtime.last_update else None,
         "last_update_source": runtime.last_update_source,
         "push_updates": runtime.push_updates,
@@ -841,8 +842,7 @@ async def websocket_explorer_write_property(
         return
 
     object_type = BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
-    api_v2_writable_types = {"analog_value", "multi_state_output", "binary_value"}
-    if not obj.writable and object_type not in api_v2_writable_types:
+    if not obj.effective_writable:
         connection.send_error(msg["id"], "not_writable", "BACnet point is not writable")
         return
 

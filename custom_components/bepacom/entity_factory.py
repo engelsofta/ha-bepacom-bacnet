@@ -342,7 +342,7 @@ class BacnetObjectTypeMapper:
 
         if obj_type_lower in BacnetObjectTypeMapper.OBJECT_TYPE_MAP:
             entity_type = BacnetObjectTypeMapper.OBJECT_TYPE_MAP[obj_type_lower]
-            if obj.writable and entity_type == EntityType.SENSOR:
+            if obj.effective_writable and entity_type == EntityType.SENSOR:
                 return EntityType.NUMBER
             return entity_type
 
@@ -462,7 +462,7 @@ class BacnetObjectTypeMapper:
     @staticmethod
     def is_writable(obj: BacnetObject) -> bool:
         """Check if a BACnet object is writable."""
-        return obj.writable
+        return obj.effective_writable
 
     @staticmethod
     def get_state_class(obj: BacnetObject) -> SensorStateClass | None:

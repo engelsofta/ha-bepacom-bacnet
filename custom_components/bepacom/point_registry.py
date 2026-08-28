@@ -353,7 +353,8 @@ class BepacomPointRegistry:
             "bacnet_device_id": obj.device_id,
             "bacnet_object_type": obj.object_type,
             "bacnet_object_instance": obj.object_id,
-            "writable": obj.writable,
+            "writable": obj.effective_writable,
+            "writable_reported": obj.writable,
         }
         if obj.description:
             attrs["description"] = obj.description
@@ -386,7 +387,8 @@ class BepacomPointRegistry:
             "subscribe_override": obj.subscribe,
             "subscribed": runtime.subscribed,
             "fallback_polling": runtime.fallback_polling,
-            "writable": obj.writable,
+            "writable": obj.effective_writable,
+            "writable_reported": obj.writable,
             "resolution": obj.resolution,
             "reliability": obj.reliability,
             "status_flags": obj.status_flags,

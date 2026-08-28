@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.3.2 - 2026-08-28
+
+### English
+
+- fixed missing gateway `writable` metadata being interpreted as an explicit write denial
+- infer write support for standard BACnet output objects and value objects supported by the gateway API
+- preserve an explicitly reported `writable: false` as a write restriction
+- accept boolean, string, and property-list writable metadata formats
+- use one effective writeability decision in the Explorer, entities, and diagnostics
+- expose the raw gateway decision as `writable_reported` for troubleshooting
+- bumped the Explorer frontend cache build to `0680`
+
+### Deutsch
+
+- fehlende `writable`-Metadaten des Gateways werden nicht mehr als ausdrückliches Schreibverbot behandelt
+- Schreibunterstützung wird für standardmäßige BACnet-Ausgänge und von der Gateway-API unterstützte Value-Objekte abgeleitet
+- ein ausdrücklich gemeldetes `writable: false` bleibt als Schreibsperre erhalten
+- boolesche Werte, Zeichenketten und Property-Listen werden als Metadatenformat akzeptiert
+- Explorer, Entitäten und Diagnose verwenden dieselbe effektive Schreibbarkeitsentscheidung
+- die unveränderte Gateway-Angabe steht zur Fehlersuche als `writable_reported` bereit
+- Explorer-Frontend-Build auf `0680` erhöht
+
 ## 1.3.1 - 2026-08-27
 
 ### **The old name has left the building (mostly)**

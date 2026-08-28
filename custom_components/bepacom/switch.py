@@ -178,7 +178,7 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
         is_binary_value = object_type == "binary_value"
         is_multistate_output = object_type == "multi_state_output"
 
-        if not self._obj.writable and not (is_binary_value or is_multistate_output):
+        if not self._obj.effective_writable:
             _LOGGER.error(
                 "Cannot write to non-writable switch %s",
                 self._obj.unique_id,
@@ -233,7 +233,7 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
         is_binary_value = object_type == "binary_value"
         is_multistate_output = object_type == "multi_state_output"
 
-        if not self._obj.writable and not (is_binary_value or is_multistate_output):
+        if not self._obj.effective_writable:
             _LOGGER.error(
                 "Cannot write to non-writable switch %s",
                 self._obj.unique_id,

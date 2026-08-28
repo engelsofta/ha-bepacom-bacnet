@@ -1,3 +1,33 @@
+# Engelsoft Beacon BACnet/IP 1.3.2
+
+## English
+
+This maintenance release fixes write support when BACstac does not include optional `writable` metadata in its discovery payload.
+
+- Standard BACnet output objects are recognized as writable without add-on changes.
+- `AnalogValue` and `BinaryValue` keep their supported API v2 write paths.
+- An explicit `writable: false` response is still respected.
+- Explorer, Home Assistant entities, and diagnostics now use the same decision.
+- Raw gateway metadata is exposed as `writable_reported` for troubleshooting.
+- Explorer frontend cache build: `0680`.
+
+Restart Home Assistant after updating and reload the Explorer once without the browser cache.
+
+## Deutsch
+
+Dieses Wartungsrelease korrigiert die Schreibunterstützung, wenn BACstac im Discovery-Payload keine optionalen `writable`-Metadaten liefert.
+
+- Standardmäßige BACnet-Ausgangsobjekte werden ohne Änderung am Add-on als schreibbar erkannt.
+- `AnalogValue` und `BinaryValue` behalten ihre unterstützten API-v2-Schreibpfade.
+- Ein ausdrücklich gemeldetes `writable: false` wird weiterhin respektiert.
+- Explorer, Home-Assistant-Entitäten und Diagnose verwenden nun dieselbe Entscheidung.
+- Die unveränderte Gateway-Angabe wird zur Fehlersuche als `writable_reported` ausgegeben.
+- Explorer-Frontend-Cache-Build: `0680`.
+
+Nach dem Update Home Assistant neu starten und den Explorer einmal ohne Browser-Cache laden.
+
+---
+
 # 🌍 Engelsoft Beacon BACnet/IP 1.3.0
 
 > **BACnet now speaks human — well, at least German and English. 😄**

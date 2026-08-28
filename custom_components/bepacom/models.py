@@ -25,7 +25,9 @@ class BacnetObject:
     out_of_service: bool | None = None
     cov_increment: float | None = None
 
-    writable: bool = False
+    # ``None`` means that the gateway did not report write-access metadata.
+    # This must be kept distinct from an explicit ``False`` response.
+    writable: bool | None = None
 
     # Home Assistant override metadata. These values are optional and are usually
     # supplied from config_entry.options by override_manager.py. They are kept on
@@ -60,6 +62,32 @@ class BacnetObject:
         names such as ``analoginput_analoginput_1249``.
         """
         return self.unique_id
+
+    @property
+    def effective_writable(self) -> bool:
+        """Return whether the integration should offer writes for this object.
+
+        ``writable`` is gateway-specific discovery metadata, not a BACnet
+        property.  When it is absent, fall back to the BACnet object types that
+        are commandable by definition plus the value types supported by the
+        gateway's dedicated API v2 write endpoints.  An explicit gateway value
+        always wins.
+        """
+        if self.writable is not None:
+            return self.writable
+
+        normalized_type = self.object_type.strip().replace("-", "_")
+        normalized_type = "".join(
+            f"_{char.lower()}" if char.isupper() else char
+            for char in normalized_type
+        ).lstrip("_")
+        return normalized_type in {
+            "analog_output",
+            "binary_output",
+            "multi_state_output",
+            "analog_value",
+            "binary_value",
+        }
 
     def update(self, data: dict[str, Any]) -> None:
         """Update the object from raw BACnet data."""
@@ -118,11 +146,26 @@ class BacnetObject:
 
         # Do not reset writable state on partial updates that omit this field.
         if "writable" in data:
-            writable = data.get("writable", [])
+            writable = data.get("writable")
 
-            if isinstance(writable, list):
-                self.writable = "presentValue" in writable
-            else:
+            if isinstance(writable, bool):
+                self.writable = writable
+            elif isinstance(writable, (list, tuple, set)):
+                property_names = {
+                    str(item).replace("_", "").replace("-", "").lower()
+                    for item in writable
+                }
+                self.writable = "presentvalue" in property_names
+            elif isinstance(writable, str):
+                normalized = writable.strip().lower()
+                if normalized in {"true", "yes", "1", "on"}:
+                    self.writable = True
+                elif normalized in {"false", "no", "0", "off"}:
+                    self.writable = False
+                else:
+                    property_name = normalized.replace("_", "").replace("-", "")
+                    self.writable = property_name == "presentvalue"
+            elif writable is not None:
                 self.writable = False
 
 
