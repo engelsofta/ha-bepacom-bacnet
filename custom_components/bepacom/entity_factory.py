@@ -10,47 +10,19 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.const import (
     PERCENTAGE,
+    UnitOfElectricCurrent,
+    UnitOfElectricPotential,
     UnitOfEnergy,
+    UnitOfFrequency,
+    UnitOfLength,
     UnitOfPower,
     UnitOfPressure,
+    UnitOfSpeed,
     UnitOfTemperature,
+    UnitOfTime,
+    UnitOfVolumeFlowRate,
 )
 from homeassistant.helpers.device_registry import DeviceInfo
-
-try:
-    from homeassistant.const import UnitOfElectricCurrent
-except ImportError:  # compatibility with older HA versions
-    UnitOfElectricCurrent = None  # type: ignore[assignment]
-
-try:
-    from homeassistant.const import UnitOfElectricPotential
-except ImportError:
-    UnitOfElectricPotential = None  # type: ignore[assignment]
-
-try:
-    from homeassistant.const import UnitOfFrequency
-except ImportError:
-    UnitOfFrequency = None  # type: ignore[assignment]
-
-try:
-    from homeassistant.const import UnitOfVolumeFlowRate
-except ImportError:
-    UnitOfVolumeFlowRate = None  # type: ignore[assignment]
-
-try:
-    from homeassistant.const import UnitOfSpeed
-except ImportError:
-    UnitOfSpeed = None  # type: ignore[assignment]
-
-try:
-    from homeassistant.const import UnitOfLength
-except ImportError:
-    UnitOfLength = None  # type: ignore[assignment]
-
-try:
-    from homeassistant.const import UnitOfTime
-except ImportError:
-    UnitOfTime = None  # type: ignore[assignment]
 
 if TYPE_CHECKING:
     from .models import BacnetDevice, BacnetObject
@@ -58,28 +30,21 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-def _const_value(container: Any, attr: str, fallback: str) -> str:
-    """Return a Home Assistant unit constant with a safe fallback."""
-    if container is None:
-        return fallback
-    return getattr(container, attr, fallback)
-
-
-UNIT_VOLT = _const_value(UnitOfElectricPotential, "VOLT", "V")
-UNIT_MILLIVOLT = _const_value(UnitOfElectricPotential, "MILLIVOLT", "mV")
-UNIT_AMPERE = _const_value(UnitOfElectricCurrent, "AMPERE", "A")
-UNIT_MILLIAMPERE = _const_value(UnitOfElectricCurrent, "MILLIAMPERE", "mA")
-UNIT_HERTZ = _const_value(UnitOfFrequency, "HERTZ", "Hz")
-UNIT_KILOHERTZ = _const_value(UnitOfFrequency, "KILOHERTZ", "kHz")
-UNIT_CUBIC_METERS_PER_HOUR = _const_value(UnitOfVolumeFlowRate, "CUBIC_METERS_PER_HOUR", "m³/h")
-UNIT_LITERS_PER_SECOND = _const_value(UnitOfVolumeFlowRate, "LITERS_PER_SECOND", "L/s")
-UNIT_METERS_PER_SECOND = _const_value(UnitOfSpeed, "METERS_PER_SECOND", "m/s")
-UNIT_KILOMETERS_PER_HOUR = _const_value(UnitOfSpeed, "KILOMETERS_PER_HOUR", "km/h")
-UNIT_METER = _const_value(UnitOfLength, "METERS", "m")
-UNIT_CENTIMETER = _const_value(UnitOfLength, "CENTIMETERS", "cm")
-UNIT_SECOND = _const_value(UnitOfTime, "SECONDS", "s")
-UNIT_MINUTE = _const_value(UnitOfTime, "MINUTES", "min")
-UNIT_HOUR = _const_value(UnitOfTime, "HOURS", "h")
+UNIT_VOLT = UnitOfElectricPotential.VOLT
+UNIT_MILLIVOLT = UnitOfElectricPotential.MILLIVOLT
+UNIT_AMPERE = UnitOfElectricCurrent.AMPERE
+UNIT_MILLIAMPERE = UnitOfElectricCurrent.MILLIAMPERE
+UNIT_HERTZ = UnitOfFrequency.HERTZ
+UNIT_KILOHERTZ = UnitOfFrequency.KILOHERTZ
+UNIT_CUBIC_METERS_PER_HOUR = UnitOfVolumeFlowRate.CUBIC_METERS_PER_HOUR
+UNIT_LITERS_PER_SECOND = UnitOfVolumeFlowRate.LITERS_PER_SECOND
+UNIT_METERS_PER_SECOND = UnitOfSpeed.METERS_PER_SECOND
+UNIT_KILOMETERS_PER_HOUR = UnitOfSpeed.KILOMETERS_PER_HOUR
+UNIT_METER = UnitOfLength.METERS
+UNIT_CENTIMETER = UnitOfLength.CENTIMETERS
+UNIT_SECOND = UnitOfTime.SECONDS
+UNIT_MINUTE = UnitOfTime.MINUTES
+UNIT_HOUR = UnitOfTime.HOURS
 
 UNIT_LUX = "lx"
 UNIT_PPM = "ppm"
@@ -458,11 +423,6 @@ class BacnetObjectTypeMapper:
             return True
 
         return BacnetObjectTypeMapper._unit_key(unit_str) in {"nounits", "none"}
-
-    @staticmethod
-    def is_writable(obj: BacnetObject) -> bool:
-        """Check if a BACnet object is writable."""
-        return obj.effective_writable
 
     @staticmethod
     def get_state_class(obj: BacnetObject) -> SensorStateClass | None:

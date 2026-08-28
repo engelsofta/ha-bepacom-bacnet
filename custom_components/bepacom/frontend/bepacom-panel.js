@@ -740,7 +740,7 @@ const ENGLISH = [
   ["Eine BACnet-Priorität zwischen 1 und 7 übersteuert den üblichen Bedienwert auf Priorität 8.", "A BACnet priority from 1 to 7 overrides the usual operator value at priority 8."],
   ["Ringpuffer: maximal 10.000 Änderungen · angezeigt werden die neuesten 120 Treffer", "Ring buffer: up to 10,000 changes · showing the latest 120 matches"],
   ["Noch kein Verlauf vorhanden. Der Verlauf füllt sich mit eingehenden Wertänderungen.", "No history yet. Incoming value changes will appear here."],
-  ["Dieser BACnet-Punkt ist laut Discovery nicht schreibbar.", "This BACnet point is not writable according to discovery."],
+  ["Dieser BACnet-Punkt unterstützt keinen Schreibzugriff.", "This BACnet point does not support write access."],
   ["Keine zusätzlichen Engineering-Daten vorhanden.", "No additional engineering data available."],
   ["Noch keine passenden Wertänderungen.", "No matching value changes yet."],
   ["Ungespeicherte Änderungen wurden verworfen.", "Unsaved changes were discarded."],
@@ -918,6 +918,74 @@ function localizeDom(root, language) {
     }
     if (element.shadowRoot) localizeDom(element.shadowRoot, language);
   });
+}
+function normalizeRuleValue(value) {
+  return String(value ?? "").trim().replace(/^['\"]|['\"]$/g, "").toLowerCase();
+}
+function numericRuleValue(value) {
+  if (value === null || value === void 0) return null;
+  const raw = String(value).trim().replace(/^['\"]|['\"]$/g, "").replace(",", ".");
+  if (!raw) return null;
+  const number = Number(raw);
+  return Number.isFinite(number) ? number : null;
+}
+function equalRuleValue(value, expression) {
+  const left = numericRuleValue(value);
+  const right = numericRuleValue(expression);
+  if (left !== null && right !== null) return left === right;
+  return normalizeRuleValue(value) === normalizeRuleValue(expression);
+}
+function advancedRuleMatches(value, expression) {
+  let rule = expression.trim();
+  if (!rule) return null;
+  rule = rule.replaceAll("&&", " && ").replaceAll("||", " || ");
+  if (!/^[a-zA-Z0-9_\s()<>!=&|^+*\/%.,'"-]+$/.test(rule)) return null;
+  const numericValue = numericRuleValue(value);
+  const preparedValue = numericValue !== null ? String(numericValue) : JSON.stringify(normalizeRuleValue(value));
+  const preparedRule = rule.replace(/\bvalue\b/g, preparedValue).replace(/([^=!])=([^=])/g, "$1==$2");
+  try {
+    return Boolean(Function(`"use strict"; return (${preparedRule});`)());
+  } catch {
+    return null;
+  }
+}
+function virtualRuleMatches(value, condition) {
+  const raw = String(condition ?? "").trim();
+  if (!raw) return false;
+  if (raw.includes("value") || raw.includes("&&") || raw.includes("||")) {
+    const advanced = advancedRuleMatches(value, raw);
+    if (advanced !== null) return advanced;
+  }
+  if (raw.includes(",")) {
+    return raw.split(",").some((part) => virtualRuleMatches(value, part.trim()));
+  }
+  const numericValue = numericRuleValue(value);
+  for (const operator of [">=", "<=", "!=", "==", ">", "<"]) {
+    if (!raw.startsWith(operator)) continue;
+    const right = raw.slice(operator.length).trim();
+    const numericRight = numericRuleValue(right);
+    if (numericValue !== null && numericRight !== null) {
+      if (operator === ">=") return numericValue >= numericRight;
+      if (operator === "<=") return numericValue <= numericRight;
+      if (operator === "!=") return numericValue !== numericRight;
+      if (operator === "==") return numericValue === numericRight;
+      if (operator === ">") return numericValue > numericRight;
+      return numericValue < numericRight;
+    }
+    if (operator === "!=") return !equalRuleValue(value, right);
+    if (operator === "==") return equalRuleValue(value, right);
+    return false;
+  }
+  const dashIndex = raw.slice(1).indexOf("-");
+  if (dashIndex >= 0) {
+    const splitAt = dashIndex + 1;
+    const left = numericRuleValue(raw.slice(0, splitAt).trim());
+    const right = numericRuleValue(raw.slice(splitAt + 1).trim());
+    if (numericValue !== null && left !== null && right !== null) {
+      return numericValue >= Math.min(left, right) && numericValue <= Math.max(left, right);
+    }
+  }
+  return equalRuleValue(value, raw);
 }
 class BepacomExplorerView extends HTMLElement {
   constructor() {
@@ -2416,7 +2484,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     return rows.map(([k2, v2]) => `<div class="kv"><div class="k">${this._escape(k2)}</div><div class="v"><code>${this._escape(this._value(v2))}</code></div></div>`).join("");
   }
   _writeHtml(p2) {
-    if (!p2.writable) return `<div class="muted">Dieser BACnet-Punkt ist laut Discovery nicht schreibbar.</div>`;
+    if (!p2.writable) return `<div class="muted">Dieser BACnet-Punkt unterstützt keinen Schreibzugriff.</div>`;
     return `<div class="edit-grid"><div><label>Neuer Wert</label><input id="writeValue" value="${this._escape(this._value(p2.present_value))}"></div><div><label>BACnet Priority</label><select id="writePriority">${Array.from({ length: 16 }, (_2, i2) => i2 + 1).map((v2) => `<option value="${v2}" ${v2 === 8 ? "selected" : ""}>${v2}</option>`).join("")}</select></div></div><div class="actions"><button id="writeValueBtn" ${this._writing ? "disabled" : ""}>Wert schreiben${this._writing ? " …" : ""}</button></div>`;
   }
   _formatTime(ts) {
@@ -4811,7 +4879,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       new Set(
         (this._points || []).map((point) => String(point.device_id ?? "-")).filter(Boolean)
       )
-    ).sort((a2, b2) => a2.localeCompare(b2, void 0, { numeric: true }));
+    ).sort((a2, b2) => String(a2).localeCompare(String(b2), void 0, { numeric: true }));
     toolbar.objectTypes = Array.from(
       new Set((this._points || []).map((point) => String(point.object_type || "")).filter(Boolean))
     ).sort();
@@ -5438,7 +5506,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     });
   }
   _deviceOptions() {
-    const devices = Array.from(new Set((this._points || []).map((p2) => String(p2.device_id ?? "-")).filter(Boolean))).sort((a2, b2) => a2.localeCompare(b2, void 0, { numeric: true }));
+    const devices = Array.from(new Set((this._points || []).map((p2) => String(p2.device_id ?? "-")).filter(Boolean))).sort((a2, b2) => String(a2).localeCompare(String(b2), void 0, { numeric: true }));
     const current = String(this._filters.device_id || "all");
     const all = [`<option value="all" ${current === "all" ? "selected" : ""}>Alle Devices</option>`];
     return all.concat(devices.map((d2) => `<option value="${this._escape(d2)}" ${current === d2 ? "selected" : ""}>Device ${this._escape(d2)}</option>`)).join("");
@@ -5447,79 +5515,6 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     const types = Array.from(new Set(this._points.map((p2) => p2.object_type))).filter(Boolean).sort();
     const all = [`<option value="all" ${this._filters.object_type === "all" ? "selected" : ""}>Alle Objekttypen</option>`];
     return all.concat(types.map((t2) => `<option value="${this._escape(t2)}" ${this._filters.object_type === t2 ? "selected" : ""}>${this._escape(t2)}</option>`)).join("");
-  }
-  _virtualRuleNormalize(value) {
-    return String(value ?? "").trim().replace(/^['\"]|['\"]$/g, "").toLowerCase();
-  }
-  _virtualRuleNumber(value) {
-    if (value === null || value === void 0) return null;
-    const raw = String(value).trim().replace(/^['\"]|['\"]$/g, "").replace(",", ".");
-    if (!raw) return null;
-    const num = Number(raw);
-    return Number.isFinite(num) ? num : null;
-  }
-  _virtualRuleEqual(value, expr) {
-    const a2 = this._virtualRuleNumber(value);
-    const b2 = this._virtualRuleNumber(expr);
-    if (a2 !== null && b2 !== null) return a2 === b2;
-    return this._virtualRuleNormalize(value) === this._virtualRuleNormalize(expr);
-  }
-  _virtualRuleAdvancedMatches(value, expression) {
-    let expr = String(expression || "").trim();
-    if (!expr) return null;
-    expr = expr.replaceAll("&&", " && ").replaceAll("||", " || ");
-    if (!/^[a-zA-Z0-9_\s()<>!=&|^+*\/%.,'"-]+$/.test(expr)) return null;
-    const valueNum = this._virtualRuleNumber(value);
-    const preparedValue = valueNum !== null ? String(valueNum) : JSON.stringify(this._virtualRuleNormalize(value));
-    let jsExpr = expr.replace(/\bvalue\b/g, preparedValue).replace(/([^=!])=([^=])/g, "$1==$2");
-    try {
-      return !!Function(`"use strict"; return (${jsExpr});`)();
-    } catch (_err) {
-      return null;
-    }
-  }
-  _virtualRuleMatches(value, condition) {
-    const raw = String(condition ?? "").trim();
-    if (!raw) return false;
-    if (raw.includes("value") || raw.includes("&&") || raw.includes("||")) {
-      const advanced = this._virtualRuleAdvancedMatches(value, raw);
-      if (advanced !== null) return advanced;
-    }
-    if (raw.includes(",")) {
-      return raw.split(",").some((part) => this._virtualRuleMatches(value, part.trim()));
-    }
-    const valueNum = this._virtualRuleNumber(value);
-    const ops = [">=", "<=", "!=", "==", ">", "<"];
-    for (const op of ops) {
-      if (!raw.startsWith(op)) continue;
-      const rhs = raw.slice(op.length).trim();
-      const rhsNum = this._virtualRuleNumber(rhs);
-      if (valueNum !== null && rhsNum !== null) {
-        if (op === ">=") return valueNum >= rhsNum;
-        if (op === "<=") return valueNum <= rhsNum;
-        if (op === "!=") return valueNum !== rhsNum;
-        if (op === "==") return valueNum === rhsNum;
-        if (op === ">") return valueNum > rhsNum;
-        if (op === "<") return valueNum < rhsNum;
-      }
-      if (op === "!=") return !this._virtualRuleEqual(value, rhs);
-      if (op === "==") return this._virtualRuleEqual(value, rhs);
-      return false;
-    }
-    const dashIndex = raw.slice(1).indexOf("-");
-    if (dashIndex >= 0) {
-      const splitAt = dashIndex + 1;
-      const left = raw.slice(0, splitAt).trim();
-      const right = raw.slice(splitAt + 1).trim();
-      const leftNum = this._virtualRuleNumber(left);
-      const rightNum = this._virtualRuleNumber(right);
-      if (valueNum !== null && leftNum !== null && rightNum !== null) {
-        const low = Math.min(leftNum, rightNum);
-        const high = Math.max(leftNum, rightNum);
-        return valueNum >= low && valueNum <= high;
-      }
-    }
-    return this._virtualRuleEqual(value, raw);
   }
   _virtualRulePreviewHtml(p2) {
     const onEl = this.shadowRoot?.getElementById("virtualBinaryOnValue");
@@ -5531,10 +5526,10 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     const elseState = elseEl ? elseEl.value : p2?.virtual_binary?.else_state || "unavailable";
     let result = "unavailable";
     let cls = "unav";
-    if (this._virtualRuleMatches(sourceValue, onRule)) {
+    if (virtualRuleMatches(sourceValue, onRule)) {
       result = "ON";
       cls = "on";
-    } else if (this._virtualRuleMatches(sourceValue, offRule)) {
+    } else if (virtualRuleMatches(sourceValue, offRule)) {
       result = "OFF";
       cls = "off";
     } else if (String(elseState || "unavailable").toLowerCase() === "off") {
@@ -5567,10 +5562,10 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     const elseState = elseEl ? elseEl.value : p2?.virtual_binary?.else_state || "unavailable";
     let result = "unavailable";
     let tone = "unav";
-    if (this._virtualRuleMatches(sourceValue, onRule)) {
+    if (virtualRuleMatches(sourceValue, onRule)) {
       result = "ON";
       tone = "on";
-    } else if (this._virtualRuleMatches(sourceValue, offRule) || String(elseState).toLowerCase() === "off") {
+    } else if (virtualRuleMatches(sourceValue, offRule) || String(elseState).toLowerCase() === "off") {
       result = "OFF";
       tone = "off";
     }

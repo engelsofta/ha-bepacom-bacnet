@@ -97,7 +97,7 @@ class BepacomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except AbortFlow:
                 raise
             except Exception:  # noqa: BLE001
-                _LOGGER.exception("Unexpected exception while setting up Bepacom")
+                _LOGGER.exception("Unexpected exception while setting up Engelsoft Beacon")
                 errors["base"] = "unknown"
             finally:
                 await client.async_close()

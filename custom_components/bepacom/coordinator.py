@@ -15,7 +15,6 @@ from homeassistant.helpers.update_coordinator import (
 
 from .api import BepacomClient
 from .const import (
-    CONF_SUBSCRIBED_OBJECTS,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     FALLBACK_POLL_INTERVAL,
@@ -503,13 +502,13 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         if not targets:
             if polling_targets:
                 _LOGGER.debug(
-                    "No Bepacom subscription targets configured; starting per-object polling for %s objects.",
+                    "No Engelsoft Beacon subscription targets configured; starting per-object polling for %s objects.",
                     len(polling_targets),
                 )
                 self._ensure_fallback_polling()
             else:
                 _LOGGER.debug(
-                    "No Bepacom subscription or per-object polling targets configured."
+                    "No Engelsoft Beacon subscription or per-object polling targets configured."
                 )
             self._subscriptions_initialized = True
             self._last_subscription_summary = (0, 0)
@@ -793,35 +792,6 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 targets.append((device_id, object_key))
 
         return targets
-
-    def subscription_option_map(self) -> dict[str, str]:
-        """Return selectable subscriptions for the options flow."""
-        return self.point_registry.option_map()
-
-    def _object_instance(self, object_id: str) -> int:
-        """Return BACnet object instance for sorting, if available."""
-        if ":" not in object_id:
-            return 999999999
-
-        _, instance = object_id.split(":", 1)
-
-        try:
-            return int(instance)
-        except ValueError:
-            return 999999999
-
-    def _enabled_subscription_keys(self) -> set[str]:
-        """Return option keys for objects that should use subscribe."""
-        selected = self._entry.options.get(CONF_SUBSCRIBED_OBJECTS, [])
-
-        if not isinstance(selected, list):
-            return set()
-
-        return {str(item) for item in selected}
-
-    def _subscription_option_key(self, device_id: str, object_id: str) -> str:
-        """Build a stable key for per-object subscription options."""
-        return f"{device_id}|{object_id}"
 
     async def _async_handle_subscription_update(
         self,

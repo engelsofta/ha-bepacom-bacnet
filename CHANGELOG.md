@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.3.3 - 2026-08-28 (Pre-release)
+
+### **Less legacy, more telemetry.**
+
+### English
+
+- removed obsolete constants, compatibility fallbacks, dead coordinator helpers, and remaining legacy branding
+- extracted Explorer filtering, write-value parsing, transport normalization, and virtual-rule matching into focused modules
+- enabled TypeScript checking for the complete Explorer implementation
+- added focused tests for the extracted panel helpers
+- refreshed the production frontend bundle and bumped its cache build to `0681`
+
+### Deutsch
+
+- veraltete Konstanten, Kompatibilitäts-Fallbacks, ungenutzte Coordinator-Helfer und verbliebene Branding-Reste entfernt
+- Explorer-Filter, Schreibwertverarbeitung, Transport-Normalisierung und virtuelle Regeln in klar abgegrenzte Module ausgelagert
+- TypeScript-Prüfung für den vollständigen Explorer aktiviert
+- gezielte Tests für die ausgelagerten Panel-Helfer ergänzt
+- produktives Frontend-Bundle erneuert und Cache-Build auf `0681` erhöht
+
 ## 1.3.2 - 2026-08-28
 
 ### English

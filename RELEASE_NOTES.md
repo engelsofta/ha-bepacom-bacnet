@@ -1,3 +1,19 @@
+# Engelsoft Beacon BACnet/IP 1.3.3 Pre-release
+
+## **Less legacy, more telemetry.**
+
+This pre-release clears out accumulated compatibility and frontend debt while keeping BACnet behavior stable.
+
+- Obsolete constants, compatibility fallbacks, dead helpers, and legacy branding were removed.
+- Explorer filtering, write-value parsing, transport normalization, and virtual-rule matching now live in focused modules.
+- TypeScript checks the complete Explorer implementation instead of skipping its largest file.
+- Focused tests cover the extracted panel helpers.
+- Explorer frontend cache build: `0681`.
+
+Restart Home Assistant after updating and reload the Explorer once without the browser cache.
+
+---
+
 # Engelsoft Beacon BACnet/IP 1.3.2
 
 ## English

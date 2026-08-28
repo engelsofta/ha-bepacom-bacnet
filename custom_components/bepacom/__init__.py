@@ -56,7 +56,7 @@ def _loaded_entry_data(hass: HomeAssistant, config_entry_id: str | None) -> dict
         entry_data = domain_data.get(config_entry_id)
         if not isinstance(entry_data, dict) or "client" not in entry_data:
             raise HomeAssistantError(
-                f"Bepacom config entry {config_entry_id!r} is not loaded"
+                f"Engelsoft Beacon connection {config_entry_id!r} is not loaded"
             )
         return entry_data
 
@@ -66,7 +66,7 @@ def _loaded_entry_data(hass: HomeAssistant, config_entry_id: str | None) -> dict
         if isinstance(value, dict) and "client" in value
     ]
     if not loaded_entries:
-        raise HomeAssistantError("No Bepacom config entry is loaded")
+        raise HomeAssistantError("No Engelsoft Beacon connection is loaded")
     if len(loaded_entries) > 1:
         raise HomeAssistantError(
             "Multiple Bepacom config entries are loaded; config_entry_id is required"

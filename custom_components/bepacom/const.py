@@ -3,11 +3,9 @@
 from datetime import timedelta
 
 DOMAIN = "bepacom"
-VERSION = "1.3.2"
-CONF_SUBSCRIBED_OBJECTS = "subscribed_objects"
+VERSION = "1.3.3"
 CONF_ENTITY_OVERRIDES = "entity_overrides"
 CONF_VIRTUAL_ENTITIES = "virtual_entities"
-CONF_ENTITY_OVERRIDES_JSON = "entity_overrides_json"
 CONF_PUSH_VALUE_LOGGING = "push_value_logging"
 CONF_HEARTBEAT_TIMEOUT = "heartbeat_timeout"
 CONF_API_TOKEN = "api_token"

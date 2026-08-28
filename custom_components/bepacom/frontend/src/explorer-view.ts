@@ -1,10 +1,14 @@
-// @ts-nocheck
-
 import { ExplorerApi } from "./explorer-api";
 import { ExplorerPreferences } from "./explorer-state";
 import { localizeDom, normalizeLanguage, translateText } from "./i18n";
+import { virtualRuleMatches } from "./virtual-rule";
 
 export class BepacomExplorerView extends HTMLElement {
+  // The view is fed by Home Assistant websocket payloads whose shape depends on
+  // the installed backend version. Keep that dynamic boundary explicit while
+  // allowing TypeScript to check the implementation and extracted domain code.
+  [key: string]: any;
+
   constructor() {
     super();
     this._preferences = new ExplorerPreferences();
@@ -470,7 +474,7 @@ export class BepacomExplorerView extends HTMLElement {
       const runtimeByUid = new Map((result.points || []).map((point) => [point.unique_id, point]));
       this._points = this._points.map((point) => ({
         ...point,
-        ...(runtimeByUid.get(point.unique_id) || {}),
+        ...((runtimeByUid.get(point.unique_id) || {}) as Record<string, unknown>),
       }));
       this._diagnostics = result.diagnostics || {};
       this._trackClientHistory(this._points);
@@ -1331,7 +1335,7 @@ export class BepacomExplorerView extends HTMLElement {
   }
 
   _dashboardValueChanges(d = {}) {
-    const backend = Number(d.value_changes ?? 0) || 0;
+    const backend = Number((d as Record<string, any>).value_changes ?? 0) || 0;
     const client = this._clientValueChangeTotal();
     // Backend ist die Quelle der Wahrheit. Falls es nach einem Reload noch nicht
     // weiterzählt, zeigt der Explorer mindestens die im Browser erkannten
@@ -1681,7 +1685,7 @@ export class BepacomExplorerView extends HTMLElement {
   }
 
   _writeHtml(p) {
-    if (!p.writable) return `<div class="muted">Dieser BACnet-Punkt ist laut Discovery nicht schreibbar.</div>`;
+    if (!p.writable) return `<div class="muted">Dieser BACnet-Punkt unterstützt keinen Schreibzugriff.</div>`;
     return `<div class="edit-grid"><div><label>Neuer Wert</label><input id="writeValue" value="${this._escape(this._value(p.present_value))}"></div><div><label>BACnet Priority</label><select id="writePriority">${Array.from({length:16}, (_,i)=>i+1).map((v)=>`<option value="${v}" ${v===8?"selected":""}>${v}</option>`).join("")}</select></div></div><div class="actions"><button id="writeValueBtn" ${this._writing ? "disabled" : ""}>Wert schreiben${this._writing ? " …" : ""}</button></div>`;
   }
 
@@ -4136,7 +4140,7 @@ export class BepacomExplorerView extends HTMLElement {
           .map((point) => String(point.device_id ?? "-"))
           .filter(Boolean),
       ),
-    ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    ).sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
     toolbar.objectTypes = Array.from(
       new Set((this._points || []).map((point) => String(point.object_type || "")).filter(Boolean)),
     ).sort();
@@ -4764,7 +4768,7 @@ export class BepacomExplorerView extends HTMLElement {
 
 
   _deviceOptions() {
-    const devices = Array.from(new Set((this._points || []).map((p) => String(p.device_id ?? "-")).filter(Boolean))).sort((a,b)=>a.localeCompare(b, undefined, {numeric:true}));
+    const devices = Array.from(new Set((this._points || []).map((p) => String(p.device_id ?? "-")).filter(Boolean))).sort((a,b)=>String(a).localeCompare(String(b), undefined, {numeric:true}));
     const current = String(this._filters.device_id || "all");
     const all = [`<option value="all" ${current === "all" ? "selected" : ""}>Alle Devices</option>`];
     return all.concat(devices.map((d) => `<option value="${this._escape(d)}" ${current === d ? "selected" : ""}>Device ${this._escape(d)}</option>`)).join("");
@@ -4777,98 +4781,6 @@ export class BepacomExplorerView extends HTMLElement {
   }
 
 
-  _virtualRuleNormalize(value) {
-    return String(value ?? "").trim().replace(/^['\"]|['\"]$/g, "").toLowerCase();
-  }
-
-  _virtualRuleNumber(value) {
-    if (value === null || value === undefined) return null;
-    const raw = String(value).trim().replace(/^['\"]|['\"]$/g, "").replace(",", ".");
-    if (!raw) return null;
-    const num = Number(raw);
-    return Number.isFinite(num) ? num : null;
-  }
-
-  _virtualRuleEqual(value, expr) {
-    const a = this._virtualRuleNumber(value);
-    const b = this._virtualRuleNumber(expr);
-    if (a !== null && b !== null) return a === b;
-    return this._virtualRuleNormalize(value) === this._virtualRuleNormalize(expr);
-  }
-
-  _virtualRuleAdvancedMatches(value, expression) {
-    let expr = String(expression || "").trim();
-    if (!expr) return null;
-    expr = expr.replaceAll("&&", " && ").replaceAll("||", " || ");
-
-    // Safe mini evaluator for live preview only. Backend remains authoritative.
-    // Allowed characters/operators: value, numbers, quotes, (), + - * / % & | ^,
-    // comparisons and && / || / !. Anything else disables the preview result.
-    if (!/^[a-zA-Z0-9_\s()<>!=&|^+*\/%.,'"-]+$/.test(expr)) return null;
-
-    const valueNum = this._virtualRuleNumber(value);
-    const preparedValue = valueNum !== null ? String(valueNum) : JSON.stringify(this._virtualRuleNormalize(value));
-    let jsExpr = expr
-      .replace(/\bvalue\b/g, preparedValue)
-      .replace(/([^=!])=([^=])/g, "$1==$2");
-
-    try {
-      // eslint-disable-next-line no-new-func
-      return !!Function(`"use strict"; return (${jsExpr});`)();
-    } catch (_err) {
-      return null;
-    }
-  }
-
-  _virtualRuleMatches(value, condition) {
-    const raw = String(condition ?? "").trim();
-    if (!raw) return false;
-
-    if (raw.includes("value") || raw.includes("&&") || raw.includes("||")) {
-      const advanced = this._virtualRuleAdvancedMatches(value, raw);
-      if (advanced !== null) return advanced;
-    }
-
-    if (raw.includes(",")) {
-      return raw.split(",").some((part) => this._virtualRuleMatches(value, part.trim()));
-    }
-
-    const valueNum = this._virtualRuleNumber(value);
-    const ops = [">=", "<=", "!=", "==", ">", "<"];
-    for (const op of ops) {
-      if (!raw.startsWith(op)) continue;
-      const rhs = raw.slice(op.length).trim();
-      const rhsNum = this._virtualRuleNumber(rhs);
-      if (valueNum !== null && rhsNum !== null) {
-        if (op === ">=") return valueNum >= rhsNum;
-        if (op === "<=") return valueNum <= rhsNum;
-        if (op === "!=") return valueNum !== rhsNum;
-        if (op === "==") return valueNum === rhsNum;
-        if (op === ">") return valueNum > rhsNum;
-        if (op === "<") return valueNum < rhsNum;
-      }
-      if (op === "!=") return !this._virtualRuleEqual(value, rhs);
-      if (op === "==") return this._virtualRuleEqual(value, rhs);
-      return false;
-    }
-
-    const dashIndex = raw.slice(1).indexOf("-");
-    if (dashIndex >= 0) {
-      const splitAt = dashIndex + 1;
-      const left = raw.slice(0, splitAt).trim();
-      const right = raw.slice(splitAt + 1).trim();
-      const leftNum = this._virtualRuleNumber(left);
-      const rightNum = this._virtualRuleNumber(right);
-      if (valueNum !== null && leftNum !== null && rightNum !== null) {
-        const low = Math.min(leftNum, rightNum);
-        const high = Math.max(leftNum, rightNum);
-        return valueNum >= low && valueNum <= high;
-      }
-    }
-
-    return this._virtualRuleEqual(value, raw);
-  }
-
   _virtualRulePreviewHtml(p) {
     const onEl = this.shadowRoot?.getElementById("virtualBinaryOnValue");
     const offEl = this.shadowRoot?.getElementById("virtualBinaryOffValue");
@@ -4880,10 +4792,10 @@ export class BepacomExplorerView extends HTMLElement {
 
     let result = "unavailable";
     let cls = "unav";
-    if (this._virtualRuleMatches(sourceValue, onRule)) {
+    if (virtualRuleMatches(sourceValue, onRule)) {
       result = "ON";
       cls = "on";
-    } else if (this._virtualRuleMatches(sourceValue, offRule)) {
+    } else if (virtualRuleMatches(sourceValue, offRule)) {
       result = "OFF";
       cls = "off";
     } else if (String(elseState || "unavailable").toLowerCase() === "off") {
@@ -4919,10 +4831,10 @@ export class BepacomExplorerView extends HTMLElement {
     const elseState = elseEl ? elseEl.value : (p?.virtual_binary?.else_state || "unavailable");
     let result = "unavailable";
     let tone = "unav";
-    if (this._virtualRuleMatches(sourceValue, onRule)) {
+    if (virtualRuleMatches(sourceValue, onRule)) {
       result = "ON";
       tone = "on";
-    } else if (this._virtualRuleMatches(sourceValue, offRule) || String(elseState).toLowerCase() === "off") {
+    } else if (virtualRuleMatches(sourceValue, offRule) || String(elseState).toLowerCase() === "off") {
       result = "OFF";
       tone = "off";
     }

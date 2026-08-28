@@ -55,7 +55,7 @@ async def async_setup_entry(
         "coordinator"
     ]
 
-    # Create number entities for writable analog objects
+    # Create number entities for commandable numeric BACnet objects.
     entities: list[NumberEntity] = []
     overrides = BepacomOverrideManager(entry.options)
 
@@ -206,8 +206,6 @@ class BepacomNumber(CoordinatorEntity[BepacomCoordinator], NumberEntity):
         )
         is_analog_value = object_type == "analog_value"
         is_multistate_output = object_type == "multi_state_output"
-        uses_api_v2_write = is_analog_value or is_multistate_output
-
         if not self._obj.effective_writable:
             _LOGGER.error(
                 "Cannot write to non-writable object %s",

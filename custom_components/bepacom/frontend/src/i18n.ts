@@ -119,7 +119,7 @@ const ENGLISH: Array<[string, string]> = [
   ["Eine BACnet-Priorität zwischen 1 und 7 übersteuert den üblichen Bedienwert auf Priorität 8.", "A BACnet priority from 1 to 7 overrides the usual operator value at priority 8."],
   ["Ringpuffer: maximal 10.000 Änderungen · angezeigt werden die neuesten 120 Treffer", "Ring buffer: up to 10,000 changes · showing the latest 120 matches"],
   ["Noch kein Verlauf vorhanden. Der Verlauf füllt sich mit eingehenden Wertänderungen.", "No history yet. Incoming value changes will appear here."],
-  ["Dieser BACnet-Punkt ist laut Discovery nicht schreibbar.", "This BACnet point is not writable according to discovery."],
+  ["Dieser BACnet-Punkt unterstützt keinen Schreibzugriff.", "This BACnet point does not support write access."],
   ["Keine zusätzlichen Engineering-Daten vorhanden.", "No additional engineering data available."],
   ["Noch keine passenden Wertänderungen.", "No matching value changes yet."],
   ["Ungespeicherte Änderungen wurden verworfen.", "Unsaved changes were discarded."],

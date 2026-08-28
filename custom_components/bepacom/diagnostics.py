@@ -26,7 +26,7 @@ async def async_get_config_entry_diagnostics(
     hass: HomeAssistant,
     entry: ConfigEntry,
 ) -> dict[str, Any]:
-    """Return privacy-safe diagnostics for one Bepacom config entry."""
+    """Return privacy-safe diagnostics for one Engelsoft Beacon connection."""
     entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
     coordinator: BepacomCoordinator | None = (
         entry_data.get("coordinator") if isinstance(entry_data, dict) else None

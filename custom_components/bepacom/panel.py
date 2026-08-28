@@ -1,4 +1,4 @@
-"""Sidebar BACnet Explorer panel for Bepacom."""
+"""Sidebar BACnet Explorer panel for Engelsoft Beacon."""
 
 from __future__ import annotations
 
@@ -23,6 +23,12 @@ from .const import DOMAIN, VERSION, CONF_ENTITY_OVERRIDES, CONF_VIRTUAL_ENTITIES
 from .entity_factory import BacnetObjectTypeMapper
 from .models import BacnetObject
 from .exceptions import CannotConnect, InvalidResponse, WriteError
+from .panel_helpers import (
+    effective_transport as _effective_transport,
+    matches_filters as _matches_filters,
+    normalize_empty as _normalize_empty,
+    parse_write_value as _parse_write_value,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,7 +36,7 @@ PANEL_URL = "bepacom_explorer"
 PANEL_NAME = "bepacom-explorer-panel"
 PANEL_STATIC_URL = "/bepacom_static"
 PANEL_EVENT = "bepacom_explorer_updated"
-PANEL_VERSION = "0680"
+PANEL_VERSION = "0681"
 
 _WS_REGISTERED = "websocket_registered"
 _PANEL_REGISTERED = "panel_registered"
@@ -415,103 +421,6 @@ def _serialize_point(
     }
 
 
-def _effective_transport(status: dict[str, Any] | None) -> dict[str, Any]:
-    """Normalize BACstac target diagnostics for the Explorer frontend."""
-    if not status:
-        return {
-            "gateway_requested_mode": None,
-            "effective_update_mode": "unknown",
-            "effective_update_state": "unknown",
-            "effective_update_reason": None,
-            "effective_update_error": None,
-        }
-
-    state = str(status.get("state") or "waiting").strip().lower()
-    fallback = bool(status.get("fallback_active"))
-    if fallback or state in {"polling", "polling_waiting", "polling_error", "polling_fallback"}:
-        effective_mode = "polling"
-    elif state in {"cov_active", "cov_waiting", "subscribing"} or status.get("cov_task_active"):
-        effective_mode = "cov"
-    elif state in {"disabled", "cancelled"}:
-        effective_mode = "disabled"
-    else:
-        effective_mode = "waiting"
-
-    return {
-        "gateway_requested_mode": status.get("requested_mode"),
-        "effective_update_mode": effective_mode,
-        "effective_update_state": state,
-        "effective_update_reason": status.get("fallback_reason"),
-        "effective_update_error": status.get("last_error"),
-        "effective_subscription_confirmed": bool(status.get("subscription_confirmed")),
-        "effective_last_cov_age": status.get("last_cov_age_seconds"),
-        "effective_last_poll_age": status.get("last_poll_age_seconds"),
-        "effective_value_age": status.get("last_value_age_seconds"),
-    }
-
-
-@callback
-def _matches_search_query(haystack: str, query: str) -> bool:
-    """Match whitespace-separated terms with optional glob wildcards."""
-    normalized_haystack = str(haystack or "").lower()
-    terms = [term for term in str(query or "").strip().lower().split() if term]
-
-    for term in terms:
-        if "*" not in term and "?" not in term:
-            if term not in normalized_haystack:
-                return False
-            continue
-
-        pattern = re.escape(term).replace(r"\*", ".*").replace(r"\?", ".")
-        if re.search(pattern, normalized_haystack, flags=re.DOTALL) is None:
-            return False
-
-    return True
-
-
-@callback
-def _matches_filters(point: dict[str, Any], msg: dict[str, Any]) -> bool:
-    """Return whether a serialized point matches frontend filters."""
-    search = str(msg.get("search") or "").strip().lower()
-    object_type = str(msg.get("object_type") or "").strip().lower()
-    only_overrides = bool(msg.get("only_overrides", False))
-    only_subscribe = bool(msg.get("only_subscribe", False))
-
-    if object_type and object_type != "all" and point["object_type"].lower() != object_type:
-        return False
-
-    if only_overrides and not point["override_active"]:
-        return False
-
-    if only_subscribe and not (point.get("update_mode") == "subscribe" or point["subscribed"]):
-        return False
-
-    if search:
-        haystack = " ".join(
-            str(point.get(key) or "")
-            for key in (
-                "unique_id",
-                "device_id",
-                "object_key",
-                "object_type",
-                "object_id",
-                "object_name",
-                "description",
-                "present_value",
-                "bacnet_unit",
-                "ha_unit",
-                "device_class",
-                "entity_id",
-                "entity_name",
-                "entity_original_name",
-            )
-        ).lower()
-        if not _matches_search_query(haystack, search):
-            return False
-
-    return True
-
-
 def _explorer_diagnostics(coordinator, registry) -> dict[str, Any]:
     """Return transport and gateway metadata for the Explorer status view."""
     devices = list(coordinator.discovery.devices.values())
@@ -577,7 +486,7 @@ async def websocket_explorer_points(
     entry_id, data = _entry_data(hass, msg.get("entry_id"))
 
     if data is None:
-        connection.send_error(msg["id"], "not_found", "No Bepacom config entry is loaded")
+        connection.send_error(msg["id"], "not_found", "No Engelsoft Beacon connection is loaded")
         return
 
     coordinator = data["coordinator"]
@@ -650,7 +559,7 @@ async def websocket_explorer_points_runtime(
     """Return compact runtime updates for points already loaded by the UI."""
     entry_id, data = _entry_data(hass, msg.get("entry_id"))
     if data is None:
-        connection.send_error(msg["id"], "not_found", "No Bepacom config entry is loaded")
+        connection.send_error(msg["id"], "not_found", "No Engelsoft Beacon connection is loaded")
         return
 
     coordinator = data["coordinator"]
@@ -695,7 +604,7 @@ async def websocket_explorer_point(
     entry_id, data = _entry_data(hass, msg.get("entry_id"))
 
     if data is None:
-        connection.send_error(msg["id"], "not_found", "No Bepacom config entry is loaded")
+        connection.send_error(msg["id"], "not_found", "No Engelsoft Beacon connection is loaded")
         return
 
     coordinator = data["coordinator"]
@@ -744,7 +653,7 @@ async def websocket_explorer_history(
     entry_id, data = _entry_data(hass, msg.get("entry_id"))
 
     if data is None:
-        connection.send_error(msg["id"], "not_found", "No Bepacom config entry is loaded")
+        connection.send_error(msg["id"], "not_found", "No Engelsoft Beacon connection is loaded")
         return
 
     registry = data["coordinator"].point_registry
@@ -783,7 +692,7 @@ async def websocket_explorer_changes(
     entry_id, data = _entry_data(hass, msg.get("entry_id"))
 
     if data is None:
-        connection.send_error(msg["id"], "not_found", "No Bepacom config entry is loaded")
+        connection.send_error(msg["id"], "not_found", "No Engelsoft Beacon connection is loaded")
         return
 
     result = data["coordinator"].point_registry.changes_since(
@@ -791,23 +700,6 @@ async def websocket_explorer_changes(
         limit=msg.get("limit", 1000),
     )
     connection.send_result(msg["id"], {"entry_id": entry_id, **result})
-
-
-def _parse_write_value(value: Any) -> Any:
-    """Parse frontend write input into a BACnet-friendly value."""
-    if isinstance(value, (int, float, bool)) or value is None:
-        return value
-    text = str(value).strip()
-    if text.lower() in {"true", "on", "active", "1", "ja", "ein"}:
-        return True
-    if text.lower() in {"false", "off", "inactive", "0", "nein", "aus"}:
-        return False
-    try:
-        if "." in text or "," in text:
-            return float(text.replace(",", "."))
-        return int(text)
-    except ValueError:
-        return text
 
 
 @websocket_api.websocket_command(
@@ -829,7 +721,7 @@ async def websocket_explorer_write_property(
     entry_id, data = _entry_data(hass, msg.get("entry_id"))
 
     if data is None:
-        connection.send_error(msg["id"], "not_found", "No Bepacom config entry is loaded")
+        connection.send_error(msg["id"], "not_found", "No Engelsoft Beacon connection is loaded")
         return
 
     coordinator = data["coordinator"]
@@ -899,14 +791,6 @@ async def websocket_explorer_write_property(
             "history": registry.history(obj),
         },
     )
-
-
-def _normalize_empty(value: Any) -> str | None:
-    """Normalize frontend text input."""
-    if value is None:
-        return None
-    value = str(value).strip()
-    return value or None
 
 
 async def _async_update_entity_registry_from_msg(
@@ -1164,12 +1048,12 @@ async def websocket_explorer_apply_update_modes(
     """Apply all saved per-point transport modes without reloading the entry."""
     entry_id, data = _entry_data(hass, msg.get("entry_id"))
     if data is None or entry_id is None:
-        connection.send_error(msg["id"], "not_found", "No Bepacom config entry is loaded")
+        connection.send_error(msg["id"], "not_found", "No Engelsoft Beacon connection is loaded")
         return
 
     coordinator = data.get("coordinator")
     if coordinator is None:
-        connection.send_error(msg["id"], "not_ready", "Bepacom coordinator is not ready")
+        connection.send_error(msg["id"], "not_ready", "Engelsoft Beacon is not ready")
         return
 
     try:
@@ -1237,12 +1121,12 @@ async def websocket_explorer_save_override(
     entry_id, data = _entry_data(hass, msg.get("entry_id"))
 
     if data is None or entry_id is None:
-        connection.send_error(msg["id"], "not_found", "No Bepacom config entry is loaded")
+        connection.send_error(msg["id"], "not_found", "No Engelsoft Beacon connection is loaded")
         return
 
     entry = hass.config_entries.async_get_entry(entry_id)
     if entry is None:
-        connection.send_error(msg["id"], "not_found", "Bepacom config entry not found")
+        connection.send_error(msg["id"], "not_found", "Engelsoft Beacon connection not found")
         return
 
     coordinator = data["coordinator"]
@@ -1446,12 +1330,12 @@ async def websocket_explorer_delete_virtual_entity(
     entry_id, data = _entry_data(hass, msg.get("entry_id"))
 
     if data is None or entry_id is None:
-        connection.send_error(msg["id"], "not_found", "No Bepacom config entry is loaded")
+        connection.send_error(msg["id"], "not_found", "No Engelsoft Beacon connection is loaded")
         return
 
     entry = hass.config_entries.async_get_entry(entry_id)
     if entry is None:
-        connection.send_error(msg["id"], "not_found", "Bepacom config entry not found")
+        connection.send_error(msg["id"], "not_found", "Engelsoft Beacon connection not found")
         return
 
     coordinator = data["coordinator"]
@@ -1503,12 +1387,12 @@ async def websocket_explorer_reset_override(
     entry_id, data = _entry_data(hass, msg.get("entry_id"))
 
     if data is None or entry_id is None:
-        connection.send_error(msg["id"], "not_found", "No Bepacom config entry is loaded")
+        connection.send_error(msg["id"], "not_found", "No Engelsoft Beacon connection is loaded")
         return
 
     entry = hass.config_entries.async_get_entry(entry_id)
     if entry is None:
-        connection.send_error(msg["id"], "not_found", "Bepacom config entry not found")
+        connection.send_error(msg["id"], "not_found", "Engelsoft Beacon connection not found")
         return
 
     coordinator = data["coordinator"]
@@ -1548,7 +1432,7 @@ async def websocket_explorer_reload_entry(
     connection: websocket_api.ActiveConnection,
     msg: dict[str, Any],
 ) -> None:
-    """Reload a Bepacom config entry on explicit user request.
+    """Reload an Engelsoft Beacon config entry on explicit user request.
 
     The reload is scheduled after the WebSocket response has been sent. Reloading
     the entry can temporarily tear down parts of the integration while the panel
@@ -1558,7 +1442,7 @@ async def websocket_explorer_reload_entry(
     """
     entry_id, data = _entry_data(hass, msg.get("entry_id"))
     if data is None or entry_id is None:
-        connection.send_error(msg["id"], "not_found", "No Bepacom config entry is loaded")
+        connection.send_error(msg["id"], "not_found", "No Engelsoft Beacon connection is loaded")
         return
 
     domain_data = hass.data.setdefault(DOMAIN, {})
