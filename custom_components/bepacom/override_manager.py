@@ -88,6 +88,18 @@ class BepacomOverrideManager:
         self._options = options or {}
         overrides = self._options.get(CONF_ENTITY_OVERRIDES, {})
         self._overrides: dict[str, Any] = overrides if isinstance(overrides, dict) else {}
+        self._multistate_feedback_consumers: dict[str, list[str]] = {}
+        for consumer_unique_id, override in self._overrides.items():
+            if not isinstance(override, dict):
+                continue
+            if str(override.get("multistate_representation", "number")).strip().lower() not in {"switch", "light", "outlet"}:
+                continue
+            feedback_unique_id = override.get("multistate_feedback_unique_id")
+            if feedback_unique_id is None or not str(feedback_unique_id).strip():
+                continue
+            self._multistate_feedback_consumers.setdefault(
+                str(feedback_unique_id).strip(), []
+            ).append(str(consumer_unique_id))
 
     def get_override(self, obj: BacnetObject) -> dict[str, Any]:
         """Return the override dictionary for a BACnet object."""
@@ -184,13 +196,31 @@ class BepacomOverrideManager:
         value = str(
             self.get_override(obj).get("multistate_representation", "number")
         ).strip().lower()
-        return "switch" if value == "switch" else "number"
+        return value if value in {"switch", "light", "outlet"} else "number"
 
     def get_multistate_switch_value(
         self, obj: BacnetObject, key: str, default: float
     ) -> float:
         """Return a finite BACnet value used by a Multi-State Output switch."""
         return self.get_number_setting(obj, key, default)
+
+    def get_multistate_feedback_unique_id(self, obj: BacnetObject) -> str | None:
+        """Return the configured Multi-State Input used as switch feedback."""
+        value = self.get_override(obj).get("multistate_feedback_unique_id")
+        if value is None:
+            return None
+        normalized = str(value).strip()
+        return normalized or None
+
+    def consumed_multistate_feedback_unique_ids(self) -> set[str]:
+        """Return MSI unique IDs consumed by configured MSO switch feedbacks."""
+        return set(self._multistate_feedback_consumers)
+
+    def multistate_feedback_consumer_unique_ids(
+        self, feedback_unique_id: str
+    ) -> list[str]:
+        """Return MSO switch unique IDs consuming one MSI as feedback."""
+        return list(self._multistate_feedback_consumers.get(feedback_unique_id, []))
 
     def get_write_priority(self, obj: BacnetObject, default: int = 8) -> int:
         """Return the configured BACnet write priority (1-16)."""

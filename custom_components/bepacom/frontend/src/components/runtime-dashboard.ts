@@ -192,6 +192,7 @@ export class BepacomRuntimeDashboard extends LitElement {
           item.object_name,
           item.unique_id,
           item.entity_id,
+          item.friendly_name,
           item.previous_value,
           item.value,
           item.source,

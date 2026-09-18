@@ -22,6 +22,13 @@ LOCAL_APP_HOSTS = (
 DEFAULT_SCAN_INTERVAL = timedelta(seconds=5)
 DEFAULT_PUSH_VALUE_LOGGING = False
 DEFAULT_HEARTBEAT_TIMEOUT = 60
+# Keep the config entry in Home Assistant's initializing state while the local
+# add-on is normally still booting. Only afterwards hand retries back to HA.
+STARTUP_CONNECTION_RETRY_WINDOW = 90
+STARTUP_CONNECTION_RETRY_INTERVAL = 5
+# Keep transient add-on startup failures out of Repairs. Home Assistant retries a
+# ConfigEntryNotReady automatically while the add-on finishes booting.
+STARTUP_UNAVAILABLE_GRACE_PERIOD = 300
 WEBSOCKET_PING_INTERVAL = 30
 DEFAULT_SUBSCRIPTION_LIFETIME = 3600
 FALLBACK_POLL_INTERVAL = timedelta(seconds=30)

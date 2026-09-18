@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 from typing import Any
 
 import voluptuous as vol
@@ -15,8 +17,14 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 
 from .api import BepacomClient
-from .const import CONF_API_TOKEN, DOMAIN
-from .const import CONF_ENTITY_OVERRIDES
+from .const import (
+    CONF_API_TOKEN,
+    CONF_ENTITY_OVERRIDES,
+    DOMAIN,
+    STARTUP_CONNECTION_RETRY_INTERVAL,
+    STARTUP_CONNECTION_RETRY_WINDOW,
+    STARTUP_UNAVAILABLE_GRACE_PERIOD,
+)
 from .coordinator import BepacomCoordinator
 from .entity_factory import BacnetObjectTypeMapper, EntityType
 from .exceptions import CannotConnect, InvalidResponse, UnsupportedGateway
@@ -24,9 +32,82 @@ from .panel import async_register_explorer_panel, async_unregister_explorer_pane
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[str] = ["sensor", "binary_sensor", "switch", "number"]
+_UNAVAILABLE_SINCE = "_unavailable_since"
+
+PLATFORMS: list[str] = ["sensor", "binary_sensor", "switch", "number", "light"]
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+async def _async_validate_stac_during_startup(client: BepacomClient) -> None:
+    """Wait briefly for the add-on while the entry remains initializing."""
+    deadline = time.monotonic() + STARTUP_CONNECTION_RETRY_WINDOW
+    attempt = 0
+
+    while True:
+        attempt += 1
+        try:
+            await client.async_validate_stac()
+            return
+        except (CannotConnect, InvalidResponse):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise
+
+            delay = min(STARTUP_CONNECTION_RETRY_INTERVAL, remaining)
+            _LOGGER.info(
+                "Engelsoft STAC is still starting; retrying connection in %.1f "
+                "seconds (startup attempt %s)",
+                delay,
+                attempt,
+            )
+            await asyncio.sleep(delay)
+
+
+def _async_handle_temporary_unavailability(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+) -> None:
+    """Create a repair only after a continuous startup grace period."""
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    unavailable_since = domain_data.setdefault(_UNAVAILABLE_SINCE, {})
+    now = time.monotonic()
+    first_failure = unavailable_since.setdefault(entry.entry_id, now)
+    issue_id = f"app_unavailable_{entry.entry_id}"
+
+    if now - first_failure < STARTUP_UNAVAILABLE_GRACE_PERIOD:
+        # Also remove an issue left by an older integration version. During the
+        # grace period this is an expected add-on startup race, not a repair.
+        ir.async_delete_issue(hass, DOMAIN, issue_id)
+        _LOGGER.info(
+            "Engelsoft STAC is not ready yet; Home Assistant will retry setup "
+            "without creating a repair during the %s-second startup grace period",
+            STARTUP_UNAVAILABLE_GRACE_PERIOD,
+        )
+        return
+
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        issue_id,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="app_unavailable",
+    )
+
+
+def _async_clear_temporary_unavailability(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+) -> None:
+    """Clear startup failure tracking after a successful connection."""
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    unavailable_since = domain_data.get(_UNAVAILABLE_SINCE)
+    if isinstance(unavailable_since, dict):
+        unavailable_since.pop(entry.entry_id, None)
+        if not unavailable_since:
+            domain_data.pop(_UNAVAILABLE_SINCE, None)
+    ir.async_delete_issue(hass, DOMAIN, f"app_unavailable_{entry.entry_id}")
 
 SERVICE_RELEASE_ANALOG_VALUE_PRIORITY = "release_analog_value_priority"
 SERVICE_RELEASE_MULTISTATE_OUTPUT_PRIORITY = "release_multistate_output_priority"
@@ -278,6 +359,9 @@ async def _async_remove_inactive_entity_entries(
         obj.unique_id: obj for obj in coordinator.point_registry.all(include_disabled=True)
     }
     removed = 0
+    consumed_feedback_ids = (
+        coordinator.point_registry.overrides.consumed_multistate_feedback_unique_ids()
+    )
 
     for entity_entry in list(er.async_entries_for_config_entry(registry, entry.entry_id)):
         if getattr(entity_entry, "platform", None) != DOMAIN:
@@ -287,15 +371,19 @@ async def _async_remove_inactive_entity_entries(
         obj = objects_by_unique_id.get(unique_id)
         if obj is None:
             continue
+        if unique_id in consumed_feedback_ids:
+            registry.async_remove(entity_entry.entity_id)
+            removed += 1
+            continue
         entity_type = BacnetObjectTypeMapper.get_entity_type(obj)
         expected_domain = entity_type.value
+        representation = coordinator.point_registry.overrides.get_multistate_representation(obj)
         if (
             BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
             == "multi_state_output"
-            and coordinator.point_registry.overrides.get_multistate_representation(obj)
-            == "switch"
+            and representation in {"switch", "light", "outlet"}
         ):
-            expected_domain = "switch"
+            expected_domain = "switch" if representation == "outlet" else representation
 
         entity_domain = entity_entry.entity_id.split(".", 1)[0]
         if (
@@ -339,13 +427,13 @@ async def _async_apply_deferred_entity_registry_overrides(
 
         entity_type = BacnetObjectTypeMapper.get_entity_type(obj)
         expected_domain = entity_type.value
+        representation = coordinator.point_registry.overrides.get_multistate_representation(obj)
         if (
             BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
             == "multi_state_output"
-            and coordinator.point_registry.overrides.get_multistate_representation(obj)
-            == "switch"
+            and representation in {"switch", "light", "outlet"}
         ):
-            expected_domain = "switch"
+            expected_domain = "switch" if representation == "outlet" else representation
 
         entity_entry = entries_by_unique_id_and_domain.get(
             (obj.unique_id, expected_domain)
@@ -416,7 +504,7 @@ async def async_setup_entry(
     )
 
     try:
-        await client.async_validate_stac()
+        await _async_validate_stac_during_startup(client)
     except UnsupportedGateway as err:
         await client.async_close()
         ir.async_create_issue(
@@ -429,11 +517,7 @@ async def async_setup_entry(
         ) from err
     except (CannotConnect, InvalidResponse) as err:
         await client.async_close()
-        ir.async_create_issue(
-            hass, DOMAIN, f"app_unavailable_{entry.entry_id}",
-            is_fixable=False, severity=ir.IssueSeverity.WARNING,
-            translation_key="app_unavailable",
-        )
+        _async_handle_temporary_unavailability(hass, entry)
         raise ConfigEntryNotReady(
             "Engelsoft STAC is temporarily unavailable"
         ) from err
@@ -442,7 +526,7 @@ async def async_setup_entry(
         raise
 
     ir.async_delete_issue(hass, DOMAIN, f"gateway_incompatible_{entry.entry_id}")
-    ir.async_delete_issue(hass, DOMAIN, f"app_unavailable_{entry.entry_id}")
+    _async_clear_temporary_unavailability(hass, entry)
 
     coordinator = BepacomCoordinator(
         hass=hass,

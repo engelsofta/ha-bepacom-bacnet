@@ -28,6 +28,7 @@ export class BepacomExplorerPanel extends LitElement {
   private _explorer?: HTMLElement & {
     hass?: HomeAssistantLike;
     panel?: BepacomPanelConfig;
+    narrow?: boolean;
   };
 
   protected render() {
@@ -38,6 +39,7 @@ export class BepacomExplorerPanel extends LitElement {
     if (!this._explorer) return;
     this._explorer.panel = this.panel;
     this._explorer.hass = this.hass;
+    this._explorer.narrow = this.narrow;
   }
 
   static styles = css`

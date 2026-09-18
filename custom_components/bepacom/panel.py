@@ -36,7 +36,7 @@ PANEL_URL = "bepacom_explorer"
 PANEL_NAME = "bepacom-explorer-panel"
 PANEL_STATIC_URL = "/bepacom_static"
 PANEL_EVENT = "bepacom_explorer_updated"
-PANEL_VERSION = "0681"
+PANEL_VERSION = "0688"
 
 _WS_REGISTERED = "websocket_registered"
 _PANEL_REGISTERED = "panel_registered"
@@ -328,10 +328,11 @@ def _serialize_point(
     normalized_object_type = BacnetObjectTypeMapper._normalize_object_type(
         obj.object_type
     )
+    representation = registry.overrides.get_multistate_representation(obj)
     preferred_entity_domain = (
-        "switch"
+        ("switch" if representation == "outlet" else representation)
         if normalized_object_type == "multi_state_output"
-        and registry.overrides.get_multistate_representation(obj) == "switch"
+        and representation in {"switch", "light", "outlet"}
         else BacnetObjectTypeMapper.get_entity_type(obj).value
     )
     default_glt_delay_ms = (
@@ -350,6 +351,22 @@ def _serialize_point(
         if hass is not None
         else None
     )
+    feedback_consumers: list[BacnetObject] = []
+    if normalized_object_type == "multi_state_input":
+        for consumer_unique_id in registry.overrides.multistate_feedback_consumer_unique_ids(
+            obj.unique_id
+        ):
+            consumer = registry.get_by_unique_id(consumer_unique_id)
+            if (
+                consumer is not None
+                and str(consumer.device_id) == str(obj.device_id)
+                and BacnetObjectTypeMapper._normalize_object_type(
+                    consumer.object_type
+                )
+                == "multi_state_output"
+            ):
+                feedback_consumers.append(consumer)
+    feedback_consumer = feedback_consumers[0] if feedback_consumers else None
 
     return {
         "unique_id": obj.unique_id,
@@ -373,6 +390,31 @@ def _serialize_point(
         "multistate_representation": override.get("multistate_representation", "number"),
         "multistate_off_value": override.get("multistate_off_value", 1),
         "multistate_on_value": override.get("multistate_on_value", 2),
+        "multistate_feedback_unique_id": override.get("multistate_feedback_unique_id"),
+        "multistate_feedback_candidates": [
+            {
+                "unique_id": candidate.unique_id,
+                "object_id": candidate.object_id,
+                "name": candidate.object_name or candidate.description or candidate.unique_id,
+                "same_object_id": str(candidate.object_id) == str(obj.object_id),
+            }
+            for candidate in registry.all(include_disabled=True)
+            if str(candidate.device_id) == str(obj.device_id)
+            and BacnetObjectTypeMapper._normalize_object_type(candidate.object_type)
+            == "multi_state_input"
+        ] if normalized_object_type == "multi_state_output" else [],
+        "ha_entity_suppressed": feedback_consumer is not None,
+        "multistate_feedback_consumer": (
+            {
+                "unique_id": feedback_consumer.unique_id,
+                "object_id": feedback_consumer.object_id,
+                "name": feedback_consumer.object_name
+                or feedback_consumer.description
+                or feedback_consumer.unique_id,
+            }
+            if feedback_consumer is not None
+            else None
+        ),
         "write_priority": override.get("write_priority", 8),
         "write_profile": override.get("write_profile", "direct"),
         "glt_delay_ms": override.get("glt_delay_ms", default_glt_delay_ms),
@@ -808,10 +850,13 @@ async def _async_update_entity_registry_from_msg(
         msg.get("multistate_representation", "number")
     ).strip().lower()
     entity_domain = (
-        "switch"
-        if object_type == "multi_state_output" and requested_representation == "switch"
+        requested_representation
+        if object_type == "multi_state_output"
+        and requested_representation in {"switch", "light", "outlet"}
         else BacnetObjectTypeMapper.get_entity_type(obj).value
     )
+    if entity_domain == "outlet":
+        entity_domain = "switch"
     entity_entry = _entity_registry_entry(
         hass, entry_id, obj.unique_id, entity_domain
     )
@@ -875,10 +920,15 @@ def _clean_override(data: dict[str, Any]) -> dict[str, Any]:
             cleaned[key] = float(value)
 
     representation = str(data.get("multistate_representation", "number")).strip().lower()
-    if representation == "switch":
-        cleaned["multistate_representation"] = "switch"
+    if representation in {"switch", "light", "outlet"}:
+        cleaned["multistate_representation"] = representation
         cleaned["multistate_off_value"] = float(data.get("multistate_off_value", 1))
         cleaned["multistate_on_value"] = float(data.get("multistate_on_value", 2))
+        feedback_unique_id = _normalize_empty(
+            data.get("multistate_feedback_unique_id")
+        )
+        if feedback_unique_id is not None:
+            cleaned["multistate_feedback_unique_id"] = feedback_unique_id
 
     priority = data.get("write_priority")
     if priority not in (None, ""):
@@ -1091,9 +1141,12 @@ async def websocket_explorer_apply_update_modes(
         vol.Optional("number_min"): vol.Any(str, int, float, None),
         vol.Optional("number_max"): vol.Any(str, int, float, None),
         vol.Optional("number_step"): vol.Any(str, int, float, None),
-        vol.Optional("multistate_representation"): vol.Any("number", "switch"),
+        vol.Optional("multistate_representation"): vol.Any(
+            "number", "switch", "light", "outlet"
+        ),
         vol.Optional("multistate_off_value"): vol.Any(str, int, float, None),
         vol.Optional("multistate_on_value"): vol.Any(str, int, float, None),
+        vol.Optional("multistate_feedback_unique_id"): vol.Any(str, None),
         vol.Optional("write_priority"): vol.Any(str, int, None),
         vol.Optional("write_profile"): vol.Any(
             "direct", "glt_set_as", "glt_set_stage"
@@ -1175,12 +1228,16 @@ async def websocket_explorer_save_override(
         BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
         == "multi_state_output"
     ):
+        requested_representation = str(
+            msg.get("multistate_representation", "number")
+        ).strip().lower()
         requested_domain = (
-            "switch"
-            if str(msg.get("multistate_representation", "number")).strip().lower()
-            == "switch"
+            requested_representation
+            if requested_representation in {"switch", "light", "outlet"}
             else "number"
         )
+        if requested_domain == "outlet":
+            requested_domain = "switch"
         submitted_entity_id = _normalize_empty(msg.get("entity_id"))
         if submitted_entity_id and not submitted_entity_id.startswith(
             f"{requested_domain}."
@@ -1188,6 +1245,26 @@ async def websocket_explorer_save_override(
             # The visible ID still belongs to the representation being left.
             # Do not rename or persist it for the newly selected platform.
             override_msg.pop("entity_id", None)
+
+        feedback_unique_id = _normalize_empty(
+            msg.get("multistate_feedback_unique_id")
+        )
+        if feedback_unique_id is not None:
+            feedback_obj = registry.get_by_unique_id(feedback_unique_id)
+            if (
+                feedback_obj is None
+                or str(feedback_obj.device_id) != str(obj.device_id)
+                or BacnetObjectTypeMapper._normalize_object_type(
+                    feedback_obj.object_type
+                )
+                != "multi_state_input"
+            ):
+                connection.send_error(
+                    msg["id"],
+                    "invalid_multistate_feedback",
+                    "Die Rückmeldung muss ein Multi-State Input desselben BACnet-Geräts sein",
+                )
+                return
 
     submitted_entity_id = _normalize_empty(override_msg.get("entity_id"))
     if submitted_entity_id is not None:
@@ -1217,6 +1294,19 @@ async def websocket_explorer_save_override(
         connection.send_error(msg["id"], "entity_id_conflict", str(err))
         return
     await _async_apply_override_options(hass, entry, override_msg, source_obj=obj)
+    feedback_unique_id = _normalize_empty(
+        override_msg.get("multistate_feedback_unique_id")
+    )
+    if feedback_unique_id is not None:
+        feedback_entry = _entity_registry_entry(
+            hass, entry_id, feedback_unique_id, "sensor"
+        )
+        if feedback_entry is not None:
+            er.async_get(hass).async_remove(feedback_entry.entity_id)
+            _LOGGER.info(
+                "Removed consumed Multi-State feedback entity %s",
+                feedback_entry.entity_id,
+            )
     obj = registry.get_by_unique_id(msg["unique_id"]) or obj
 
     connection.send_result(

@@ -1,25 +1,5 @@
 # Changelog
 
-## 1.3.3 - 2026-08-28 (Pre-release)
-
-### **Less legacy, more telemetry.**
-
-### English
-
-- removed obsolete constants, compatibility fallbacks, dead coordinator helpers, and remaining legacy branding
-- extracted Explorer filtering, write-value parsing, transport normalization, and virtual-rule matching into focused modules
-- enabled TypeScript checking for the complete Explorer implementation
-- added focused tests for the extracted panel helpers
-- refreshed the production frontend bundle and bumped its cache build to `0681`
-
-### Deutsch
-
-- veraltete Konstanten, Kompatibilitäts-Fallbacks, ungenutzte Coordinator-Helfer und verbliebene Branding-Reste entfernt
-- Explorer-Filter, Schreibwertverarbeitung, Transport-Normalisierung und virtuelle Regeln in klar abgegrenzte Module ausgelagert
-- TypeScript-Prüfung für den vollständigen Explorer aktiviert
-- gezielte Tests für die ausgelagerten Panel-Helfer ergänzt
-- produktives Frontend-Bundle erneuert und Cache-Build auf `0681` erhöht
-
 ## 1.3.2 - 2026-08-28
 
 ### English
@@ -42,33 +22,10 @@
 - die unveränderte Gateway-Angabe steht zur Fehlersuche als `writable_reported` bereit
 - Explorer-Frontend-Build auf `0680` erhöht
 
-## 1.3.1 - 2026-08-27
-
-### **The old name has left the building (mostly)**
-
-### English
-
-- replaced remaining user-facing Bepacom branding with Engelsoft Beacon BACnet/IP and Engelsoft BACstac
-- updated setup choices, repair messages, integration startup logs, Explorer messages, and the bundled brand manifest
-- kept the internal `bepacom` domain, service names, entity IDs, API paths, and storage keys unchanged for backwards compatibility — because renaming the plumbing just to repaint the door is how leaks happen
-
-### Deutsch
-
-- verbliebene sichtbare Bepacom-Bezeichnungen durch Engelsoft Beacon BACnet/IP und Engelsoft BACstac ersetzt
-- Einrichtungsoptionen, Reparaturmeldungen, Startprotokolle, Explorer-Texte und das mitgelieferte Branding-Manifest aktualisiert
-- die interne Domain `bepacom`, Dienstnamen, Entity-IDs, API-Pfade und Speicherschlüssel aus Kompatibilitätsgründen unverändert gelassen — denn nur wegen eines neuen Türschilds reißt man nicht gleich die Leitungen aus der Wand
-
 ## 1.3.0 - 2026-08-13
 
 ### English
 
-- introduced Protocol V2 communication with explicit capability negotiation and gateway compatibility checks
-- added authenticated BACstac API access using an optional API token
-- added clear repair issues for incompatible gateways and unavailable BACstac applications
-- expanded WebSocket lifecycle management, reconnect behavior, diagnostics, command metrics, sequence tracking, and resynchronization reporting
-- improved setup validation, error handling, connection diagnostics, and runtime transport visibility
-- extended Explorer Protocol V2 health, live activity, Point Inspector, and transport-state details
-- made frontend builds reproducible and safe when custom elements are reloaded
 - added automatic German/English BACnet Explorer localization based on the active Home Assistant user language
 - English is now used as the fallback for unknown or missing locales
 - localized live status cards, Point Inspector, diagnostics, dialogs, filters, and dynamic BACnet transport states
@@ -79,13 +36,6 @@
 
 ### Deutsch
 
-- Protocol-V2-Kommunikation mit expliziter Funktionsaushandlung und Gateway-Kompatibilitätsprüfung eingeführt
-- authentifizierten BACstac-API-Zugriff über ein optionales API-Token ergänzt
-- verständliche Reparaturhinweise für inkompatible Gateways und nicht verfügbare BACstac-Anwendungen ergänzt
-- WebSocket-Lebenszyklus, Wiederverbindung, Diagnose, Befehlsmetriken, Sequenzverfolgung und Resynchronisationsanzeige erweitert
-- Einrichtungsprüfung, Fehlerbehandlung, Verbindungsdiagnose und Sichtbarkeit der aktiven Transportzustände verbessert
-- Protocol-V2-Status, Live-Aktivität, Point Inspector und Transportdetails im Explorer erweitert
-- reproduzierbare Frontend-Builds und sicheres erneutes Laden von Custom Elements ergänzt
 - automatische deutsch-/englischsprachige Explorer-Oberfläche anhand der aktiven Home-Assistant-Benutzersprache
 - Englisch als Fallback für unbekannte oder fehlende Spracheinstellungen
 - übersetzte Statuskarten, Point Inspector, Diagnose, Dialoge, Filter und dynamische BACnet-Transportzustände

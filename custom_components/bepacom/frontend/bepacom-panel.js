@@ -1073,11 +1073,17 @@ class BepacomExplorerView extends HTMLElement {
     this._api = null;
     this._language = "en";
     this._localizationFrame = null;
+    this._narrow = false;
+    this._edgeTouchStart = null;
+    this._edgeTouchTriggered = false;
+    this._edgeTouchStartHandler = (event) => this._handleEdgeTouchStart(event);
+    this._edgeTouchMoveHandler = (event) => this._handleEdgeTouchMove(event);
+    this._edgeTouchEndHandler = () => this._resetEdgeTouch();
   }
   _versionLabel() {
     const cfg = this.panel?.config || {};
     const version = cfg.version || "1.2.3";
-    const build = cfg.frontend_build || "0665";
+    const build = cfg.frontend_build || "0688";
     return `Version ${version} · Frontend-Build ${build}`;
   }
   _showToast(message, tone = "success") {
@@ -1097,6 +1103,10 @@ class BepacomExplorerView extends HTMLElement {
     window.addEventListener("keydown", this._keyboardHandler);
     document.addEventListener("visibilitychange", this._visibilityHandler);
     window.addEventListener("beforeunload", this._beforeUnloadHandler);
+    this.addEventListener("touchstart", this._edgeTouchStartHandler, { passive: true });
+    this.addEventListener("touchmove", this._edgeTouchMoveHandler, { passive: true });
+    this.addEventListener("touchend", this._edgeTouchEndHandler, { passive: true });
+    this.addEventListener("touchcancel", this._edgeTouchEndHandler, { passive: true });
     this.shadowRoot.addEventListener("click", this._rootClickHandler);
     this._startInitialLoad();
     this._startRefreshTimer();
@@ -1119,6 +1129,10 @@ class BepacomExplorerView extends HTMLElement {
     window.removeEventListener("keydown", this._keyboardHandler);
     document.removeEventListener("visibilitychange", this._visibilityHandler);
     window.removeEventListener("beforeunload", this._beforeUnloadHandler);
+    this.removeEventListener("touchstart", this._edgeTouchStartHandler);
+    this.removeEventListener("touchmove", this._edgeTouchMoveHandler);
+    this.removeEventListener("touchend", this._edgeTouchEndHandler);
+    this.removeEventListener("touchcancel", this._edgeTouchEndHandler);
     this.shadowRoot.removeEventListener("click", this._rootClickHandler);
   }
   set panel(panel) {
@@ -1128,6 +1142,45 @@ class BepacomExplorerView extends HTMLElement {
   }
   get panel() {
     return this._panel;
+  }
+  set narrow(narrow) {
+    const next = Boolean(narrow);
+    if (next === this._narrow) return;
+    this._narrow = next;
+    if (this._connected) this._render();
+  }
+  get narrow() {
+    return this._narrow;
+  }
+  _toggleHomeAssistantMenu() {
+    this.dispatchEvent(new CustomEvent("hass-toggle-menu", {
+      bubbles: true,
+      composed: true
+    }));
+  }
+  _handleEdgeTouchStart(event) {
+    const touch = event.touches?.[0];
+    if (!touch || touch.clientX > 28 || event.touches.length !== 1) {
+      this._resetEdgeTouch();
+      return;
+    }
+    this._edgeTouchStart = { x: touch.clientX, y: touch.clientY };
+    this._edgeTouchTriggered = false;
+  }
+  _handleEdgeTouchMove(event) {
+    if (!this._edgeTouchStart || this._edgeTouchTriggered) return;
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    const deltaX = touch.clientX - this._edgeTouchStart.x;
+    const deltaY = Math.abs(touch.clientY - this._edgeTouchStart.y);
+    if (deltaX >= 64 && deltaX > deltaY * 1.35) {
+      this._edgeTouchTriggered = true;
+      this._toggleHomeAssistantMenu();
+    }
+  }
+  _resetEdgeTouch() {
+    this._edgeTouchStart = null;
+    this._edgeTouchTriggered = false;
   }
   _hasUnsavedChanges() {
     return this._editorDirty;
@@ -1548,6 +1601,7 @@ class BepacomExplorerView extends HTMLElement {
     const multistateRepresentation = this.shadowRoot.getElementById("editMultistateRepresentation")?.value;
     const multistateOffValue = this.shadowRoot.getElementById("editMultistateOffValue")?.value;
     const multistateOnValue = this.shadowRoot.getElementById("editMultistateOnValue")?.value;
+    const multistateFeedbackUniqueId = this.shadowRoot.getElementById("editMultistateFeedbackUniqueId")?.value || "";
     const writePriority = this.shadowRoot.getElementById("editWritePriority")?.value;
     const writeProfile = this.shadowRoot.getElementById("editWriteProfile")?.value;
     const gltDelayMs = this.shadowRoot.getElementById("editGltDelayMs")?.value;
@@ -1583,6 +1637,7 @@ class BepacomExplorerView extends HTMLElement {
         multistate_representation: multistateRepresentation,
         multistate_off_value: multistateOffValue,
         multistate_on_value: multistateOnValue,
+        multistate_feedback_unique_id: multistateFeedbackUniqueId,
         write_priority: writePriority,
         write_profile: writeProfile,
         glt_delay_ms: gltDelayMs,
@@ -2059,6 +2114,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       multistate_representation: point.multistate_representation || "number",
       multistate_off_value: point.multistate_off_value,
       multistate_on_value: point.multistate_on_value,
+      multistate_feedback_unique_id: point.multistate_feedback_unique_id || "",
       write_priority: point.write_priority ?? 8,
       write_profile: point.write_profile || "direct",
       glt_delay_ms: point.glt_delay_ms,
@@ -2220,7 +2276,8 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       if (this._liveFilters.source !== "all" && String(item.source) !== this._liveFilters.source) return false;
       if (this._liveFilters.object_type !== "all" && String(item.object_type) !== this._liveFilters.object_type) return false;
       if (!search) return true;
-      const point = pointByUid.get(item.unique_id) || this._pointForLiveChange(item);
+      pointByUid.get(item.unique_id) || this._pointForLiveChange(item);
+      const { entityId, friendlyName } = this._livePointLabels(item);
       const haystack = [
         item.device_id,
         item.object_type,
@@ -2228,7 +2285,8 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         item.object_key,
         item.object_name,
         item.unique_id,
-        point?.entity_id,
+        entityId,
+        friendlyName,
         item.previous_value,
         item.value,
         item.source
@@ -2509,6 +2567,9 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       :host { display:block; color: var(--primary-text-color); background: var(--primary-background-color); height:100vh; overflow:hidden; }
       .wrap { height:100vh; box-sizing:border-box; padding: 12px 20px 16px; max-width: 1900px; margin: 0 auto; display:flex; flex-direction:column; overflow:hidden; }
       .header { flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:12px; }
+      .mobile-header-row { display:flex; align-items:center; min-width:0; }
+      .ha-menu-toggle { display:none; flex:0 0 42px; width:42px; height:42px; padding:0; border-radius:50%; background:transparent; color:var(--primary-text-color); font-size:24px; line-height:1; }
+      .wrap.ha-narrow .ha-menu-toggle { display:flex; align-items:center; justify-content:center; }
       .header-primary-actions { display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
       .header-actions-menu { position:relative; margin:0; }
       .more-actions-toggle { display:flex; align-items:center; justify-content:center; min-width:42px; height:42px; padding:0 12px; }
@@ -4002,15 +4063,40 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         .diagnostic-flow > i::after { top:0; left:50%; margin-top:0; margin-left:-3.5px; animation:diagnostic-flow-pulse-vertical 2.8s ease-in-out infinite; }
       }
       @keyframes diagnostic-flow-pulse-vertical { 0% { top:0; opacity:0; } 15% { opacity:1; } 85% { opacity:1; } 100% { top:calc(100% - 7px); opacity:0; } }
+      @media (max-width: 1250px) {
+        .main-status-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }
+      }
       @media (max-width: 1100px) { :host { height:auto; overflow:visible; } .wrap { height:auto; min-height:100vh; overflow:visible; } .toolbar { align-items:stretch; } .toolbar .toolbar-nav { flex:1 0 100%; border-right:0; border-bottom:1px solid var(--divider-color); padding:2px 2px 8px; } .dashboard-content { grid-template-columns: 1fr; } .dashboard-cards { grid-template-columns: repeat(2, 1fr); } #explorerView { overflow:visible; } .content { grid-template-columns: 1fr; overflow:visible; } .table-wrap { height:70vh; } .side { height:70vh; } }
-      @media (max-width: 700px) {
-        .header-primary-actions { width:100%; display:grid; grid-template-columns:minmax(0,1fr) auto auto; }
+      @media (max-width: 900px) {
+        .header { flex-direction:column; align-items:stretch; gap:10px; margin-bottom:12px; }
+        .mobile-header-row { width:100%; }
+        .header-primary-actions { width:100%; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto; gap:7px; }
         .header-primary-actions .pending-reload { grid-column:1 / -1; }
-        #applyChanges { min-width:0; padding-inline:10px; }
+        #applyChanges, #refresh { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+      }
+      @media (max-width: 700px) {
+        .header { flex-direction:column; align-items:stretch; gap:9px; margin-bottom:9px; }
+        .mobile-header-row { width:100%; gap:8px; }
+        .ha-menu-toggle { display:flex; align-items:center; justify-content:center; }
+        .brand-lockup { flex:1 1 auto; gap:10px; overflow:hidden; }
+        .brand-mark { width:38px; height:38px; flex-basis:38px; border-radius:11px; }
+        .brand-copy { overflow:hidden; }
+        .brand-eyebrow { font-size:9px; }
+        .frontend-version { max-width:100%; box-sizing:border-box; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .header-primary-actions { width:100%; display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto; gap:6px; }
+        .header-primary-actions .pending-reload { grid-column:1 / -1; }
+        #applyChanges, #refresh { min-width:0; padding-inline:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .toast { right:12px; bottom:12px; }
-        .main-nav { grid-template-columns:1fr; }
+        .main-nav { grid-template-columns:repeat(3,minmax(0,1fr)); }
         .main-nav-item { justify-content:flex-start; }
-        .main-status-strip { grid-template-columns:1fr 1fr; }
+        .main-status-strip { grid-template-columns:1fr 1fr; gap:7px; padding:7px; margin-bottom:10px; }
+        .dashboard-headline-card.status-overview { padding:9px 10px; }
+        .status-overview-grid { gap:8px; }
+        .status-overview-value { padding-right:7px; }
+        .status-overview-value strong { font-size:20px; }
+        .status-overview-value small { margin-top:6px; font-size:7px; line-height:1.25; letter-spacing:.045em; overflow-wrap:anywhere; }
+        .status-transport-line { gap:4px; font-size:8px; }
+        .status-transport-line .poll-dot { margin-left:2px; }
         .dashboard-diagnostics-grid { grid-template-columns:1fr; }
         .dashboard-headline { grid-template-columns:1fr 1fr; }
         .dashboard-headline-card { min-height:62px; padding:9px 10px; }
@@ -4051,7 +4137,8 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
           min-height:30px;
           margin:6px 0;
         }
-        .table-wrap { height:72vh; border:0; background:transparent; box-shadow:none; overflow-y:auto; overflow-x:hidden; }
+        .table-wrap { height:72dvh; border:0; background:transparent; box-shadow:none; overflow-y:auto; overflow-x:hidden; scrollbar-width:none; }
+        .table-wrap::-webkit-scrollbar { display:none; }
         .table-wrap > table { display:block; min-width:0; width:100%; table-layout:auto; border-collapse:separate; }
         .table-wrap > table colgroup, .table-wrap > table > thead { display:none; }
         .table-wrap > table > tbody { display:block; }
@@ -4064,7 +4151,8 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         .table-wrap > table > tbody > tr.point-card > td[data-col='object'] { background:color-mix(in srgb,var(--secondary-background-color) 72%,transparent) !important; }
         .table-wrap > table > tbody > tr.point-card > td[data-col='value'] .value-link { font-size:18px; font-weight:700; }
         .table-wrap td::before { color:var(--secondary-text-color); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
-        .table-wrap td.select-col { display:flex !important; justify-content:flex-end; min-height:28px !important; padding:5px 10px !important; }
+        .table-wrap td.select-col { display:flex !important; align-items:center; justify-content:flex-end; min-height:28px !important; padding:5px 10px !important; }
+        .table-wrap td.select-col .row-select { flex:0 0 20px; width:20px; min-width:20px; height:20px; min-height:20px; margin:0; padding:0; }
         .table-wrap td.select-col::before { content:"Auswahl"; margin-right:auto; }
         .table-wrap td[data-col='object']::before { content:"Objekt"; }
         .table-wrap td[data-col='entity']::before { content:"HA Entität"; }
@@ -4102,6 +4190,18 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         .point-inspector-head { flex-direction:column; }
         .inspector-head-actions { width:100%; justify-content:flex-start; }
       }
+      @media (max-width: 430px) {
+        .main-nav-item { justify-content:center; padding:9px 6px; }
+        .main-nav-item > span:last-child { display:none; }
+        .main-nav-icon { font-size:18px; }
+        .main-status-strip { gap:6px; }
+        .dashboard-headline { grid-template-columns:1fr; }
+        .main-status-strip { grid-template-columns:1fr; }
+        .live-filters { grid-template-columns:1fr; }
+        .live-filters input { grid-column:auto; }
+        .table-wrap > table > tbody > tr:not(.group-row):not(.virtual-spacer) > td,
+        .virtual-table td { grid-template-columns:72px minmax(0,1fr); gap:7px; padding-inline:8px !important; }
+      }
     `;
     const languageStyles = this._language === "en" ? `
       @media (max-width: 760px) {
@@ -4115,14 +4215,17 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     ` : "";
     this.shadowRoot.innerHTML = `
       <style>${styles}${languageStyles}</style>
-      <div class="wrap ${this._isDarkTheme() ? "theme-dark" : "theme-light"} lang-${this._language}">
+      <div class="wrap ${this._isDarkTheme() ? "theme-dark" : "theme-light"} ${this._narrow ? "ha-narrow" : ""} lang-${this._language}">
         <div class="header">
-          <div class="brand-lockup">
-            <div class="brand-mark" aria-hidden="true">B</div>
-            <div class="brand-copy">
-            <div class="brand-eyebrow">Engelsoft</div>
-            <h1>Beacon BACnet</h1>
-            <div class="frontend-version">${this._versionLabel()}</div>
+          <div class="mobile-header-row">
+            <button id="haMenuToggle" class="ha-menu-toggle" type="button" title="Home Assistant Menü" aria-label="Home Assistant Menü öffnen">☰</button>
+            <div class="brand-lockup">
+              <div class="brand-mark" aria-hidden="true">B</div>
+              <div class="brand-copy">
+              <div class="brand-eyebrow">Engelsoft</div>
+              <h1>Beacon BACnet</h1>
+              <div class="frontend-version">${this._versionLabel()}</div>
+              </div>
             </div>
           </div>
           <div class="header-primary-actions">
@@ -5209,6 +5312,10 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       });
     });
     const moreActionsToggle = this.shadowRoot.getElementById("moreActionsToggle");
+    this.shadowRoot.getElementById("haMenuToggle")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      this._toggleHomeAssistantMenu();
+    });
     moreActionsToggle?.addEventListener("click", (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
@@ -5330,7 +5437,9 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     this.shadowRoot.getElementById("applyObjectAssistant")?.addEventListener("click", () => this._applyObjectAssistantSuggestion());
     this.shadowRoot.getElementById("editMultistateRepresentation")?.addEventListener("change", (ev) => {
       const switchValues = this.shadowRoot.getElementById("multistateSwitchValues");
-      if (switchValues) switchValues.style.display = ev.target.value === "switch" ? "contents" : "none";
+      if (switchValues) switchValues.style.display = ["switch", "light", "outlet"].includes(ev.target.value) ? "contents" : "none";
+      const feedback = this.shadowRoot.getElementById("multistateFeedbackSettings");
+      if (feedback) feedback.style.display = ["switch", "light", "outlet"].includes(ev.target.value) ? "block" : "none";
     });
     this._syncContextualEditorFields();
     this.shadowRoot.querySelectorAll(".side input, .side select, .side textarea").forEach((el) => {
@@ -5714,18 +5823,32 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     const isMultiStateOutput = normalizedObjectType === "multistateoutput";
     const allowedWriteProfiles = isAnalogValue ? ["direct", "glt_set_as"] : isMultiStateOutput ? ["direct", "glt_set_stage"] : ["direct"];
     const writeProfile = allowedWriteProfiles.includes(p2.write_profile) ? p2.write_profile : "direct";
-    const multistateRepresentation = p2.multistate_representation === "switch" ? "switch" : "number";
+    const multistateRepresentation = ["switch", "light", "outlet"].includes(p2.multistate_representation) ? p2.multistate_representation : "number";
+    const haEntitySuppressed = p2.ha_entity_suppressed === true;
+    const feedbackConsumer = p2.multistate_feedback_consumer || {};
+    const feedbackCandidates = Array.isArray(p2.multistate_feedback_candidates) ? p2.multistate_feedback_candidates : [];
+    const feedbackOptions = feedbackCandidates.sort((a2, b2) => Number(b2.same_object_id) - Number(a2.same_object_id)).map((candidate) => `<option value="${this._escape(candidate.unique_id)}" ${candidate.unique_id === p2.multistate_feedback_unique_id ? "selected" : ""}>${this._escape(`${candidate.name} · MSI ${candidate.object_id}${candidate.same_object_id ? " (gleiche Objekt-ID)" : ""}`)}</option>`).join("");
     const multistateEntitySettings = isMultiStateOutput ? `
       <h3 style="margin-top:14px;">Darstellung in Home Assistant</h3>
-      <div class="muted" style="margin-bottom:8px;">Als Schalter wird nur der konfigurierte AUS- bzw. EIN-Wert geschrieben. Andere aktuelle Werte werden als unbekannt angezeigt.</div>
+      <div class="muted" style="margin-bottom:8px;">Als Schalter, Licht oder Steckdose wird nur der konfigurierte AUS- bzw. EIN-Wert geschrieben. Andere aktuelle Werte werden als unbekannt angezeigt.</div>
       <div class="edit-grid">
         <div><label>Entitätstyp</label><select id="editMultistateRepresentation">
           <option value="number" ${multistateRepresentation === "number" ? "selected" : ""}>Zahlenwert</option>
           <option value="switch" ${multistateRepresentation === "switch" ? "selected" : ""}>Schalter</option>
+          <option value="light" ${multistateRepresentation === "light" ? "selected" : ""}>Licht</option>
+          <option value="outlet" ${multistateRepresentation === "outlet" ? "selected" : ""}>Steckdose</option>
         </select></div>
-        <div id="multistateSwitchValues" class="edit-grid" style="display:${multistateRepresentation === "switch" ? "contents" : "none"}">
+        <div id="multistateSwitchValues" class="edit-grid" style="display:${["switch", "light", "outlet"].includes(multistateRepresentation) ? "contents" : "none"}">
           <div><label>AUS-Wert</label><input id="editMultistateOffValue" type="number" step="any" value="${this._escape(p2.multistate_off_value ?? 1)}"></div>
           <div><label>EIN-Wert</label><input id="editMultistateOnValue" type="number" step="any" value="${this._escape(p2.multistate_on_value ?? 2)}"></div>
+        </div>
+        <div id="multistateFeedbackSettings" style="display:${["switch", "light", "outlet"].includes(multistateRepresentation) ? "block" : "none"};margin-top:10px;">
+          <label>Optionale Rückmeldung</label>
+          <select id="editMultistateFeedbackUniqueId">
+            <option value="">Keine – Zustand aus dem MSO</option>
+            ${feedbackOptions}
+          </select>
+          <div class="muted" style="margin-top:6px;">Bei Auswahl kommt der Schalterzustand aus diesem MSI. Dessen separate HA-Entität wird entfernt.</div>
         </div>
       </div>` : "";
     const profileDescription = isMultiStateOutput ? "Beim GLT/Stufe-Profil wird zuerst das binaryValue mit derselben Objekt-ID aktiviert und danach der Multi-State Output geschrieben. Beide Schreibvorgänge erfolgen fest auf BACnet-Priorität 8." : "Beim GLT/SET/AS-Profil wird das binaryValue mit derselben Objekt-ID verwendet. Alle Schreib- und Freigabevorgänge erfolgen fest auf BACnet-Priorität 8.";
@@ -5754,12 +5877,20 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         ` : ""}
       </div>` : "";
     const editContent = `
+      ${haEntitySuppressed ? `
+        <div class="transport-comparison" style="margin-bottom:10px;opacity:.78;">
+          <div><small>Keine eigene HA-Entität</small><strong>Rückmeldung für ${this._escape(feedbackConsumer.name || feedbackConsumer.unique_id || "MSO-Schalter")}</strong></div>
+          <p>Dieser MSI wird intern für den Schalter verwendet. Die zugehörige Sensor-Entität wird nicht angelegt.</p>
+        </div>
+      ` : ""}
       <div class="edit-grid">
-        <div><label>HA Entity ID</label><input id="editEntityId" value="${this._escape(p2.entity_id || "")}" placeholder="z.B. sensor.rollostellung_eg_speis"></div>
-        <div><label>HA Entitätsname</label><input id="editEntityName" value="${this._escape(p2.entity_name || "")}" placeholder="leer = Standardname"></div>
-        <div><label>Einheit</label><select id="editUnit">${this._unitOptions(p2)}</select></div>
-        <div><label>Device Class</label><select id="editDeviceClass">${this._deviceClassOptions(p2)}</select></div>
-        <div><label>State Class</label><select id="editStateClass">${this._stateClassOptions(p2)}</select></div>
+        <fieldset ${haEntitySuppressed ? "disabled" : ""} class="edit-grid" style="grid-column:1/-1;border:0;padding:0;margin:0;opacity:${haEntitySuppressed ? ".48" : "1"}">
+          <div><label>HA Entity ID</label><input id="editEntityId" value="${this._escape(p2.entity_id || "")}" placeholder="${haEntitySuppressed ? "Nicht angelegt (als Rückmeldung verwendet)" : "z.B. sensor.rollostellung_eg_speis"}"></div>
+          <div><label>HA Entitätsname</label><input id="editEntityName" value="${this._escape(p2.entity_name || "")}" placeholder="leer = Standardname"></div>
+          <div><label>Einheit</label><select id="editUnit">${this._unitOptions(p2)}</select></div>
+          <div><label>Device Class</label><select id="editDeviceClass">${this._deviceClassOptions(p2)}</select></div>
+          <div><label>State Class</label><select id="editStateClass">${this._stateClassOptions(p2)}</select></div>
+        </fieldset>
         <div><label>Aktualisierungsmodus</label><select id="editUpdateMode">${this._updateModeOptions(p2)}</select></div>
       </div>
       ${multistateEntitySettings}
@@ -6589,6 +6720,20 @@ BepacomExplorerToolbar.styles = i$3`
         border-bottom: 1px solid var(--divider-color);
       }
     }
+
+    @media (max-width: 700px) {
+      :host { gap:7px; padding:9px; }
+      .nav { padding:2px 2px 8px; }
+      .field { box-sizing:border-box; flex:1 1 calc(50% - 4px); min-width:0; padding:2px 5px; }
+      .field.search { flex-basis:100%; min-width:0; }
+      .check, .reset { margin-top:5px; margin-bottom:0; }
+      .check { margin-inline:5px; }
+      .reset { margin-left:auto; margin-right:5px; }
+    }
+
+    @media (max-width: 380px) {
+      .field:not(.search) { flex-basis:100%; }
+    }
   `;
 __decorateClass$4([
   n2()
@@ -6969,7 +7114,9 @@ let BepacomPointInspector = class extends i {
     const type = String(point.object_type || "").toLowerCase().replace(/[^a-z]/g, "");
     const analog = type === "analogvalue";
     const multistate = type === "multistateoutput";
-    const representation = point.multistate_representation === "switch" ? "switch" : "number";
+    const representation = ["switch", "light", "outlet"].includes(point.multistate_representation) ? point.multistate_representation : "number";
+    const feedbackCandidates = Array.isArray(point.multistate_feedback_candidates) ? [...point.multistate_feedback_candidates] : [];
+    feedbackCandidates.sort((a2, b2) => Number(b2.same_object_id) - Number(a2.same_object_id));
     const unit = this._current(point.override_unit);
     const deviceClass = this._current(point.override_device_class);
     const stateClass = this._current(point.override_state_class);
@@ -6977,11 +7124,20 @@ let BepacomPointInspector = class extends i {
     const writeProfile = point.write_profile || "direct";
     const transportMismatch = this._transportMismatch(point);
     const stateClassRelevant = String(point.entity_id || "").startsWith("sensor.") || !!point.state_class;
+    const suppressed = point.ha_entity_suppressed === true;
+    const feedbackConsumer = point.multistate_feedback_consumer || {};
     return b`
+      ${suppressed ? b`
+        <div class="transport-comparison" style="margin-bottom:10px;opacity:.78;">
+          <div><small>Keine eigene HA-Entität</small><strong>Rückmeldung für ${feedbackConsumer.name || feedbackConsumer.unique_id || "MSO-Schalter"}</strong></div>
+          <p>Dieser MSI wird intern für den Schalter verwendet. Die zugehörige Sensor-Entität wird nicht angelegt.</p>
+        </div>
+      ` : A}
       <div class="edit-grid">
-        <div><label>HA Entity ID</label><input id="editEntityId" .value=${point.entity_id || ""}></div>
-        <div><label>HA Entitätsname</label><input id="editEntityName" .value=${point.entity_name || ""} placeholder="leer = Standardname"></div>
-        <div><label>Einheit</label><select id="editUnit">${this._options([
+        <fieldset ?disabled=${suppressed} class="edit-grid" style=${`grid-column:1/-1;border:0;padding:0;margin:0;opacity:${suppressed ? ".48" : "1"};`}>
+          <div><label>HA Entity ID</label><input id="editEntityId" .value=${point.entity_id || ""} placeholder=${suppressed ? "Nicht angelegt (als Rückmeldung verwendet)" : ""}></div>
+          <div><label>HA Entitätsname</label><input id="editEntityName" .value=${point.entity_name || ""} placeholder="leer = Standardname"></div>
+          <div><label>Einheit</label><select id="editUnit">${this._options([
       ["__auto__", `Automatisch (BACnet: ${point.bacnet_unit || "keine"})`],
       ["__none__", "Keine Einheit"],
       ["%", "%"],
@@ -7001,7 +7157,7 @@ let BepacomPointInspector = class extends i {
       ["s", "s"],
       ["h", "h"]
     ], unit)}</select></div>
-        <div><label>Device Class</label><select id="editDeviceClass">${this._options([
+          <div><label>Device Class</label><select id="editDeviceClass">${this._options([
       ["__auto__", `Automatisch (${point.device_class || "keine"})`],
       ["__none__", "Keine"],
       ["temperature", "Temperatur"],
@@ -7019,13 +7175,14 @@ let BepacomPointInspector = class extends i {
       ["pm25", "PM2.5"],
       ["pm10", "PM10"]
     ], deviceClass)}</select></div>
-        <div ?hidden=${!stateClassRelevant}><label>State Class</label><select id="editStateClass">${this._options([
+          <div ?hidden=${!stateClassRelevant}><label>State Class</label><select id="editStateClass">${this._options([
       ["__auto__", `Automatisch (${point.state_class || "keine"})`],
       ["__none__", "Keine"],
       ["measurement", "measurement"],
       ["total", "total"],
       ["total_increasing", "total_increasing"]
     ], stateClass)}</select></div>
+        </fieldset>
         <div><label>Aktualisierungsmodus</label><select id="editUpdateMode">${this._options([
       ["disabled", "Deaktiviert / keine Aktualisierung"],
       ["subscribe", "🔵 Push / Subscribe"],
@@ -7042,16 +7199,30 @@ let BepacomPointInspector = class extends i {
       ` : b`<div class="transport-ok">Aktualisierung aktiv: <strong>${this._effectiveTransport(point)}</strong></div>`}
       ${multistate ? b`
         <h3 style="margin-top:14px;">Darstellung in Home Assistant</h3>
-        <div class="muted" style="margin-bottom:8px;">Als Schalter wird nur der konfigurierte AUS- bzw. EIN-Wert geschrieben.</div>
+        <div class="muted" style="margin-bottom:8px;">Als Schalter, Licht oder Steckdose wird nur der konfigurierte AUS- bzw. EIN-Wert geschrieben.</div>
         <div class="edit-grid">
           <div><label>Entitätstyp</label><select id="editMultistateRepresentation">
             <option value="number" ?selected=${representation === "number"}>Zahlenwert</option>
             <option value="switch" ?selected=${representation === "switch"}>Schalter</option>
+            <option value="light" ?selected=${representation === "light"}>Licht</option>
+            <option value="outlet" ?selected=${representation === "outlet"}>Steckdose</option>
           </select></div>
-          <div id="multistateSwitchValues" class="edit-grid" style=${`display:${representation === "switch" ? "contents" : "none"}`}>
+          <div id="multistateSwitchValues" class="edit-grid" style=${`display:${["switch", "light", "outlet"].includes(representation) ? "contents" : "none"}`}>
             <div><label>AUS-Wert</label><input id="editMultistateOffValue" type="number" step="any" .value=${String(point.multistate_off_value ?? 1)}></div>
             <div><label>EIN-Wert</label><input id="editMultistateOnValue" type="number" step="any" .value=${String(point.multistate_on_value ?? 2)}></div>
           </div>
+        </div>
+        <div id="multistateFeedbackSettings" style=${`display:${["switch", "light", "outlet"].includes(representation) ? "block" : "none"};margin-top:10px;`}>
+          <label>Optionale Rückmeldung</label>
+          <select id="editMultistateFeedbackUniqueId">
+            <option value="">Keine – Zustand aus dem MSO</option>
+            ${feedbackCandidates.map((candidate) => b`
+              <option value=${candidate.unique_id} ?selected=${candidate.unique_id === point.multistate_feedback_unique_id}>
+                ${candidate.name} · MSI ${candidate.object_id}${candidate.same_object_id ? " (gleiche Objekt-ID)" : ""}
+              </option>
+            `)}
+          </select>
+          <div class="muted" style="margin-top:6px;">Bei Auswahl kommt der Schalterzustand aus diesem MSI. Dessen separate HA-Entität wird entfernt.</div>
         </div>
       ` : A}
       ${analog || multistate ? b`
@@ -7373,6 +7544,7 @@ let BepacomRuntimeDashboard = class extends i {
           item.object_name,
           item.unique_id,
           item.entity_id,
+          item.friendly_name,
           item.previous_value,
           item.value,
           item.source
@@ -7579,6 +7751,7 @@ let BepacomExplorerPanel = class extends i {
     if (!this._explorer) return;
     this._explorer.panel = this.panel;
     this._explorer.hass = this.hass;
+    this._explorer.narrow = this.narrow;
   }
 };
 BepacomExplorerPanel.styles = i$3`

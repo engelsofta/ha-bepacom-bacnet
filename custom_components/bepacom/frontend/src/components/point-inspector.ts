@@ -173,7 +173,9 @@ export class BepacomPointInspector extends LitElement {
     const type = String(point.object_type || "").toLowerCase().replace(/[^a-z]/g, "");
     const analog = type === "analogvalue";
     const multistate = type === "multistateoutput";
-    const representation = point.multistate_representation === "switch" ? "switch" : "number";
+    const representation = ["switch", "light", "outlet"].includes(point.multistate_representation) ? point.multistate_representation : "number";
+    const feedbackCandidates = Array.isArray(point.multistate_feedback_candidates) ? [...point.multistate_feedback_candidates] : [];
+    feedbackCandidates.sort((a, b) => Number(b.same_object_id) - Number(a.same_object_id));
     const unit = this._current(point.override_unit);
     const deviceClass = this._current(point.override_device_class);
     const stateClass = this._current(point.override_state_class);
@@ -181,26 +183,36 @@ export class BepacomPointInspector extends LitElement {
     const writeProfile = point.write_profile || "direct";
     const transportMismatch = this._transportMismatch(point);
     const stateClassRelevant = String(point.entity_id || "").startsWith("sensor.") || !!point.state_class;
+    const suppressed = point.ha_entity_suppressed === true;
+    const feedbackConsumer = point.multistate_feedback_consumer || {};
 
     return html`
+      ${suppressed ? html`
+        <div class="transport-comparison" style="margin-bottom:10px;opacity:.78;">
+          <div><small>Keine eigene HA-Entität</small><strong>Rückmeldung für ${feedbackConsumer.name || feedbackConsumer.unique_id || "MSO-Schalter"}</strong></div>
+          <p>Dieser MSI wird intern für den Schalter verwendet. Die zugehörige Sensor-Entität wird nicht angelegt.</p>
+        </div>
+      ` : nothing}
       <div class="edit-grid">
-        <div><label>HA Entity ID</label><input id="editEntityId" .value=${point.entity_id || ""}></div>
-        <div><label>HA Entitätsname</label><input id="editEntityName" .value=${point.entity_name || ""} placeholder="leer = Standardname"></div>
-        <div><label>Einheit</label><select id="editUnit">${this._options([
+        <fieldset ?disabled=${suppressed} class="edit-grid" style=${`grid-column:1/-1;border:0;padding:0;margin:0;opacity:${suppressed ? ".48" : "1"};`}>
+          <div><label>HA Entity ID</label><input id="editEntityId" .value=${point.entity_id || ""} placeholder=${suppressed ? "Nicht angelegt (als Rückmeldung verwendet)" : ""}></div>
+          <div><label>HA Entitätsname</label><input id="editEntityName" .value=${point.entity_name || ""} placeholder="leer = Standardname"></div>
+          <div><label>Einheit</label><select id="editUnit">${this._options([
           ["__auto__", `Automatisch (BACnet: ${point.bacnet_unit || "keine"})`], ["__none__", "Keine Einheit"],
           ["%", "%"], ["°C", "°C"], ["cm", "cm"], ["W", "W"], ["kW", "kW"], ["Wh", "Wh"], ["kWh", "kWh"],
           ["V", "V"], ["A", "A"], ["Hz", "Hz"], ["lx", "lx"], ["Pa", "Pa"], ["bar", "bar"], ["min", "min"], ["s", "s"], ["h", "h"],
-        ], unit)}</select></div>
-        <div><label>Device Class</label><select id="editDeviceClass">${this._options([
+          ], unit)}</select></div>
+          <div><label>Device Class</label><select id="editDeviceClass">${this._options([
           ["__auto__", `Automatisch (${point.device_class || "keine"})`], ["__none__", "Keine"], ["temperature", "Temperatur"],
           ["humidity", "Luftfeuchtigkeit"], ["power", "Leistung"], ["energy", "Energie"], ["voltage", "Spannung"],
           ["current", "Strom"], ["frequency", "Frequenz"], ["pressure", "Druck"], ["distance", "Entfernung"],
           ["illuminance", "Beleuchtungsstärke"], ["duration", "Dauer"], ["co2", "CO₂"], ["pm25", "PM2.5"], ["pm10", "PM10"],
-        ], deviceClass)}</select></div>
-        <div ?hidden=${!stateClassRelevant}><label>State Class</label><select id="editStateClass">${this._options([
+          ], deviceClass)}</select></div>
+          <div ?hidden=${!stateClassRelevant}><label>State Class</label><select id="editStateClass">${this._options([
           ["__auto__", `Automatisch (${point.state_class || "keine"})`], ["__none__", "Keine"],
           ["measurement", "measurement"], ["total", "total"], ["total_increasing", "total_increasing"],
-        ], stateClass)}</select></div>
+          ], stateClass)}</select></div>
+        </fieldset>
         <div><label>Aktualisierungsmodus</label><select id="editUpdateMode">${this._options([
           ["disabled", "Deaktiviert / keine Aktualisierung"], ["subscribe", "🔵 Push / Subscribe"], ["polling", "🟢 Polling"],
         ], updateMode)}</select></div>
@@ -215,16 +227,30 @@ export class BepacomPointInspector extends LitElement {
       ` : html`<div class="transport-ok">Aktualisierung aktiv: <strong>${this._effectiveTransport(point)}</strong></div>`}
       ${multistate ? html`
         <h3 style="margin-top:14px;">Darstellung in Home Assistant</h3>
-        <div class="muted" style="margin-bottom:8px;">Als Schalter wird nur der konfigurierte AUS- bzw. EIN-Wert geschrieben.</div>
+        <div class="muted" style="margin-bottom:8px;">Als Schalter, Licht oder Steckdose wird nur der konfigurierte AUS- bzw. EIN-Wert geschrieben.</div>
         <div class="edit-grid">
           <div><label>Entitätstyp</label><select id="editMultistateRepresentation">
             <option value="number" ?selected=${representation === "number"}>Zahlenwert</option>
             <option value="switch" ?selected=${representation === "switch"}>Schalter</option>
+            <option value="light" ?selected=${representation === "light"}>Licht</option>
+            <option value="outlet" ?selected=${representation === "outlet"}>Steckdose</option>
           </select></div>
-          <div id="multistateSwitchValues" class="edit-grid" style=${`display:${representation === "switch" ? "contents" : "none"}`}>
+          <div id="multistateSwitchValues" class="edit-grid" style=${`display:${["switch", "light", "outlet"].includes(representation) ? "contents" : "none"}`}>
             <div><label>AUS-Wert</label><input id="editMultistateOffValue" type="number" step="any" .value=${String(point.multistate_off_value ?? 1)}></div>
             <div><label>EIN-Wert</label><input id="editMultistateOnValue" type="number" step="any" .value=${String(point.multistate_on_value ?? 2)}></div>
           </div>
+        </div>
+        <div id="multistateFeedbackSettings" style=${`display:${["switch", "light", "outlet"].includes(representation) ? "block" : "none"};margin-top:10px;`}>
+          <label>Optionale Rückmeldung</label>
+          <select id="editMultistateFeedbackUniqueId">
+            <option value="">Keine – Zustand aus dem MSO</option>
+            ${feedbackCandidates.map((candidate) => html`
+              <option value=${candidate.unique_id} ?selected=${candidate.unique_id === point.multistate_feedback_unique_id}>
+                ${candidate.name} · MSI ${candidate.object_id}${candidate.same_object_id ? " (gleiche Objekt-ID)" : ""}
+              </option>
+            `)}
+          </select>
+          <div class="muted" style="margin-top:6px;">Bei Auswahl kommt der Schalterzustand aus diesem MSI. Dessen separate HA-Entität wird entfernt.</div>
         </div>
       ` : nothing}
       ${(analog || multistate) ? html`

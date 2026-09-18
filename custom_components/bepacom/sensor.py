@@ -38,9 +38,13 @@ async def async_setup_entry(
     # Create sensors for read-only analog/sensor objects
     entities: list[SensorEntity] = []
     overrides = BepacomOverrideManager(entry.options)
+    consumed_feedback_ids = overrides.consumed_multistate_feedback_unique_ids()
 
     for obj in coordinator.point_registry.all():
         if not overrides.is_enabled(obj):
+            continue
+
+        if obj.unique_id in consumed_feedback_ids:
             continue
 
         entity_type = BacnetObjectTypeMapper.get_entity_type(obj)

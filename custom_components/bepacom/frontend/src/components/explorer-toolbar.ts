@@ -306,6 +306,20 @@ export class BepacomExplorerToolbar extends LitElement {
         border-bottom: 1px solid var(--divider-color);
       }
     }
+
+    @media (max-width: 700px) {
+      :host { gap:7px; padding:9px; }
+      .nav { padding:2px 2px 8px; }
+      .field { box-sizing:border-box; flex:1 1 calc(50% - 4px); min-width:0; padding:2px 5px; }
+      .field.search { flex-basis:100%; min-width:0; }
+      .check, .reset { margin-top:5px; margin-bottom:0; }
+      .check { margin-inline:5px; }
+      .reset { margin-left:auto; margin-right:5px; }
+    }
+
+    @media (max-width: 380px) {
+      .field:not(.search) { flex-basis:100%; }
+    }
   `;
 }
 

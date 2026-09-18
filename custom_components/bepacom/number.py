@@ -65,12 +65,12 @@ async def async_setup_entry(
 
         entity_type = BacnetObjectTypeMapper.get_entity_type(obj)
 
-        is_multistate_switch = (
+        is_multistate_toggle = (
             BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
             == "multi_state_output"
-            and overrides.get_multistate_representation(obj) == "switch"
+            and overrides.get_multistate_representation(obj) in {"switch", "light", "outlet"}
         )
-        if entity_type == EntityType.NUMBER and not is_multistate_switch:
+        if entity_type == EntityType.NUMBER and not is_multistate_toggle:
             entities.append(BepacomNumber(coordinator, obj))
 
     if entities:

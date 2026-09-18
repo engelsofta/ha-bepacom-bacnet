@@ -6,7 +6,7 @@ import asyncio
 import logging
 from typing import Any
 
-from homeassistant.components.switch import SwitchEntity
+from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -43,7 +43,7 @@ async def async_setup_entry(
         is_multistate_switch = (
             BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
             == "multi_state_output"
-            and overrides.get_multistate_representation(obj) == "switch"
+            and overrides.get_multistate_representation(obj) in {"switch", "outlet"}
         )
         if entity_type == EntityType.SWITCH or is_multistate_switch:
             entities.append(BepacomSwitch(coordinator, obj))
@@ -66,6 +66,7 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
 
         self._obj = obj
         self._overrides = BepacomOverrideManager(coordinator._entry.options)
+        self._feedback_obj = self._resolve_feedback_object()
         self._write_lock = asyncio.Lock()
         self._attr_unique_id = obj.unique_id
         self._attr_entity_id = f"switch.{obj.entity_id}"
@@ -74,12 +75,33 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
         self._attr_name = display_name
         self._attr_has_entity_name = has_entity_name
         self._attr_device_info = self._build_device_info()
+        if self._overrides.get_multistate_representation(obj) == "outlet":
+            self._attr_device_class = SwitchDeviceClass.OUTLET
         self._attr_extra_state_attributes = (
             coordinator.point_registry.entity_attributes(obj)
         )
         self._last_point_revision = coordinator.point_registry.revision(obj)
+        self._last_feedback_revision = (
+            coordinator.point_registry.revision(self._feedback_obj)
+            if self._feedback_obj is not None
+            else None
+        )
         self._last_coordinator_success = coordinator.last_update_success
         self._last_data_revision = coordinator.data_revision
+
+    def _resolve_feedback_object(self) -> BacnetObject | None:
+        """Resolve a valid MSI feedback point on the same BACnet device."""
+        unique_id = self._overrides.get_multistate_feedback_unique_id(self._obj)
+        if unique_id is None:
+            return None
+        feedback = self.coordinator.point_registry.get_by_unique_id(unique_id)
+        if feedback is None:
+            return None
+        if str(feedback.device_id) != str(self._obj.device_id):
+            return None
+        if BacnetObjectTypeMapper._normalize_object_type(feedback.object_type) != "multi_state_input":
+            return None
+        return feedback
 
     def _build_device_info(self) -> DeviceInfo:
         """Build Home Assistant device info for this BACnet device."""
@@ -94,15 +116,22 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
     def _handle_coordinator_update(self) -> None:
         """Write HA state only when this point or availability changed."""
         revision = self.coordinator.point_registry.revision(self._obj)
+        feedback_revision = (
+            self.coordinator.point_registry.revision(self._feedback_obj)
+            if self._feedback_obj is not None
+            else None
+        )
         success = self.coordinator.last_update_success
         data_revision = self.coordinator.data_revision
         if (
             revision == self._last_point_revision
+            and feedback_revision == self._last_feedback_revision
             and success == self._last_coordinator_success
             and data_revision == self._last_data_revision
         ):
             return
         self._last_point_revision = revision
+        self._last_feedback_revision = feedback_revision
         self._last_coordinator_success = success
         self._last_data_revision = data_revision
         self.async_write_ha_state()
@@ -130,7 +159,11 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
                         self._attr_name = display_name
                         self._attr_has_entity_name = has_entity_name
 
-        value = self._obj.present_value
+        value = (
+            self._feedback_obj.present_value
+            if self._feedback_obj is not None
+            else self._obj.present_value
+        )
 
         if value is None:
             return None
@@ -169,6 +202,22 @@ class BepacomSwitch(CoordinatorEntity[BepacomCoordinator], SwitchEntity):
             return False
 
         return bool(value)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return point metadata and optional Multi-State feedback details."""
+        attributes = dict(
+            self.coordinator.point_registry.entity_attributes(self._obj)
+        )
+        if self._feedback_obj is not None:
+            attributes.update(
+                {
+                    "command_value": self._obj.present_value,
+                    "feedback_value": self._feedback_obj.present_value,
+                    "feedback_source": self._feedback_obj.unique_id,
+                }
+            )
+        return attributes
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
