@@ -1,3 +1,35 @@
+# Engelsoft Beacon BACnet/IP 1.4.0
+
+This release makes startup more tolerant of normal BACstac add-on delays and expands how Multi-State Outputs can appear in Home Assistant.
+
+- BACstac startup validation now retries during the normal add-on startup window.
+- Temporary startup failures no longer create an immediate repair warning.
+- Multi-State Outputs can be represented as numbers, switches, lights, or outlets.
+- Switch, light, and outlet entities can use a matching Multi-State Input as their feedback source.
+- Feedback points consumed by another entity are no longer exposed as duplicate Home Assistant sensors.
+- The BACnet Explorer behaves more cleanly on narrow Home Assistant layouts.
+- Explorer frontend cache build: `0688`.
+
+Restart Home Assistant after updating and reload the Explorer once without the browser cache.
+
+---
+
+# Engelsoft Beacon BACnet/IP 1.3.3 Pre-release
+
+## **Less legacy, more telemetry.**
+
+This pre-release clears out accumulated compatibility and frontend debt while keeping BACnet behavior stable.
+
+- Obsolete constants, compatibility fallbacks, dead helpers, and legacy branding were removed.
+- Explorer filtering, write-value parsing, transport normalization, and virtual-rule matching now live in focused modules.
+- TypeScript checks the complete Explorer implementation instead of skipping its largest file.
+- Focused tests cover the extracted panel helpers.
+- Explorer frontend cache build: `0681`.
+
+Restart Home Assistant after updating and reload the Explorer once without the browser cache.
+
+---
+
 # Engelsoft Beacon BACnet/IP 1.3.2
 
 ## English
@@ -38,6 +70,13 @@ This release makes the integrated BACnet Explorer follow the active Home Assista
 
 ### Highlights
 
+- Protocol V2 communication with capability negotiation and gateway compatibility checks
+- optional API-token authentication for BACstac access
+- clear Home Assistant repair issues for incompatible gateways and unavailable BACstac applications
+- stronger WebSocket lifecycle, reconnect behavior, sequence tracking, resynchronization, command metrics, and diagnostics
+- improved setup validation, error handling, connection diagnostics, and runtime transport visibility
+- expanded Protocol V2 health, live activity, Point Inspector, and transport-state details in the Explorer
+- reproducible frontend builds and reload-safe custom-element registration
 - automatic German and English Explorer localization
 - English fallback for unknown or missing Home Assistant locales
 - translated configuration, live view, diagnostics, Point Inspector, dialogs, filters, and runtime transport labels
@@ -58,6 +97,13 @@ Mit diesem Release richtet sich der integrierte BACnet Explorer nach der aktiven
 
 ### Highlights
 
+- Protocol-V2-Kommunikation mit Funktionsaushandlung und Gateway-Kompatibilitätsprüfung
+- optionale API-Token-Authentifizierung für den BACstac-Zugriff
+- verständliche Home-Assistant-Reparaturhinweise für inkompatible Gateways und nicht verfügbare BACstac-Anwendungen
+- robusterer WebSocket-Lebenszyklus mit Wiederverbindung, Sequenzverfolgung, Resynchronisation, Befehlsmetriken und Diagnose
+- verbesserte Einrichtungsprüfung, Fehlerbehandlung, Verbindungsdiagnose und Sichtbarkeit der aktiven Transportzustände
+- erweiterter Protocol-V2-Status, Live-Aktivität, Point Inspector und Transportdetails im Explorer
+- reproduzierbare Frontend-Builds und sicheres erneutes Laden von Custom Elements
 - automatische deutsche und englische Explorer-Oberfläche
 - Englisch als Fallback für unbekannte oder fehlende Home-Assistant-Spracheinstellungen
 - übersetzte Konfiguration, Live-Ansicht, Diagnose, Point Inspector, Dialoge, Filter und Transportzustände
