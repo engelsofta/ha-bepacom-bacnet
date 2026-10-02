@@ -8,7 +8,7 @@
 - [x] Changelog contains a dated `1.4.1` entry for 2026-10-02.
 - [x] GitHub release notes are available in `RELEASE_NOTES.md`.
 - [x] Frontend build is `0688`.
-- [ ] GitHub Actions tests, HACS and Hassfest are green on the release commit.
+- [x] GitHub Actions tests, HACS and Hassfest are green on the release commit.
 
 ## Publish on GitHub
 
