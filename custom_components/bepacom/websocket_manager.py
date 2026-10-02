@@ -626,15 +626,21 @@ class BepacomWebSocketManager:
         )
         self._log_diagnostics(state.ws_url, reason="connected")
 
+        restore_task: asyncio.Task[None] | None = None
         if stats.connect_count > 1 and self._on_reconnect is not None:
-            try:
-                result = self._on_reconnect()
-                if asyncio.iscoroutine(result):
-                    await result
-            except Exception:
-                _LOGGER.exception(
-                    "Failed to restore managed gateway targets after WebSocket reconnect"
-                )
+            async def restore_targets() -> None:
+                try:
+                    result = self._on_reconnect()
+                    if asyncio.iscoroutine(result):
+                        await result
+                except Exception:
+                    _LOGGER.exception(
+                        "Failed to restore managed gateway targets after WebSocket reconnect"
+                    )
+
+            restore_task = asyncio.create_task(
+                restore_targets(), name="bepacom-reconnect-restore"
+            )
 
         if self._websocket_connects == 1:
             _LOGGER.info(
@@ -725,6 +731,12 @@ class BepacomWebSocketManager:
                         self._websocket_updates,
                     )
         finally:
+            if restore_task is not None:
+                restore_task.cancel()
+                try:
+                    await restore_task
+                except asyncio.CancelledError:
+                    pass
             stats.last_disconnect = time.monotonic()
             _LOGGER.debug(
                 "Bepacom WebSocket disconnected: url=%s owner=%s/%s pushes=%s",

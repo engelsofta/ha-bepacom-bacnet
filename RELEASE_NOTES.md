@@ -1,22 +1,16 @@
-# Engelsoft Beacon BACnet/IP 1.4.0
+# Engelsoft Beacon BACnet/IP 1.4.1
 
-**New identity. Same BACnet. No existential crisis.**
+**Reconnect and it feels so good.**
 
-Changing a BACnet point from a number to a switch or light should not give Home Assistant an identity crisis at every restart. This stable release removes saved entity IDs that no longer match the point's current representation, while preserving the current entity, custom names, and all other point settings.
+BACstac reconnects should recover the connection, not create a tiny traffic jam where the request and its answer wait politely for each other forever. This patch keeps the Protocol V2 socket reader active while managed targets are restored.
 
-## Fixes and improvements
+## Fixed
 
-- Prevent repeated `New entity ID should be same domain` startup warnings.
-- Persist the cleanup so incompatible saved IDs do not return on the next restart.
-- Finish startup migrations before option changes can trigger an integration reload.
-- Retry BACstac startup validation during normal add-on startup delays and defer repair warnings for temporary failures.
-- Represent Multi-State Outputs as numbers, switches, lights, or outlets.
-- Use optional Multi-State Input feedback for switches, lights, and outlets without exposing duplicate feedback sensors.
-- Improve BACnet Explorer behavior on narrow Home Assistant layouts.
-- Restore and expand the integration test suite.
+- Fixed a Protocol V2 deadlock during WebSocket reconnect recovery.
+- Restore commands can now receive their confirmation through the already-running socket reader.
+- Unfinished reconnect restoration is cancelled and awaited when the socket closes.
+- Added regression coverage for the reconnect request/response path.
 
 ## Updating
 
-Restart Home Assistant after updating. Reload the Explorer once without the browser cache if its previous bundle is still cached. Explorer frontend build: `0688`.
-
-Stored IDs with an incompatible domain are removed automatically on integration startup. Existing automations that reference old entity IDs still need to be updated to the current IDs.
+Restart Home Assistant after updating. The Explorer frontend is unchanged at build `0688`, so no cache-clearing ritual should be necessary this time.

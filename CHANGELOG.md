@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.4.1 - 2026-10-02
+
+**Reconnect and it feels so good.**
+
+### English
+
+- fixed a Protocol V2 reconnect deadlock when restoring managed gateway targets
+- keep the WebSocket reader active while the reconnect callback waits for its protocol confirmation
+- cancel and await unfinished restore work when the WebSocket connection closes
+- added a regression test covering reconnect restoration and result processing on the same socket
+
+### Deutsch
+
+- Protocol-V2-Deadlock beim Wiederherstellen verwalteter Gateway-Ziele nach einer Wiederverbindung behoben
+- der WebSocket-Reader bleibt aktiv, während der Reconnect-Callback auf seine Protokollbestätigung wartet
+- noch laufende Wiederherstellungsaufgaben werden beim Schließen der WebSocket-Verbindung abgebrochen und sauber abgewartet
+- Regressionstest für Wiederherstellung und Ergebnisverarbeitung über denselben Socket ergänzt
+
 ## 1.4.0 - 2026-10-02
 
 **New identity. Same BACnet. No existential crisis.**
