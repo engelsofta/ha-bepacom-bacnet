@@ -420,6 +420,9 @@ async def _async_apply_deferred_entity_registry_overrides(
         if getattr(entity_entry, "platform", None) == DOMAIN
     }
 
+    updated_overrides = dict(raw_overrides)
+    removed_ids = 0
+
     for obj in coordinator.point_registry.all():
         override = coordinator.point_registry.overrides.get_override(obj)
         if not isinstance(override, dict):
@@ -451,7 +454,25 @@ async def _async_apply_deferred_entity_registry_overrides(
         stored_entity_id = override.get("entity_id")
         if stored_entity_id is not None and str(stored_entity_id).strip():
             desired_entity_id = str(stored_entity_id).strip()
-            if entity_entry.entity_id != desired_entity_id:
+            # A saved ID may belong to the previous representation (for example
+            # number -> light). HA only permits renames within the same domain.
+            # Remove only the stale ID; preserve names and all point settings.
+            if desired_entity_id.split(".", 1)[0] != expected_domain:
+                object_key = f"{obj.object_type}:{obj.object_id}"
+                for override_key in (
+                    obj.unique_id,
+                    f"{obj.device_id}|{object_key}",
+                    object_key,
+                ):
+                    saved_override = raw_overrides.get(override_key)
+                    if not isinstance(saved_override, dict):
+                        continue
+                    cleaned_override = dict(saved_override)
+                    cleaned_override.pop("entity_id", None)
+                    updated_overrides[override_key] = cleaned_override
+                    removed_ids += 1
+                    break
+            elif entity_entry.entity_id != desired_entity_id:
                 occupying_entry = registry.async_get(desired_entity_id)
                 if occupying_entry is None:
                     kwargs["new_entity_id"] = desired_entity_id
@@ -475,6 +496,13 @@ async def _async_apply_deferred_entity_registry_overrides(
                 obj.unique_id,
                 err,
             )
+
+    if removed_ids:
+        options = dict(entry.options)
+        options[CONF_ENTITY_OVERRIDES] = updated_overrides
+        hass.config_entries.async_update_entry(entry, options=options)
+        coordinator.refresh_options(options)
+        _LOGGER.info("Removed %s entity_id overrides with an outdated domain", removed_ids)
 
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
@@ -550,7 +578,6 @@ async def async_setup_entry(
         "client": client,
         "coordinator": coordinator,
     }
-    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     await _async_migrate_legacy_entity_ids(hass, entry)
     await _async_remove_inactive_entity_entries(hass, entry, coordinator)
@@ -568,6 +595,9 @@ async def async_setup_entry(
     await _async_migrate_legacy_entity_ids(hass, entry)
 
     await _async_apply_deferred_entity_registry_overrides(hass, entry, coordinator)
+
+    # Startup migrations must finish before option changes can trigger a reload.
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     await coordinator.async_start()
 

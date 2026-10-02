@@ -1,200 +1,22 @@
 # Engelsoft Beacon BACnet/IP 1.4.0
 
-This release makes startup more tolerant of normal BACstac add-on delays and expands how Multi-State Outputs can appear in Home Assistant.
+**New identity. Same BACnet. No existential crisis.**
 
-- BACstac startup validation now retries during the normal add-on startup window.
-- Temporary startup failures no longer create an immediate repair warning.
-- Multi-State Outputs can be represented as numbers, switches, lights, or outlets.
-- Switch, light, and outlet entities can use a matching Multi-State Input as their feedback source.
-- Feedback points consumed by another entity are no longer exposed as duplicate Home Assistant sensors.
-- The BACnet Explorer behaves more cleanly on narrow Home Assistant layouts.
-- Explorer frontend cache build: `0688`.
+Changing a BACnet point from a number to a switch or light should not give Home Assistant an identity crisis at every restart. This stable release removes saved entity IDs that no longer match the point's current representation, while preserving the current entity, custom names, and all other point settings.
 
-Restart Home Assistant after updating and reload the Explorer once without the browser cache.
+## Fixes and improvements
 
----
+- Prevent repeated `New entity ID should be same domain` startup warnings.
+- Persist the cleanup so incompatible saved IDs do not return on the next restart.
+- Finish startup migrations before option changes can trigger an integration reload.
+- Retry BACstac startup validation during normal add-on startup delays and defer repair warnings for temporary failures.
+- Represent Multi-State Outputs as numbers, switches, lights, or outlets.
+- Use optional Multi-State Input feedback for switches, lights, and outlets without exposing duplicate feedback sensors.
+- Improve BACnet Explorer behavior on narrow Home Assistant layouts.
+- Restore and expand the integration test suite.
 
-# Engelsoft Beacon BACnet/IP 1.3.3 Pre-release
+## Updating
 
-## **Less legacy, more telemetry.**
+Restart Home Assistant after updating. Reload the Explorer once without the browser cache if its previous bundle is still cached. Explorer frontend build: `0688`.
 
-This pre-release clears out accumulated compatibility and frontend debt while keeping BACnet behavior stable.
-
-- Obsolete constants, compatibility fallbacks, dead helpers, and legacy branding were removed.
-- Explorer filtering, write-value parsing, transport normalization, and virtual-rule matching now live in focused modules.
-- TypeScript checks the complete Explorer implementation instead of skipping its largest file.
-- Focused tests cover the extracted panel helpers.
-- Explorer frontend cache build: `0681`.
-
-Restart Home Assistant after updating and reload the Explorer once without the browser cache.
-
----
-
-# Engelsoft Beacon BACnet/IP 1.3.2
-
-## English
-
-This maintenance release fixes write support when BACstac does not include optional `writable` metadata in its discovery payload.
-
-- Standard BACnet output objects are recognized as writable without add-on changes.
-- `AnalogValue` and `BinaryValue` keep their supported API v2 write paths.
-- An explicit `writable: false` response is still respected.
-- Explorer, Home Assistant entities, and diagnostics now use the same decision.
-- Raw gateway metadata is exposed as `writable_reported` for troubleshooting.
-- Explorer frontend cache build: `0680`.
-
-Restart Home Assistant after updating and reload the Explorer once without the browser cache.
-
-## Deutsch
-
-Dieses Wartungsrelease korrigiert die Schreibunterstützung, wenn BACstac im Discovery-Payload keine optionalen `writable`-Metadaten liefert.
-
-- Standardmäßige BACnet-Ausgangsobjekte werden ohne Änderung am Add-on als schreibbar erkannt.
-- `AnalogValue` und `BinaryValue` behalten ihre unterstützten API-v2-Schreibpfade.
-- Ein ausdrücklich gemeldetes `writable: false` wird weiterhin respektiert.
-- Explorer, Home-Assistant-Entitäten und Diagnose verwenden nun dieselbe Entscheidung.
-- Die unveränderte Gateway-Angabe wird zur Fehlersuche als `writable_reported` ausgegeben.
-- Explorer-Frontend-Cache-Build: `0680`.
-
-Nach dem Update Home Assistant neu starten und den Explorer einmal ohne Browser-Cache laden.
-
----
-
-# 🌍 Engelsoft Beacon BACnet/IP 1.3.0
-
-> **BACnet now speaks human — well, at least German and English. 😄**
-
-## English
-
-This release makes the integrated BACnet Explorer follow the active Home Assistant user language. German users keep the familiar German interface, English users get a fully translated Explorer, and every unknown locale falls back to English.
-
-### Highlights
-
-- Protocol V2 communication with capability negotiation and gateway compatibility checks
-- optional API-token authentication for BACstac access
-- clear Home Assistant repair issues for incompatible gateways and unavailable BACstac applications
-- stronger WebSocket lifecycle, reconnect behavior, sequence tracking, resynchronization, command metrics, and diagnostics
-- improved setup validation, error handling, connection diagnostics, and runtime transport visibility
-- expanded Protocol V2 health, live activity, Point Inspector, and transport-state details in the Explorer
-- reproducible frontend builds and reload-safe custom-element registration
-- automatic German and English Explorer localization
-- English fallback for unknown or missing Home Assistant locales
-- translated configuration, live view, diagnostics, Point Inspector, dialogs, filters, and runtime transport labels
-- locale-aware decimal formatting (`1,28` in German, `1.28` in English)
-- safe localization after delayed Lit rendering and live partial updates, without persistent DOM observers
-- complete German and English README documentation
-- frontend cache build `0679`
-
-### Upgrade notes
-
-Restart Home Assistant after installing the update. If the Explorer still shows the previous language or frontend build, reload the page while bypassing the browser cache.
-
-This is the stable `1.3.0` release and requires [Engelsoft BACstac](https://github.com/engelsofta/engelsoft-bacstac-ha-addon).
-
-## Deutsch
-
-Mit diesem Release richtet sich der integrierte BACnet Explorer nach der aktiven Home-Assistant-Benutzersprache. Deutsche Benutzer behalten die vertraute deutsche Oberfläche, englische Benutzer erhalten einen vollständig übersetzten Explorer und unbekannte Spracheinstellungen verwenden Englisch als Fallback.
-
-### Highlights
-
-- Protocol-V2-Kommunikation mit Funktionsaushandlung und Gateway-Kompatibilitätsprüfung
-- optionale API-Token-Authentifizierung für den BACstac-Zugriff
-- verständliche Home-Assistant-Reparaturhinweise für inkompatible Gateways und nicht verfügbare BACstac-Anwendungen
-- robusterer WebSocket-Lebenszyklus mit Wiederverbindung, Sequenzverfolgung, Resynchronisation, Befehlsmetriken und Diagnose
-- verbesserte Einrichtungsprüfung, Fehlerbehandlung, Verbindungsdiagnose und Sichtbarkeit der aktiven Transportzustände
-- erweiterter Protocol-V2-Status, Live-Aktivität, Point Inspector und Transportdetails im Explorer
-- reproduzierbare Frontend-Builds und sicheres erneutes Laden von Custom Elements
-- automatische deutsche und englische Explorer-Oberfläche
-- Englisch als Fallback für unbekannte oder fehlende Home-Assistant-Spracheinstellungen
-- übersetzte Konfiguration, Live-Ansicht, Diagnose, Point Inspector, Dialoge, Filter und Transportzustände
-- sprachabhängige Dezimalformatierung (`1,28` auf Deutsch, `1.28` auf Englisch)
-- sichere Übersetzung nach verzögertem Lit-Rendering und partiellen Live-Aktualisierungen ohne dauerhafte DOM-Beobachter
-- vollständige deutsche und englische README-Dokumentation
-- Frontend-Cache-Build `0679`
-
-### Hinweise zum Update
-
-Starte Home Assistant nach der Installation vollständig neu. Falls der Explorer noch die vorherige Sprache oder Frontend-Version zeigt, lade die Seite einmal ohne Browser-Cache neu.
-
-Dies ist das stabile Release `1.3.0` und benötigt [Engelsoft BACstac](https://github.com/engelsofta/engelsoft-bacstac-ha-addon).
-
----
-
-# Engelsoft Beacon BACnet/IP 1.2.6
-
-Version 1.2.6 promotes the complete integration-controlled BACnet workflow to the stable channel.
-
-Configure points as Push/COV, Polling or Disabled, collect the changes in the Explorer and apply the full target profile once with **Stac Update**. BACstac calculates the difference and changes only affected BACnet tasks while the Home Assistant integration and global WebSocket remain online.
-
-The release also delivers the redesigned light and dark interface, the full-width Live View, reliable friendly-name resolution, stable table scrolling, and the focused animated Diagnostics pipeline. The permanent status strip now combines Push and Polling activity in one **Updates** card with blue and green indicators.
-
-> [!IMPORTANT]
-> Version 1.2.6 requires [Engelsoft BACstac](https://github.com/engelsofta/engelsoft-bacstac-ha-addon). The legacy Bepacom BACnet add-on is no longer supported. Existing internal Home Assistant identifiers such as `bepacom.*` remain unchanged for backwards compatibility.
-
-**No reloads, no noise — just BACnet in sync.**
-
----
-
-# Engelsoft Beacon BACnet/IP 1.2.6 B3
-
-This beta completes the Diagnostics redesign with a focused, animated view of the BACnet update path.
-
-The remaining processing stages now use larger cards, individual visual accents, and a subtle moving signal between steps. Redundant configuration, runtime, efficiency, and raw technical card groups have been removed. Push and Polling configuration counts now live directly in the main entity status card.
-
-Falling numeric values now flash violet instead of red, keeping red reserved for actual error states. Motion automatically stops when reduced animation is enabled at operating-system level.
-
-**Follow the flow, lose the noise — BACnet diagnostics in motion.**
-
----
-
-# Engelsoft Beacon BACnet/IP 1.2.6 B2
-
-This beta turns the Diagnostics workspace from a wall of counters into an operational view of the complete update path.
-
-WebSocket messages, inspected objects, unchanged-value filtering, dispatched updates, and effective changes are now presented as one visual processing pipeline. Important health values remain immediately visible, while duplicate low-level counters are preserved under Technical Details.
-
-**Less number soup, more BACnet signal — diagnostics that finally speak human.**
-
----
-
-# Engelsoft Beacon BACnet/IP 1.2.6 B1
-
-This beta introduces batched, integration-controlled transport changes without restarting the integration.
-
-Configure multiple BACnet points as Push/COV, Polling or Disabled, then apply the complete profile once from the Explorer. BACstac receives one desired-state update, performs the target diff and changes only the affected BACnet tasks while the global WebSocket stays connected.
-
-Home Assistant entity structure changes still keep their separate reload option where it is genuinely required.
-
-**One click, zero reloads — because even BACnet deserves fewer existential crises.**
-
----
-
-Version 1.2.3 makes BACnet transport modes readable at a glance across the Explorer.
-
-## Clear transport colors
-
-- **Blue means Push/COV** in the Point Inspector and the Explorer table.
-- **Green means Polling**, including managed polling fallbacks.
-- Snapshot-based push updates now follow the same blue Push/COV language.
-- Disabled points remain neutral and unobtrusive.
-
-The update-mode selector also shows a green marker directly beside Polling, so configuration and runtime status now speak the same visual language.
-
-## Compatibility
-
-- Existing config entries and update-mode selections are preserved.
-- Entity IDs, overrides and virtual entities remain unchanged.
-- No migration or reconfiguration is required.
-- Restart Home Assistant and reload the browser with `Ctrl+F5` after updating.
-
-## Validation
-
-- Python integration test suite.
-- TypeScript type check.
-- Reproducible Vite production build.
-- JavaScript bundle syntax validation.
-- Frontend build `0652`.
-
-For the complete list of changes, see [CHANGELOG.md](CHANGELOG.md#123---2026-08-04).
-
-**Blue for push. Green for poll. BACnet status at a glance.**
+Stored IDs with an incompatible domain are removed automatically on integration startup. Existing automations that reference old entity IDs still need to be updated to the current IDs.

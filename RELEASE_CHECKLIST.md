@@ -5,7 +5,7 @@
 - [x] `manifest.json` version is `1.4.0`.
 - [x] `const.py` version is `1.4.0`.
 - [x] README version badge is `1.4.0`.
-- [x] Changelog contains a dated `1.4.0` entry.
+- [x] Changelog contains a dated `1.4.0` entry for 2026-10-02.
 - [x] GitHub release notes are available in `RELEASE_NOTES.md`.
 - [x] Frontend build is `0688`.
 - [ ] GitHub Actions tests, HACS and Hassfest are green on the release commit.
@@ -26,3 +26,4 @@
 - [ ] Restart Home Assistant and bypass the browser cache.
 - [ ] Confirm integration version `1.4.0` and frontend build `0688`.
 - [ ] Confirm blue Push/COV and green Polling indicators in dark and light themes.
+- [ ] Change an MSO representation, restart twice, and confirm incompatible saved IDs are removed without recurring domain warnings.

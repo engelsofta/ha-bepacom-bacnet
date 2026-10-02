@@ -1,9 +1,14 @@
 # Changelog
 
-## 1.4.0 - 2026-09-18
+## 1.4.0 - 2026-10-02
+
+**New identity. Same BACnet. No existential crisis.**
 
 ### English
 
+- fixed repeated startup warnings when a saved entity ID belongs to an earlier number, switch, light, or outlet representation
+- automatically remove incompatible saved entity IDs while preserving current entities, custom names, and other point settings
+- complete startup cleanup before enabling automatic reloads on option changes
 - added resilient BACstac startup retries and delayed repair creation for normal add-on startup races
 - added Multi-State Output representations for Home Assistant lights and outlets
 - added optional Multi-State Input feedback sources and suppression of consumed feedback entities
@@ -13,6 +18,9 @@
 
 ### Deutsch
 
+- wiederkehrende Startwarnungen durch gespeicherte Entity-IDs einer früheren Number-, Switch-, Light- oder Outlet-Darstellung behoben
+- unpassende gespeicherte Entity-IDs werden automatisch entfernt; aktuelle Entitäten, eigene Namen und weitere Datenpunkteinstellungen bleiben erhalten
+- Startbereinigung wird abgeschlossen, bevor Einstellungsänderungen automatische Neustarts der Integration auslösen können
 - robuste BACstac-Startwiederholungen und verzögerte Reparaturmeldungen für normale Add-on-Startphasen ergänzt
 - Multi-State Outputs können zusätzlich als Home-Assistant-Licht oder Steckdose dargestellt werden
 - optionale Multi-State-Input-Rückmeldungen und Unterdrückung der dafür verwendeten Rückmeldeentitäten ergänzt
