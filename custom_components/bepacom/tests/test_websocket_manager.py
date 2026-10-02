@@ -70,7 +70,7 @@ async def test_reconnect_restore_can_receive_protocol_result() -> None:
             await restore_started.wait()
             return SimpleNamespace(
                 type=aiohttp.WSMsgType.TEXT,
-                data={"type": "result", "id": "restore"},
+                data='{"type":"result","id":"restore"}',
             )
 
         async def send_json(self, message: dict[str, Any]) -> None:
