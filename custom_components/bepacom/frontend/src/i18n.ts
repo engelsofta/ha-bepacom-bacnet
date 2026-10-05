@@ -159,6 +159,8 @@ const ENGLISH: Array<[string, string]> = [
   ["Live-Ansicht", "Live view"],
   ["Diagramm und Live-Log", "Chart and live log"],
   ["Diagnose", "Diagnostics"],
+  ["BACstac Add-on", "BACstac app"],
+  ["Gateway-Oberfläche", "Gateway interface"],
   ["Status, Laufzeit und Push-Werte", "Status, runtime and push values"],
   ["Hauptbereiche", "Main sections"],
   ["Punkte insgesamt", "Total points"],

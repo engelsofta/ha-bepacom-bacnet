@@ -1,5 +1,6 @@
 export interface HomeAssistantLike {
   states?: Record<string, { state: string; attributes?: Record<string, unknown> }>;
+  panels?: Record<string, unknown>;
   language?: string;
   locale?: { language?: string };
   themes?: { darkMode?: boolean };

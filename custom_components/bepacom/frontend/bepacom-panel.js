@@ -780,6 +780,8 @@ const ENGLISH = [
   ["Live-Ansicht", "Live view"],
   ["Diagramm und Live-Log", "Chart and live log"],
   ["Diagnose", "Diagnostics"],
+  ["BACstac Add-on", "BACstac app"],
+  ["Gateway-Oberfläche", "Gateway interface"],
   ["Status, Laufzeit und Push-Werte", "Status, runtime and push values"],
   ["Hauptbereiche", "Main sections"],
   ["Punkte insgesamt", "Total points"],
@@ -3452,7 +3454,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       .main-nav {
         flex:0 0 auto;
         display:grid;
-        grid-template-columns:repeat(3,minmax(0,1fr));
+        grid-template-columns:repeat(4,minmax(0,1fr));
         gap:7px;
         margin:0 0 12px;
         padding:6px;
@@ -3478,6 +3480,8 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         filter:none;
         transform:none;
         text-align:left;
+        text-decoration:none;
+        cursor:pointer;
       }
       .main-nav-item.active,
       .main-nav-item.active:hover:not(:disabled) {
@@ -4087,7 +4091,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         .header-primary-actions .pending-reload { grid-column:1 / -1; }
         #applyChanges, #refresh { min-width:0; padding-inline:8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
         .toast { right:12px; bottom:12px; }
-        .main-nav { grid-template-columns:repeat(3,minmax(0,1fr)); }
+        .main-nav { grid-template-columns:repeat(4,minmax(0,1fr)); }
         .main-nav-item { justify-content:flex-start; }
         .main-status-strip { grid-template-columns:1fr 1fr; gap:7px; padding:7px; margin-bottom:10px; }
         .dashboard-headline-card.status-overview { padding:9px 10px; }
@@ -4303,11 +4307,23 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
         <span class="main-nav-icon">${icon}</span>
         <span><strong>${label}</strong><small>${description}</small></span>
       </button>`;
+    const addonPath = this._bacstacAddonPanelPath();
     return `<nav class="main-nav" aria-label="Hauptbereiche">
       ${item("configuration", "▦", "Konfiguration", "Explorer und virtuelle Entitäten")}
       ${item("live", "▤", "Live-Ansicht", "Diagramm und Live-Log")}
       ${item("diagnostics", "◇", "Diagnose", "Status, Laufzeit und Push-Werte")}
+      <a class="main-nav-item" data-bacstac-addon href="${this._escape(addonPath)}">
+        <span class="main-nav-icon">⬢</span>
+        <span><strong>BACstac Add-on</strong><small>Gateway-Oberfläche</small></span>
+      </a>
     </nav>`;
+  }
+  _bacstacAddonPanelPath() {
+    const panelPaths = Object.keys(this._hass?.panels || {});
+    const installedPath = panelPaths.find(
+      (path) => path === "cd3bc810_engelsoft_bacstac" || path.endsWith("_engelsoft_bacstac")
+    );
+    return `/${encodeURIComponent(installedPath || "cd3bc810_engelsoft_bacstac")}`;
   }
   _mainStatusHtml() {
     const diagnostics = this._diagnostics || {};
@@ -5310,6 +5326,11 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
           window.setTimeout(() => this._refreshLiveChanges(), 0);
         }
       });
+    });
+    this.shadowRoot.querySelector("[data-bacstac-addon]")?.addEventListener("click", (event) => {
+      if (this._editorDirty && !this._confirm("Ungespeicherte Änderungen verwerfen und das BACstac Add-on öffnen?")) {
+        event.preventDefault();
+      }
     });
     const moreActionsToggle = this.shadowRoot.getElementById("moreActionsToggle");
     this.shadowRoot.getElementById("haMenuToggle")?.addEventListener("click", (event) => {
