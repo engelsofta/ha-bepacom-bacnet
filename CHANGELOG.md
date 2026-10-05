@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.4.2 - 2026-10-05
+
+**Home is where the host isn't hardcoded.**
+
+### English
+
+- added a BACstac app shortcut to the Explorer's primary navigation
+- discover the registered BACstac panel dynamically, with the known installation slug as a safe fallback
+- use a same-origin relative path so the shortcut works without a fixed IP address or port, including HTTPS and remote Home Assistant URLs
+- preserve unsaved-change protection when leaving the Explorer for the BACstac interface
+- expanded the responsive navigation to four columns and refreshed the frontend cache build to `0689`
+
+### Deutsch
+
+- Verknüpfung zur BACstac-App in der Hauptnavigation des Explorers ergänzt
+- registriertes BACstac-Panel wird dynamisch erkannt; der bekannte Installations-Slug dient als sicherer Fallback
+- relativer Pfad derselben Home-Assistant-Adresse ersetzt eine feste IP-Adresse und funktioniert damit auch über HTTPS und externe Home-Assistant-URLs
+- Schutz vor dem Verwerfen ungespeicherter Änderungen gilt auch beim Wechsel zur BACstac-Oberfläche
+- responsive Navigation auf vier Spalten erweitert und Frontend-Cache-Build auf `0689` erhöht
+
 ## 1.4.1 - 2026-10-02
 
 **Reconnect and it feels so good.**

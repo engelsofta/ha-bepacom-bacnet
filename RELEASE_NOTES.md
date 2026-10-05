@@ -1,16 +1,18 @@
-# Engelsoft Beacon BACnet/IP 1.4.1
+# Engelsoft Beacon BACnet/IP 1.4.2
 
-**Reconnect and it feels so good.**
+**Home is where the host isn't hardcoded.**
 
-BACstac reconnects should recover the connection, not create a tiny traffic jam where the request and its answer wait politely for each other forever. This patch keeps the Protocol V2 socket reader active while managed targets are restored.
+The BACnet Explorer now has a direct shortcut to the BACstac app. It follows Home Assistant's registered app panel instead of tying itself to one IP address, because bookmarks should travel better than furniture.
 
-## Fixed
+## New
 
-- Fixed a Protocol V2 deadlock during WebSocket reconnect recovery.
-- Restore commands can now receive their confirmation through the already-running socket reader.
-- Unfinished reconnect restoration is cancelled and awaited when the socket closes.
-- Added regression coverage for the reconnect request/response path.
+- Added **BACstac app** as a fourth item in the Explorer's main navigation.
+- Detects the installed BACstac panel dynamically and falls back to the known app slug when necessary.
+- Uses a relative Home Assistant path with no fixed IP address or port.
+- Works with local hostnames, HTTPS, reverse proxies, and remote Home Assistant addresses.
+- Warns before navigation when the point editor still contains unsaved changes.
+- Keeps the navigation compact on narrow screens.
 
 ## Updating
 
-Restart Home Assistant after updating. The Explorer frontend is unchanged at build `0688`, so no cache-clearing ritual should be necessary this time.
+Restart Home Assistant after updating. If the fourth navigation item does not appear immediately, reload the Explorer once without the browser cache. Explorer frontend build: `0689`.
