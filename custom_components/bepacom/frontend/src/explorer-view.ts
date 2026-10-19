@@ -15,6 +15,8 @@ export class BepacomExplorerView extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._entryId = null;
     this._points = [];
+    this._runtimeVersions = {};
+    this._pendingTableUpdates = new Set();
     this._entries = [];
     this._selected = null;
     this._inspector = {};
@@ -35,6 +37,7 @@ export class BepacomExplorerView extends HTMLElement {
     this._virtualSearch = this._loadSetting("bepacom_virtual_search", "");
     this._refreshTimer = null;
     this._debounce = null;
+    this._pointsGeneration = 0;
     this._diagnostics = {};
     this._historyByUid = new Map();
     this._clientHistory = new Map();
@@ -144,6 +147,7 @@ export class BepacomExplorerView extends HTMLElement {
 
   disconnectedCallback() {
     this._connected = false;
+    this._pointsGeneration += 1;
     this._stopRefreshTimer();
     this._stopLiveTimer();
     this._refreshGeneration += 1;
@@ -324,6 +328,16 @@ export class BepacomExplorerView extends HTMLElement {
       this._virtualStateUpdateQueued = false;
       if (!this._connected) return;
       this._updateVirtualStateDom();
+      // Linked HA entities can change independently of their BACnet source.
+      const table = this.shadowRoot?.getElementById("tableWrap");
+      for (const row of table?.rows || []) {
+        if (row.kind !== "point") continue;
+        if ((row.linkedEntities || []).some((link, index) =>
+          (this.hass?.states?.[link.entityId] || null) !== row.linkedStates?.[index])) {
+          this._pendingTableUpdates.add(row.uniqueId);
+        }
+      }
+      this._flushTableUpdates();
     });
   }
 
@@ -461,6 +475,9 @@ export class BepacomExplorerView extends HTMLElement {
 
   async _loadPoints(showLoading = true) {
     if (!this.hass) return;
+    if (this._debounce) window.clearTimeout(this._debounce);
+    this._debounce = null;
+    const generation = ++this._pointsGeneration;
     if (showLoading) this._loading = true;
     this._error = null;
     if (showLoading) this._render();
@@ -476,8 +493,12 @@ export class BepacomExplorerView extends HTMLElement {
         include_disabled: true,
         limit: 2000,
       });
+      // A newer query may already be pending in the debounce timer.
+      if (generation !== this._pointsGeneration || !this._connected) return;
       this._entryId = result.entry_id || this._entryId;
       this._points = result.points || [];
+      this._runtimeVersions = {};
+      this._pendingTableUpdates.clear();
       this._diagnostics = result.diagnostics || {};
       this._trackClientHistory(this._points);
       this._total = result.total || this._points.length;
@@ -487,8 +508,10 @@ export class BepacomExplorerView extends HTMLElement {
         if (updated) this._selected = updated;
       }
     } catch (err) {
+      if (generation !== this._pointsGeneration || !this._connected) return;
       this._error = this._formatError(err);
     } finally {
+      if (generation !== this._pointsGeneration || !this._connected) return;
       this._loading = false;
       if (showLoading) {
         this._render();
@@ -507,11 +530,35 @@ export class BepacomExplorerView extends HTMLElement {
     if (!tableWrap) return false;
     if (active && tableWrap.contains(active)) {
       const tag = (active.tagName || "").toLowerCase();
-      if (["select", "input", "textarea", "button"].includes(tag)) return true;
+      if (["select", "input", "textarea"].includes(tag) || active.isContentEditable) return true;
     }
-    // Beim Mouseover den Tabellen-DOM nicht ersetzen. Sonst verschwinden Tooltips/Infos
-    // und gerade geöffnete Controls klappen durch den Auto-Refresh wieder zu.
-    return tableWrap.matches(":hover");
+    // Hover and focused action buttons do not block keyed Lit value updates.
+    return false;
+  }
+
+  _mergeRuntimePoints(updates) {
+    const byUid = new Map(updates.map((point) => [point.unique_id, point]));
+    const changed = [];
+    this._points = this._points.map((point) => {
+      const update = byUid.get(point.unique_id) as Record<string, any> | undefined;
+      if (!update) return point;
+      if (update.runtime_version) this._runtimeVersions[point.unique_id] = update.runtime_version;
+      // Also support older backends which return a full runtime snapshot.
+      const differs = Object.keys(update).some((key) => key !== "runtime_version"
+        && JSON.stringify(point[key]) !== JSON.stringify(update[key]));
+      if (!differs) return point;
+      const merged = { ...point, ...update };
+      changed.push(merged);
+      this._pendingTableUpdates.add(point.unique_id);
+      return merged;
+    });
+    return changed;
+  }
+
+  _flushTableUpdates() {
+    if (!this._pendingTableUpdates.size || this._isUserInteractingWithTable()) return;
+    this._updateListDom(new Set(this._pendingTableUpdates));
+    this._pendingTableUpdates.clear();
   }
 
 
@@ -520,6 +567,7 @@ export class BepacomExplorerView extends HTMLElement {
     if (document.hidden) return;
     if (this._refreshInFlight) return;
     const generation = ++this._refreshGeneration;
+    const pointsGeneration = this._pointsGeneration;
     this._refreshInFlight = true;
     // Während der Benutzer tippt oder rechts editiert, darf der Auto-Refresh
     // die DOM-Struktur nicht neu aufbauen. Sonst verlieren Eingabefelder den
@@ -529,28 +577,23 @@ export class BepacomExplorerView extends HTMLElement {
         type: "bepacom/explorer/points_runtime",
         entry_id: this._entryId || undefined,
         unique_ids: this._points.map((point) => point.unique_id),
+        known_versions: this._runtimeVersions,
       });
-      if (generation !== this._refreshGeneration || document.hidden || !this._connected) return;
+      if (generation !== this._refreshGeneration || pointsGeneration !== this._pointsGeneration || document.hidden || !this._connected) return;
       this._entryId = result.entry_id || this._entryId;
-      const runtimeByUid = new Map((result.points || []).map((point) => [point.unique_id, point]));
-      this._points = this._points.map((point) => ({
-        ...point,
-        ...((runtimeByUid.get(point.unique_id) || {}) as Record<string, unknown>),
-      }));
+      const changed = this._mergeRuntimePoints(result.points || []);
       this._diagnostics = result.diagnostics || {};
-      this._trackClientHistory(this._points);
+      this._trackClientHistory(changed);
       if (this._selected) {
         const updated = this._points.find((p) => p.unique_id === this._selected.unique_id);
-        if (updated) {
-          this._selected = { ...this._selected, ...updated };
+        if (updated && this._pendingTableUpdates.has(updated.unique_id)) {
+          this._selected = updated;
         }
       }
-      if (!this._isUserInteractingWithTable()) {
-        this._updateListDom();
-      }
+      this._flushTableUpdates();
       this._updateHeaderDom();
     } catch (err) {
-      if (generation !== this._refreshGeneration || document.hidden || !this._connected) return;
+      if (generation !== this._refreshGeneration || pointsGeneration !== this._pointsGeneration || document.hidden || !this._connected) return;
       this._error = this._formatError(err);
       this._render();
     } finally {
@@ -614,13 +657,13 @@ export class BepacomExplorerView extends HTMLElement {
     this._scheduleLocalization();
   }
 
-  _updateListDom() {
+  _updateListDom(changedIds = null) {
     const wrap = this.shadowRoot?.getElementById("tableWrap");
     if (!wrap) return;
 
     const scrollTop = wrap.scrollTop;
     this._lastTableScrollTop = scrollTop;
-    this._configurePointTable();
+    this._configurePointTable(changedIds);
     window.requestAnimationFrame(() => {
       const nextWrap = this.shadowRoot?.getElementById("tableWrap");
       if (nextWrap) nextWrap.scrollTop = scrollTop;
@@ -633,12 +676,24 @@ export class BepacomExplorerView extends HTMLElement {
   }
 
   _setFilter(key, value) {
+    if (this._filters[key] === value) return;
     this._filters[key] = value;
+    this._lastTableScrollTop = 0;
+    const table = this.shadowRoot?.getElementById("tableWrap");
+    if (table) table.scrollTop = 0;
+    // Device filtering is entirely local; keep any pending server query intact.
+    if (key === "device_id") {
+      this._updateListDom();
+      this._configureExplorerToolbar();
+      return;
+    }
+    // Invalidate immediately, including while the next query is debounced.
+    this._pointsGeneration += 1;
     if (this._debounce) window.clearTimeout(this._debounce);
     // Wichtig: beim Tippen NICHT die komplette Seite neu rendern.
     // Sonst verliert das Suchfeld den Fokus. Nur die Datenzeilen werden
     // nachgeladen und gezielt aktualisiert.
-    this._debounce = window.setTimeout(() => this._loadPoints(false), 250);
+    this._debounce = window.setTimeout(() => this._loadPoints(false), key === "search" ? 150 : 0);
   }
 
   _selectPoint(point) {
@@ -4272,6 +4327,8 @@ export class BepacomExplorerView extends HTMLElement {
     ).sort();
     toolbar.groupBy = this._groupBy || "none";
     this._scheduleLocalization();
+    if (toolbar.dataset.actionsBound === "1") return;
+    toolbar.dataset.actionsBound = "1";
     toolbar.addEventListener("bepacom-toolbar-action", (event) => {
       const { action, key, value } = event.detail || {};
       if (action === "view") {
@@ -4315,11 +4372,13 @@ export class BepacomExplorerView extends HTMLElement {
     });
   }
 
-  _configurePointTable() {
+  _configurePointTable(changedIds = null) {
     const table = this.shadowRoot?.getElementById("tableWrap");
     if (!table) return;
     const items = this._displayItems();
     const rows = [];
+    const previousRows = new Map((table.rows || [])
+      .filter((row) => row.kind === "point").map((row) => [row.uniqueId, row]));
     // Render the filtered rows as one stable Lit list. Replacing virtual
     // spacer rows during the native scroll event caused some browsers to
     // restore scrollTop=0, making the list appear glued to its first row.
@@ -4329,6 +4388,10 @@ export class BepacomExplorerView extends HTMLElement {
         continue;
       }
       const point = item.point;
+      if (changedIds && !changedIds.has(point.unique_id) && previousRows.has(point.unique_id)) {
+        rows.push(previousRows.get(point.unique_id));
+        continue;
+      }
       const linkedEntities = this._linkedEntities(point).map((link) => {
         const entityId = link.entity_id || "";
         const name = this._linkedEntityName(link);
@@ -4358,6 +4421,7 @@ export class BepacomExplorerView extends HTMLElement {
         entityId: point.entity_id || "",
         entityName: this._displayEntityName(point),
         linkedEntities,
+        linkedStates: this._linkedEntities(point).map((link) => this._linkedEntityLive(link)),
         value: this._value(point.present_value),
         unit: this._displayUnit(point),
         overrideActive: !!point.override_active,
@@ -4377,6 +4441,7 @@ export class BepacomExplorerView extends HTMLElement {
     this._scheduleLocalization();
     if (table.dataset.actionsBound === "1") return;
     table.dataset.actionsBound = "1";
+    table.addEventListener("focusout", () => queueMicrotask(() => this._flushTableUpdates()));
     table.addEventListener("bepacom-table-action", (event) => {
       const { action, key, uniqueId, entityId, checked } = event.detail || {};
       if (action === "sort") {

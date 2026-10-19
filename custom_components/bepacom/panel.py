@@ -24,8 +24,10 @@ from .entity_factory import BacnetObjectTypeMapper
 from .models import BacnetObject
 from .exceptions import CannotConnect, InvalidResponse, WriteError
 from .panel_helpers import (
+    ExplorerSearchIndex,
+    feedback_candidates_by_device,
+    runtime_version,
     effective_transport as _effective_transport,
-    matches_filters as _matches_filters,
     normalize_empty as _normalize_empty,
     parse_write_value as _parse_write_value,
 )
@@ -36,7 +38,7 @@ PANEL_URL = "bepacom_explorer"
 PANEL_NAME = "bepacom-explorer-panel"
 PANEL_STATIC_URL = "/bepacom_static"
 PANEL_EVENT = "bepacom_explorer_updated"
-PANEL_VERSION = "0689"
+PANEL_VERSION = "0691"
 
 _WS_REGISTERED = "websocket_registered"
 _PANEL_REGISTERED = "panel_registered"
@@ -130,8 +132,17 @@ def _entity_registry_entry(
     entry_id: str | None,
     unique_id: str,
     entity_domain: str | None = None,
+    entity_entries: dict[str, Any] | None = None,
 ):
     """Return the Home Assistant entity registry entry for a Bepacom point."""
+    if entity_entries is not None:
+        entity = entity_entries.get(unique_id)
+        if entity is None:
+            return None
+        if not entity_domain or entity.entity_id.startswith(f"{entity_domain}."):
+            return entity
+        # A domain migration can temporarily leave several entries for one id.
+        # Preserve the domain-aware lookup in that exceptional case.
     ent_reg = er.async_get(hass)
     for entity in ent_reg.entities.values():
         if entity.unique_id != unique_id or entity.platform != DOMAIN:
@@ -313,6 +324,49 @@ def _point_assistant_suggestion(obj: BacnetObject) -> dict[str, Any] | None:
     }
 
 @callback
+def _point_entity_entry(obj, registry, hass, entry_id, entity_entries=None):
+    """Resolve the same preferred HA entity for search and editor payloads."""
+    if hass is None:
+        return None
+    representation = registry.overrides.get_multistate_representation(obj)
+    normalized_type = BacnetObjectTypeMapper._normalize_object_type(obj.object_type)
+    domain = (
+        ("switch" if representation == "outlet" else representation)
+        if normalized_type == "multi_state_output"
+        and representation in {"switch", "light", "outlet"}
+        else BacnetObjectTypeMapper.get_entity_type(obj).value
+    )
+    return _entity_registry_entry(hass, entry_id, obj.unique_id, domain, entity_entries)
+
+
+def _search_point(obj, registry, hass, entry_id, entity_entries):
+    """Build only searchable fields; omit feedback, virtual entities and history."""
+    override = registry.overrides.get_override(obj)
+    entity = _point_entity_entry(obj, registry, hass, entry_id, entity_entries)
+    unit = registry.overrides.get_unit_of_measurement(obj)
+    device_class = registry.overrides.get_device_class(obj)
+    return {
+        "unique_id": obj.unique_id,
+        "device_id": str(obj.device_id),
+        "object_key": registry.object_key(obj),
+        "object_type": obj.object_type,
+        "object_id": obj.object_id,
+        "object_name": obj.object_name or "",
+        "description": obj.description or "",
+        "present_value": obj.present_value,
+        "bacnet_unit": obj.units,
+        "ha_unit": str(unit) if unit is not None else None,
+        "device_class": str(device_class) if device_class is not None else None,
+        "entity_id": entity.entity_id if entity else override.get("entity_id"),
+        "entity_name": getattr(entity, "name", None) if entity else override.get("entity_name"),
+        "entity_original_name": getattr(entity, "original_name", None) if entity else None,
+        "override_active": bool(override),
+        "update_mode": registry.overrides.get_update_mode(obj, "disabled"),
+        "subscribed": registry.runtime(obj).subscribed,
+    }
+
+
+@callback
 def _serialize_point(
     obj: BacnetObject,
     registry,
@@ -320,6 +374,7 @@ def _serialize_point(
     entry_id: str | None = None,
     entity_entries: dict[str, Any] | None = None,
     target_status: dict[str, Any] | None = None,
+    feedback_candidates: dict[str, list[dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     """Serialize one BACnet point for the frontend panel."""
     runtime = registry.runtime(obj)
@@ -327,13 +382,6 @@ def _serialize_point(
     object_key = registry.object_key(obj)
     normalized_object_type = BacnetObjectTypeMapper._normalize_object_type(
         obj.object_type
-    )
-    representation = registry.overrides.get_multistate_representation(obj)
-    preferred_entity_domain = (
-        ("switch" if representation == "outlet" else representation)
-        if normalized_object_type == "multi_state_output"
-        and representation in {"switch", "light", "outlet"}
-        else BacnetObjectTypeMapper.get_entity_type(obj).value
     )
     default_glt_delay_ms = (
         2000 if normalized_object_type == "multi_state_output" else 1200
@@ -344,13 +392,12 @@ def _serialize_point(
     ha_state_class = registry.overrides.get_state_class(obj)
     update_mode = registry.overrides.get_update_mode(obj, "disabled")
     effective = _effective_transport(target_status)
-    entity_entry = (
-        _entity_registry_entry(
-            hass, entry_id, obj.unique_id, preferred_entity_domain
+    entity_entry = _point_entity_entry(obj, registry, hass, entry_id, entity_entries)
+    if normalized_object_type == "multi_state_output" and feedback_candidates is None:
+        feedback_candidates = feedback_candidates_by_device(
+            registry.all(include_disabled=True),
+            BacnetObjectTypeMapper._normalize_object_type,
         )
-        if hass is not None
-        else None
-    )
     feedback_consumers: list[BacnetObject] = []
     if normalized_object_type == "multi_state_input":
         for consumer_unique_id in registry.overrides.multistate_feedback_consumer_unique_ids(
@@ -393,15 +440,10 @@ def _serialize_point(
         "multistate_feedback_unique_id": override.get("multistate_feedback_unique_id"),
         "multistate_feedback_candidates": [
             {
-                "unique_id": candidate.unique_id,
-                "object_id": candidate.object_id,
-                "name": candidate.object_name or candidate.description or candidate.unique_id,
-                "same_object_id": str(candidate.object_id) == str(obj.object_id),
+                **candidate,
+                "same_object_id": str(candidate["object_id"]) == str(obj.object_id),
             }
-            for candidate in registry.all(include_disabled=True)
-            if str(candidate.device_id) == str(obj.device_id)
-            and BacnetObjectTypeMapper._normalize_object_type(candidate.object_type)
-            == "multi_state_input"
+            for candidate in (feedback_candidates or {}).get(str(obj.device_id), [])
         ] if normalized_object_type == "multi_state_output" else [],
         "ha_entity_suppressed": feedback_consumer is not None,
         "multistate_feedback_consumer": (
@@ -533,8 +575,29 @@ async def websocket_explorer_points(
 
     coordinator = data["coordinator"]
     registry = coordinator.point_registry
-    target_statuses = await coordinator.async_gateway_target_status()
     entity_entries = _entity_registry_entries_by_unique_id(hass, entry_id)
+    search_index = getattr(registry, "_explorer_search_index", None)
+    if search_index is None:
+        search_index = registry._explorer_search_index = ExplorerSearchIndex()
+    objects = list(registry.all(include_disabled=msg["include_disabled"]))
+    search_index.retain(set(registry.objects))
+    matches = [
+        obj for obj in objects
+        if search_index.matches(_search_point(obj, registry, hass, entry_id, entity_entries), msg)
+    ]
+    matches.sort(key=lambda obj: (
+        str(obj.object_type).lower(), int(obj.object_id or 999999999),
+        str(obj.object_name or "").lower(),
+    ))
+    limit = max(1, min(int(msg["limit"]), 2000))
+    selected = matches[:limit]
+    target_statuses = await coordinator.async_gateway_target_status() if selected else {}
+    candidates = feedback_candidates_by_device(
+        registry.all(include_disabled=True), BacnetObjectTypeMapper._normalize_object_type,
+    ) if any(
+        BacnetObjectTypeMapper._normalize_object_type(obj.object_type) == "multi_state_output"
+        for obj in selected
+    ) else {}
     points = [
         _serialize_point(
             obj,
@@ -543,21 +606,17 @@ async def websocket_explorer_points(
             entry_id,
             entity_entries,
             coordinator.gateway_target_status_for(obj, target_statuses),
+            candidates,
         )
-        for obj in registry.all(include_disabled=msg["include_disabled"])
+        for obj in selected
     ]
-    points = [point for point in points if _matches_filters(point, msg)]
-
-    points.sort(key=lambda p: (str(p["object_type"]).lower(), int(p["object_id"] or 999999999), str(p["object_name"]).lower()))
-
-    limit = max(1, min(int(msg["limit"]), 2000))
     connection.send_result(
         msg["id"],
         {
             "entry_id": entry_id,
-            "points": points[:limit],
-            "total": len(points),
-            "limited": len(points) > limit,
+            "points": points,
+            "total": len(matches),
+            "limited": len(matches) > limit,
             "diagnostics": _explorer_diagnostics(coordinator, registry),
         },
     )
@@ -590,6 +649,7 @@ def _serialize_point_runtime(
         vol.Required("type"): "bepacom/explorer/points_runtime",
         vol.Optional("entry_id"): str,
         vol.Required("unique_ids"): vol.All([str], vol.Length(max=2000)),
+        vol.Optional("known_versions"): vol.All({str: str}, vol.Length(max=2000)),
     }
 )
 @websocket_api.async_response
@@ -608,16 +668,16 @@ async def websocket_explorer_points_runtime(
     registry = coordinator.point_registry
     target_statuses = await coordinator.async_gateway_target_status()
     points: list[dict[str, Any]] = []
+    known_versions = msg.get("known_versions", {})
     for unique_id in msg["unique_ids"]:
         obj = registry.get_by_unique_id(unique_id)
         if obj is not None:
-            points.append(
-                _serialize_point_runtime(
-                    obj,
-                    registry,
-                    coordinator.gateway_target_status_for(obj, target_statuses),
-                )
+            point = _serialize_point_runtime(
+                obj, registry, coordinator.gateway_target_status_for(obj, target_statuses),
             )
+            version = runtime_version(point)
+            if known_versions.get(unique_id) != version:
+                points.append({**point, "runtime_version": version})
 
     connection.send_result(
         msg["id"],

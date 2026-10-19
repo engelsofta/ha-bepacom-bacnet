@@ -1,29 +1,25 @@
-# Stable release checklist for 1.4.2
+# Stable release checklist for 1.4.3
 
-## Before publishing
+## Preparation
 
-- [x] `manifest.json` version is `1.4.2`.
-- [x] `const.py` version is `1.4.2`.
-- [x] README version badge is `1.4.2`.
-- [x] Changelog contains a dated `1.4.2` entry for 2026-10-05.
-- [x] GitHub release notes are available in `RELEASE_NOTES.md`.
-- [x] Frontend build is `0689`.
-- [x] GitHub Actions tests, HACS and Hassfest are green on the release commit.
+- [x] Integration manifest and runtime version: `1.4.3`.
+- [x] English README version badge: `1.4.3`.
+- [x] English changelog entry dated 2026-10-19 and humorous release notes prepared.
+- [x] German README and obsolete migration warning removed.
+- [x] Frontend cache build: `0691`; production bundle rebuilt.
+- [x] 29 targeted local tests, TypeScript check and Python/JavaScript syntax checks passed.
+- [x] Frontend regression tests included in GitHub Actions.
+Before publishing, require Tests, Validate, HACS validation and Hassfest validation to pass on the exact release commit.
 
-## Publish on GitHub
+## Publication
 
-1. Commit and push all prepared release files.
-2. Wait for **Tests**, **Validate**, **HACS validation** and **Hassfest validation**.
-3. Create tag `1.4.2` on the release commit.
-4. Use `Engelsoft Beacon BACnet/IP 1.4.2` as the release title.
-5. Copy `RELEASE_NOTES.md` into the release description.
-6. Publish it as the latest stable release, without the pre-release flag.
-7. Verify that HACS detects `1.4.2` on the normal release channel.
+1. Push the release commit to GitHub.
+2. Tag the validated release commit as `1.4.3`.
+3. Publish the latest stable release: `Engelsoft Beacon BACnet/IP 1.4.3 — 🚀 Less BAClog. More BACnet.`
+4. Verify the release package workflow and attached `beacon.zip`.
 
-## After publishing
+## Installation validation
 
-- [ ] Install the update through HACS on a test system.
-- [ ] Restart Home Assistant and bypass the browser cache.
-- [ ] Confirm integration version `1.4.2` and frontend build `0689`.
-- [ ] Confirm blue Push/COV and green Polling indicators in dark and light themes.
-- [ ] Open the BACstac shortcut from local and remote Home Assistant URLs and confirm it uses the registered app panel without a fixed host.
+- [ ] Install through HACS on a test system and restart Home Assistant.
+- [ ] Confirm integration `1.4.3` and frontend build `0691`.
+- [ ] Verify search, values under mouseover, active-input protection and independent feedback updates in the running HA frontend.

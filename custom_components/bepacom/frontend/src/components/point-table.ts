@@ -1,5 +1,7 @@
 import { LitElement, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
+import { repeat } from "lit/directives/repeat.js";
+import { guard } from "lit/directives/guard.js";
 
 export type PointTableRow =
   | { kind: "spacer"; height: number }
@@ -197,7 +199,7 @@ export class BepacomPointTable extends LitElement {
           </tr>
         </thead>
         <tbody>
-          ${this.rows.map((row) => {
+          ${repeat(this.rows, (row) => row.kind === "point" ? `point:${row.uniqueId}` : row.kind === "group" ? `group:${row.key}` : row, (row) => {
             if (row.kind === "spacer") return html`<tr class="virtual-spacer"><td colspan="8" style=${`height:${row.height}px`}></td></tr>`;
             if (row.kind === "group") {
               return html`
@@ -210,7 +212,7 @@ export class BepacomPointTable extends LitElement {
                 </tr>
               `;
             }
-            return this._pointRow(row);
+            return guard([row], () => this._pointRow(row));
           })}
         </tbody>
       </table>

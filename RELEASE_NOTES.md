@@ -1,18 +1,33 @@
-# Engelsoft Beacon BACnet/IP 1.4.2
+# Engelsoft Beacon BACnet/IP 1.4.3
 
-**Home is where the host isn't hardcoded.**
+## 🚀 Less BAClog. More BACnet.
 
-The BACnet Explorer now has a direct shortcut to the BACstac app. It follows Home Assistant's registered app panel instead of tying itself to one IP address, because bookmarks should travel better than furniture.
+The Explorer has put its unnecessary busywork on a strict diet. Search no longer packs an entire moving van just to find one temperature sensor, and hovering your mouse over the table no longer freezes time.
 
-## New
+### Faster searches, fewer dramatic pauses
 
-- Added **BACstac app** as a fourth item in the Explorer's main navigation.
-- Detects the installed BACstac panel dynamically and falls back to the known app slug when necessary.
-- Uses a relative Home Assistant path with no fixed IP address or port.
-- Works with local hostnames, HTTPS, reverse proxies, and remote Home Assistant addresses.
-- Warns before navigation when the point editor still contains unsaved changes.
-- Keeps the navigation compact on narrow screens.
+- Search lightweight, cached documents instead of fully preparing every point's editor data. Only displayed matches get the deluxe treatment.
+- Keep names, descriptions, values, units, HA entity names and IDs searchable, including wildcard and multi-term queries.
+- Ignore outdated search responses. Yesterday's answer can stop interrupting today's question.
+- Bind toolbar actions once, shorten the typing delay, apply device filters locally, and return to the top when filters change.
 
-## Updating
+### The table has learned some manners
 
-Restart Home Assistant after updating. If the fourth navigation item does not appear immediately, reload the Explorer once without the browser cache. Explorer frontend build: `0689`.
+- Continue updating values while the mouse hovers over the table. The cursor is not a pause button.
+- After the initial runtime comparison, return only changed point data and reuse unchanged row models and rendered rows.
+- Detect transport errors and counter changes even when the numeric value stays put.
+- Protect active inputs and flush deferred row updates when focus leaves the field.
+- Keep linked HA feedback entities current even when their BACnet source does not change.
+
+### Less paperwork backstage
+
+- Build Multi-State Input feedback candidates once per device for each result batch, including disabled feedback inputs.
+- Reuse the entity-registry index instead of sending every point on a sightseeing tour of all HA entities.
+- Ship English-only documentation and retire the obsolete migration warning. The integration still requires Engelsoft BACstac.
+- Add regression coverage for search ordering, runtime deltas, feedback grouping, input protection and entity lookup; run frontend regression tests in GitHub Actions.
+
+### Updating
+
+Update both the integration's Python files and its bundled frontend, then restart Home Assistant. Reload the Explorer without the browser cache if necessary. Integration version: `1.4.3`; frontend build: `0691`.
+
+Existing entity IDs and point settings remain unchanged. Local targeted tests, type checking and the frontend build have passed; live Home Assistant behavior still needs installation testing.

@@ -1,10 +1,22 @@
 # Changelog
 
+## 1.4.3 - 2026-10-19
+
+**🚀 Less BAClog. More BACnet.**
+
+- Search now uses lightweight cached documents and only prepares full editor payloads for displayed matches. No moving van required to find one sensor.
+- Ignore stale search replies, bind toolbar actions once, shorten the typing delay and filter devices locally. The search box has stopped arguing with itself.
+- Keep values updating during mouseover: your cursor is a pointer, not a time machine.
+- Send changed runtime data after the initial comparison, reuse unchanged table rows and protect active inputs until focus leaves the field.
+- Track transport errors, counters and independent HA feedback changes even when a BACnet value is taking a nap.
+- Collect feedback candidates once per device for each batch and reuse the HA entity-registry index. Fewer sightseeing tours, more useful work.
+- Simplify documentation to English and remove obsolete migration notices.
+- Add search, delta, feedback and registry regression coverage; run frontend regressions in GitHub Actions.
+- Refresh the bundled frontend; cache build `0691`.
+
 ## 1.4.2 - 2026-10-05
 
 **Home is where the host isn't hardcoded.**
-
-### English
 
 - added a BACstac app shortcut to the Explorer's primary navigation
 - discover the registered BACstac panel dynamically, with the known installation slug as a safe fallback
@@ -12,37 +24,18 @@
 - preserve unsaved-change protection when leaving the Explorer for the BACstac interface
 - expanded the responsive navigation to four columns and refreshed the frontend cache build to `0689`
 
-### Deutsch
-
-- Verknüpfung zur BACstac-App in der Hauptnavigation des Explorers ergänzt
-- registriertes BACstac-Panel wird dynamisch erkannt; der bekannte Installations-Slug dient als sicherer Fallback
-- relativer Pfad derselben Home-Assistant-Adresse ersetzt eine feste IP-Adresse und funktioniert damit auch über HTTPS und externe Home-Assistant-URLs
-- Schutz vor dem Verwerfen ungespeicherter Änderungen gilt auch beim Wechsel zur BACstac-Oberfläche
-- responsive Navigation auf vier Spalten erweitert und Frontend-Cache-Build auf `0689` erhöht
-
 ## 1.4.1 - 2026-10-02
 
 **Reconnect and it feels so good.**
-
-### English
 
 - fixed a Protocol V2 reconnect deadlock when restoring managed gateway targets
 - keep the WebSocket reader active while the reconnect callback waits for its protocol confirmation
 - cancel and await unfinished restore work when the WebSocket connection closes
 - added a regression test covering reconnect restoration and result processing on the same socket
 
-### Deutsch
-
-- Protocol-V2-Deadlock beim Wiederherstellen verwalteter Gateway-Ziele nach einer Wiederverbindung behoben
-- der WebSocket-Reader bleibt aktiv, während der Reconnect-Callback auf seine Protokollbestätigung wartet
-- noch laufende Wiederherstellungsaufgaben werden beim Schließen der WebSocket-Verbindung abgebrochen und sauber abgewartet
-- Regressionstest für Wiederherstellung und Ergebnisverarbeitung über denselben Socket ergänzt
-
 ## 1.4.0 - 2026-10-02
 
 **New identity. Same BACnet. No existential crisis.**
-
-### English
 
 - fixed repeated startup warnings when a saved entity ID belongs to an earlier number, switch, light, or outlet representation
 - automatically remove incompatible saved entity IDs while preserving current entities, custom names, and other point settings
@@ -54,23 +47,9 @@
 - restored and expanded the repository test suite
 - refreshed the production frontend bundle and bumped its cache build to `0688`
 
-### Deutsch
-
-- wiederkehrende Startwarnungen durch gespeicherte Entity-IDs einer früheren Number-, Switch-, Light- oder Outlet-Darstellung behoben
-- unpassende gespeicherte Entity-IDs werden automatisch entfernt; aktuelle Entitäten, eigene Namen und weitere Datenpunkteinstellungen bleiben erhalten
-- Startbereinigung wird abgeschlossen, bevor Einstellungsänderungen automatische Neustarts der Integration auslösen können
-- robuste BACstac-Startwiederholungen und verzögerte Reparaturmeldungen für normale Add-on-Startphasen ergänzt
-- Multi-State Outputs können zusätzlich als Home-Assistant-Licht oder Steckdose dargestellt werden
-- optionale Multi-State-Input-Rückmeldungen und Unterdrückung der dafür verwendeten Rückmeldeentitäten ergänzt
-- Layout des BACnet Explorers und Einbindung auf schmalen Home-Assistant-Ansichten verbessert
-- Repository-Tests wiederhergestellt und erweitert
-- produktives Frontend-Bundle erneuert und Cache-Build auf `0688` erhöht
-
 ## 1.3.3 - 2026-08-28 (Pre-release)
 
 ### **Less legacy, more telemetry.**
-
-### English
 
 - removed obsolete constants, compatibility fallbacks, dead coordinator helpers, and remaining legacy branding
 - extracted Explorer filtering, write-value parsing, transport normalization, and virtual-rule matching into focused modules
@@ -78,17 +57,7 @@
 - added focused tests for the extracted panel helpers
 - refreshed the production frontend bundle and bumped its cache build to `0681`
 
-### Deutsch
-
-- veraltete Konstanten, Kompatibilitäts-Fallbacks, ungenutzte Coordinator-Helfer und verbliebene Branding-Reste entfernt
-- Explorer-Filter, Schreibwertverarbeitung, Transport-Normalisierung und virtuelle Regeln in klar abgegrenzte Module ausgelagert
-- TypeScript-Prüfung für den vollständigen Explorer aktiviert
-- gezielte Tests für die ausgelagerten Panel-Helfer ergänzt
-- produktives Frontend-Bundle erneuert und Cache-Build auf `0681` erhöht
-
 ## 1.3.2 - 2026-08-28
-
-### English
 
 - fixed missing gateway `writable` metadata being interpreted as an explicit write denial
 - infer write support for standard BACnet output objects and value objects supported by the gateway API
@@ -98,35 +67,15 @@
 - expose the raw gateway decision as `writable_reported` for troubleshooting
 - bumped the Explorer frontend cache build to `0680`
 
-### Deutsch
-
-- fehlende `writable`-Metadaten des Gateways werden nicht mehr als ausdrückliches Schreibverbot behandelt
-- Schreibunterstützung wird für standardmäßige BACnet-Ausgänge und von der Gateway-API unterstützte Value-Objekte abgeleitet
-- ein ausdrücklich gemeldetes `writable: false` bleibt als Schreibsperre erhalten
-- boolesche Werte, Zeichenketten und Property-Listen werden als Metadatenformat akzeptiert
-- Explorer, Entitäten und Diagnose verwenden dieselbe effektive Schreibbarkeitsentscheidung
-- die unveränderte Gateway-Angabe steht zur Fehlersuche als `writable_reported` bereit
-- Explorer-Frontend-Build auf `0680` erhöht
-
 ## 1.3.1 - 2026-08-27
 
 ### **The old name has left the building (mostly)**
-
-### English
 
 - replaced remaining user-facing Bepacom branding with Engelsoft Beacon BACnet/IP and Engelsoft BACstac
 - updated setup choices, repair messages, integration startup logs, Explorer messages, and the bundled brand manifest
 - kept the internal `bepacom` domain, service names, entity IDs, API paths, and storage keys unchanged for backwards compatibility — because renaming the plumbing just to repaint the door is how leaks happen
 
-### Deutsch
-
-- verbliebene sichtbare Bepacom-Bezeichnungen durch Engelsoft Beacon BACnet/IP und Engelsoft BACstac ersetzt
-- Einrichtungsoptionen, Reparaturmeldungen, Startprotokolle, Explorer-Texte und das mitgelieferte Branding-Manifest aktualisiert
-- die interne Domain `bepacom`, Dienstnamen, Entity-IDs, API-Pfade und Speicherschlüssel aus Kompatibilitätsgründen unverändert gelassen — denn nur wegen eines neuen Türschilds reißt man nicht gleich die Leitungen aus der Wand
-
 ## 1.3.0 - 2026-08-13
-
-### English
 
 - introduced Protocol V2 communication with explicit capability negotiation and gateway compatibility checks
 - added authenticated BACstac API access using an optional API token
@@ -143,23 +92,6 @@
 - fixed frontend localization across delayed Lit renders and live partial updates without persistent DOM observers
 - bumped the Explorer frontend cache build to `0679`
 
-### Deutsch
-
-- Protocol-V2-Kommunikation mit expliziter Funktionsaushandlung und Gateway-Kompatibilitätsprüfung eingeführt
-- authentifizierten BACstac-API-Zugriff über ein optionales API-Token ergänzt
-- verständliche Reparaturhinweise für inkompatible Gateways und nicht verfügbare BACstac-Anwendungen ergänzt
-- WebSocket-Lebenszyklus, Wiederverbindung, Diagnose, Befehlsmetriken, Sequenzverfolgung und Resynchronisationsanzeige erweitert
-- Einrichtungsprüfung, Fehlerbehandlung, Verbindungsdiagnose und Sichtbarkeit der aktiven Transportzustände verbessert
-- Protocol-V2-Status, Live-Aktivität, Point Inspector und Transportdetails im Explorer erweitert
-- reproduzierbare Frontend-Builds und sicheres erneutes Laden von Custom Elements ergänzt
-- automatische deutsch-/englischsprachige Explorer-Oberfläche anhand der aktiven Home-Assistant-Benutzersprache
-- Englisch als Fallback für unbekannte oder fehlende Spracheinstellungen
-- übersetzte Statuskarten, Point Inspector, Diagnose, Dialoge, Filter und dynamische BACnet-Transportzustände
-- sprachabhängige Zahlenformatierung für Deutsch und Englisch
-- vollständige deutsche README und gegenseitige Sprachlinks in beiden Dokumentationen
-- zuverlässige Übersetzung nach verzögertem Lit-Rendering und partiellen Live-Aktualisierungen ohne dauerhafte DOM-Beobachter
-- Explorer-Frontend-Build auf `0679` erhöht
-
 ## 1.2.6 - 2026-08-05
 
 ### No reloads, no noise — just BACnet in sync
@@ -174,7 +106,6 @@
 - Improved Explorer scrolling, selection stability, dropdown styling, icons, typography and responsive use of wide screens.
 - Replaced red decrease flashes with neutral violet so normal falling values no longer resemble errors.
 - Reduced noisy logging and kept known network failures compact and rate-limited.
-- Removed support for the legacy Bepacom BACnet add-on; **Engelsoft BACstac is now required**.
 - Preserved existing internal `bepacom.*` identifiers for backwards compatibility.
 
 **No reloads, no noise — just BACnet in sync.**
@@ -423,7 +354,6 @@ This release contains all changes since version 1.1.1.
 
 - Existing entity unique IDs, configured point overrides and virtual entities are preserved.
 - Automatically generated legacy `device_*` entity IDs are migrated to stable BACnet-based IDs. Custom user-assigned entity IDs remain unchanged.
-- The integration continues to understand legacy full-snapshot WebSocket payloads from the original Bepacom add-on. Managed COV and delta optimizations require Engelsoft BACstac.
 
 ## 1.1.1 - 2026-07-18
 
