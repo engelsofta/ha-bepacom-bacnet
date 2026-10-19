@@ -2266,22 +2266,21 @@ const ENGELSOFT_THEME = `
       url('/bepacom_static/engelsoft-background-dark.png?v=0694') center center / cover fixed,#171512;
   }
   .wrap.theme-light {
-    --es-ink:#36332f; --es-muted:#746e65; --es-accent:#866b3f;
-    --es-line:rgba(86,78,66,.18); --es-highlight:rgba(255,255,255,.8);
-    --es-surface:rgba(247,245,240,.82); --es-inset:rgba(255,255,255,.3);
-    --es-field:rgba(255,255,255,.5); --es-elevated:#eeece6; --es-cell:#f1efe9;
+    --es-ink:#292a2c; --es-muted:#595c60; --es-accent:#806033;
+    --es-line:rgba(54,58,63,.16); --es-highlight:rgba(54,58,63,.16);
+    --es-surface:rgba(250,249,247,.93); --es-inset:rgba(57,61,66,.025);
+    --es-field:rgba(255,255,255,.88); --es-elevated:#eeefee; --es-cell:#f7f7f5;
     --es-active:rgba(112,98,76,.08); --es-hover:rgba(112,98,76,.045);
-    --es-shadow:0 18px 44px rgba(57,50,40,.1),inset 0 1px rgba(255,255,255,.7);
-    --es-card-background:rgba(248,250,249,.62); --es-card-border:rgba(255,255,255,.85);
-    --es-card-shadow:0 12px 36px rgba(51,83,121,.09),inset 0 1px rgba(255,255,255,.7);
-    --es-card-filter:blur(28px) saturate(145%);
+    --es-shadow:0 8px 24px rgba(36,40,45,.09);
+    --es-card-background:rgba(250,249,247,.93); --es-card-border:rgba(54,58,63,.16);
+    --es-card-shadow:0 8px 24px rgba(36,40,45,.09),inset 0 1px rgba(255,255,255,.5);
+    --es-card-filter:blur(18px) saturate(100%);
     --primary-color:var(--es-accent); --accent-color:var(--es-accent);
     --primary-text-color:var(--es-ink); --secondary-text-color:var(--es-muted);
     --text-primary-color:var(--es-ink); --card-background-color:var(--es-cell);
     --secondary-background-color:var(--es-elevated); --divider-color:var(--es-line);
     --bepacom-border:var(--es-line); color:var(--es-ink); color-scheme:light;
-    background:radial-gradient(ellipse 48% 35% at 25% 35%,rgba(202,220,238,.48),transparent 80%),
-      linear-gradient(115deg,rgba(224,232,239,.82),rgba(237,231,216,.78)),
+    background:linear-gradient(115deg,rgba(224,232,239,.38),rgba(237,231,216,.32)),
       url('/bepacom_static/engelsoft-background-light.png') center center / cover fixed,#dfe5e9;
   }
   .engelsoft-shell { display:grid; grid-template-columns:var(--es-rail) minmax(0,1fr); gap:18px; width:100%; max-width:1840px; margin:auto; flex:1; min-height:0; height:100%; align-items:start; }
@@ -2417,6 +2416,14 @@ const ENGELSOFT_THEME = `
     backdrop-filter:var(--es-card-filter); -webkit-backdrop-filter:var(--es-card-filter);
   }
   .wrap .main-dashboard .dashboard-shell { background:transparent; border:0; border-radius:0; box-shadow:none; backdrop-filter:none; }
+  /* Override legacy light-theme declarations as well as the shared tokens. */
+  .wrap.theme-light .table-wrap .group-row td { color:var(--es-ink)!important; background:#eff0ee!important; box-shadow:none; }
+  .wrap.theme-light .table-wrap .group-row .muted { color:var(--es-muted)!important; }
+  .wrap.theme-light .table-wrap .group-toggle { color:var(--es-ink)!important; }
+  .wrap.theme-light th { color:var(--es-muted); background:var(--es-elevated)!important; }
+  .wrap.theme-light .brand-mark,.wrap.theme-light .brand-section,
+  .wrap.theme-light .point-title,.wrap.theme-light .section-title { color:var(--es-ink); }
+  .wrap.theme-light .frontend-version { opacity:1; }
   .wrap .main-dashboard .dashboard-content { padding:0; }
   .wrap .dashboard-content-live .dashboard-monitor-group { padding:16px; }
   .wrap .detail-rail-toggle { border-color:var(--es-line); background:var(--es-field); color:var(--es-accent); }

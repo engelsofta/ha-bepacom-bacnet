@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.5.4 - 2026-10-20
+
+**☀️ I can see clearly now, the haze is gone.**
+
+- Give Light Mode darker anthracite text and stronger secondary labels. Reading BACnet points should not require detective equipment.
+- Make cards more opaque with neutral off-white surfaces, softer shadows, and subtle gray borders. The dashboard has returned its milk mustache.
+- Replace beige table group bands with quiet neutral rows and fine separators. The spreadsheet has officially left the custard factory.
+- Reduce the pale background overlay so the RoomControl artwork can breathe again.
+- Reserve gold for selected controls, focus, and restrained accents; give ordinary headings a neutral voice.
+- Apply shared light-theme tokens across the toolbar, cards, Live View, and Diagnostics while keeping the dark-theme styling intact.
+- Rebuild the production frontend with cache build `0703`.
+
 ## 1.5.3 - 2026-10-20
 
 **🥃 Stay glassy, BACnet.**
