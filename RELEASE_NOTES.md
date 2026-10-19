@@ -1,33 +1,33 @@
-# Engelsoft Beacon BACnet/IP 1.4.3
+# Engelsoft Beacon BACnet/IP 1.5.0
 
-## 🚀 Less BAClog. More BACnet.
+## 🕶️ BACnet got a glow-up.
 
-The Explorer has put its unnecessary busywork on a strict diet. Search no longer packs an entire moving van just to find one temperature sensor, and hovering your mouse over the table no longer freezes time.
+The BACnet points are still doing their very serious building-automation jobs. They just moved into a nicer living room.
 
-### Faster searches, fewer dramatic pauses
+### One Engelsoft family, fewer fashion disagreements
 
-- Search lightweight, cached documents instead of fully preparing every point's editor data. Only displayed matches get the deluxe treatment.
-- Keep names, descriptions, values, units, HA entity names and IDs searchable, including wildcard and multi-term queries.
-- Ignore outdated search responses. Yesterday's answer can stop interrupting today's question.
-- Bind toolbar actions once, shorten the typing delay, apply device filters locally, and return to the top when filters change.
+- Bring Beacon into the RoomControl and CoverControl design family with calm glass surfaces, restrained gold accents and consistent controls.
+- Use RoomControl's current living-room background and matching shading in dark mode; align the light background and overlays too. The sofa is decorative. Please do not assign it a BACnet priority.
+- Replace the wide navigation bar with a compact icon rail on desktop and a horizontal menu on smaller screens.
+- Match the shared desktop geometry: a 48 px rail, 36 px buttons, 19 px icons and 8 px gaps. Even our pixels have a dress code.
+- Keep navigation labels, tooltips, keyboard focus and active-page announcements available behind the new icons.
 
-### The table has learned some manners
+### Small screens, less furniture
 
-- Continue updating values while the mouse hovers over the table. The cursor is not a pause button.
-- After the initial runtime comparison, return only changed point data and reuse unchanged row models and rendered rows.
-- Detect transport errors and counter changes even when the numeric value stays put.
-- Protect active inputs and flush deferred row updates when focus leaves the field.
-- Keep linked HA feedback entities current even when their BACnet source does not change.
+- Keep search visible and put additional mobile/tablet filters behind an expandable panel with an active-filter count.
+- Remove the mobile Home Assistant menu button as requested; the existing swipe from the left edge still opens the sidebar.
+- Hide the large brand header on phones and keep the action buttons in a compact row.
+- Stack the Point Inspector title and actions so long BACnet names stop trying to squeeze through the keyhole sideways.
+- Keep the table dense and preserve changed-row updates, mouseover refresh and active-input protection from 1.4.3.
 
-### Less paperwork backstage
+### Under the glass
 
-- Build Multi-State Input feedback candidates once per device for each result batch, including disabled feedback inputs.
-- Reuse the entity-registry index instead of sending every point on a sightseeing tour of all HA entities.
-- Ship English-only documentation and retire the obsolete migration warning. The integration still requires Engelsoft BACstac.
-- Add regression coverage for search ordering, runtime deltas, feedback grouping, input protection and entity lookup; run frontend regression tests in GitHub Actions.
+- Centralize the Engelsoft appearance tokens and move the existing structural CSS out of the main view implementation.
+- Rebuild the production frontend and refresh its cache identifier to `0694`.
+- Preserve existing entity IDs, BACnet settings and transport behavior. This makeover does not rewire the house.
 
-### Updating
+### Validation and updating
 
-Update both the integration's Python files and its bundled frontend, then restart Home Assistant. Reload the Explorer without the browser cache if necessary. Integration version: `1.4.3`; frontend build: `0691`.
+29 targeted local regression tests, frontend type checking and syntax checks passed. The design was checked with demo data in six browser layouts from 320 to 1440 pixels, including light/dark views, search, menu gestures and updates while hovering. This is browser validation, not a live Home Assistant installation test.
 
-Existing entity IDs and point settings remain unchanged. Local targeted tests, type checking and the frontend build have passed; live Home Assistant behavior still needs installation testing.
+Update through HACS and restart Home Assistant to load the new panel registration. Reload the Explorer without the browser cache if needed. Expected integration version: `1.5.0`; frontend build: `0694`.

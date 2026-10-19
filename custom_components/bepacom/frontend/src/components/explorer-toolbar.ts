@@ -1,5 +1,5 @@
 import { LitElement, css, html } from "lit";
-import { customElement, property } from "lit/decorators.js";
+import { customElement, property, state } from "lit/decorators.js";
 
 export interface ExplorerToolbarFilters {
   search: string;
@@ -25,6 +25,8 @@ export class BepacomExplorerToolbar extends LitElement {
   @property({ attribute: false }) public devices: string[] = [];
   @property({ attribute: false }) public objectTypes: string[] = [];
   @property() public groupBy = "type";
+  @property() public language = "en";
+  @state() private _filtersExpanded = false;
 
   private _emit(action: string, key?: string, value?: unknown): void {
     this.dispatchEvent(
@@ -37,6 +39,9 @@ export class BepacomExplorerToolbar extends LitElement {
   }
 
   protected render() {
+    const activeFilters = Number(this.filters.device_id !== "all")
+      + Number(this.filters.object_type !== "all") + Number(this.filters.runtime !== "all")
+      + Number(this.filters.only_overrides) + Number(this.filters.only_subscribe);
     return html`
       <div class="nav">
         <button
@@ -60,6 +65,11 @@ export class BepacomExplorerToolbar extends LitElement {
         >
       </div>
 
+      <button class="filters-toggle" aria-controls="filterOptions" aria-expanded=${String(this._filtersExpanded)}
+        @click=${() => { this._filtersExpanded = !this._filtersExpanded; this._emit("layout"); }}>
+        <span>${this.language === "de" ? "Filter" : "Filters"}${activeFilters ? ` (${activeFilters})` : ""}</span> <span aria-hidden="true">${this._filtersExpanded ? "−" : "+"}</span>
+      </button>
+      <div id="filterOptions" class=${`filter-options ${this._filtersExpanded ? "expanded" : ""}`}>
       <div class="field">
         <label for="device">Device</label>
         <select
@@ -139,187 +149,44 @@ export class BepacomExplorerToolbar extends LitElement {
       </label>
 
       <button class="reset" @click=${() => this._emit("reset")}>Reset</button>
+      </div>
     `;
   }
 
   static styles = css`
-    :host {
-      box-sizing: border-box;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: flex-end;
-      gap: 9px;
-      margin-bottom: 10px;
-      padding: 10px;
-      border: 1px solid rgba(255,255,255,.1);
-      border-radius: 13px;
-      background: rgba(72,70,67,.7);
-      box-shadow: 0 12px 34px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.035);
-      backdrop-filter:blur(22px);
-      font-family:Inter,"SF Pro Display","Segoe UI Variable","Segoe UI",sans-serif;
+    :host { box-sizing:border-box; display:flex; flex-wrap:wrap; align-items:flex-end; flex:0 0 auto; gap:9px; margin-bottom:12px; padding:12px; border:1px solid var(--es-line); border-radius:14px; background:var(--es-inset); color:var(--es-ink); font:inherit; }
+    .nav { display:flex; flex:1 0 100%; align-items:center; gap:6px; padding:0 0 10px; border-bottom:1px solid var(--es-line); }
+    .filter-options { display:contents; }
+    .filters-toggle { display:none; }
+    button { min-height:32px; padding:7px 12px; border:1px solid transparent; border-radius:var(--es-control-radius,10px); background:transparent; color:var(--es-muted); font:inherit; font-size:12px; font-weight:450; cursor:pointer; }
+    button:hover { color:var(--es-accent); background:var(--es-hover); }
+    .tab.active { color:var(--es-accent); border-color:var(--es-line); background:var(--es-active); }
+    .field { flex:0 1 124px; min-width:105px; padding:0; }
+    .field.search { flex:1 1 240px; min-width:200px; }
+    label { display:block; margin-bottom:6px; color:var(--es-muted); font-size:9px; font-weight:450; text-transform:uppercase; letter-spacing:.055em; }
+    input,select { box-sizing:border-box; width:100%; min-height:34px; padding:7px 9px; border:1px solid var(--es-line); border-radius:var(--es-control-radius,10px); background:var(--es-field); color:var(--es-ink); font:inherit; font-size:12px; color-scheme:inherit; }
+    select option,select optgroup { color:var(--es-ink); background:var(--es-elevated); }
+    select option:checked { color:var(--es-ink); background:var(--es-active); }
+    input::placeholder { color:var(--es-muted); opacity:.75; }
+    input:focus-visible,select:focus-visible,button:focus-visible { outline:2px solid var(--es-accent); outline-offset:3px; }
+    .check { display:inline-flex; align-items:center; gap:6px; align-self:flex-end; min-height:34px; margin:0 2px; color:var(--es-muted); font-size:11px; text-transform:none; letter-spacing:0; white-space:nowrap; }
+    .check input { width:15px; height:15px; min-height:0; margin:0; accent-color:var(--es-accent); }
+    .reset { min-height:34px; margin:0; border-color:var(--es-line); background:var(--es-field); }
+    @media(max-width:1100px) { .field { flex:1 1 120px; } .field.search { flex-basis:100%; } }
+    @media(max-width:900px) {
+      :host { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 8px; padding:10px; }
+      .nav { grid-column:1/-1; width:auto; padding-bottom:9px; }
+      .nav button { flex:1; padding-inline:6px; }
+      .field { min-width:0; }
+      .field.search { grid-column:1/-1; min-width:0; }
+      .filters-toggle { display:flex; align-items:center; justify-content:space-between; grid-column:1/-1; min-height:34px; border-color:var(--es-line); background:var(--es-field); }
+      .filter-options { display:none; }
+      .filter-options.expanded { display:grid; grid-column:1/-1; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 8px; }
+      .check { min-width:0; white-space:normal; font-size:11px; }
+      .reset { justify-self:end; padding-inline:16px; }
+      input,select { min-height:38px; font-size:12px; }
     }
-
-    .nav {
-      align-self: stretch;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 12px 4px 4px;
-      border-right: 1px solid var(--divider-color);
-    }
-
-    button {
-      min-height: 32px;
-      padding: 7px 12px;
-      border: 1px solid rgba(255,255,255,.1);
-      border-radius: 999px;
-      background: rgba(255,255,255,.055);
-      color: var(--primary-text-color);
-      cursor: pointer;
-      font: inherit;
-      font-size: 12px;
-      font-weight: 650;
-    }
-
-    .tab.active {
-      color:#fff;
-      border-color: rgba(255,255,255,.3);
-      background: rgba(255,255,255,.095);
-    }
-
-    .field {
-      flex: 0 1 145px;
-      min-width: 112px;
-      padding: 4px 6px;
-    }
-
-    .field.search {
-      flex: 1 1 280px;
-      min-width: 220px;
-    }
-
-    label {
-      display: block;
-      margin-bottom: 4px;
-      color: #aaa398;
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.02em;
-    }
-
-    input,
-    select {
-      box-sizing: border-box;
-      width: 100%;
-      min-height: 32px;
-      padding: 7px 9px;
-      border: 1px solid rgba(255,255,255,.1);
-      border-radius: 9px;
-      background: rgba(30,29,28,.28);
-      color: var(--primary-text-color);
-      font: inherit;
-      font-size: 12px;
-    }
-
-    select {
-      color-scheme: dark;
-      accent-color: #d88c39;
-    }
-
-    select option,
-    select optgroup {
-      color: #f3f0ea;
-      background: #45433f;
-    }
-
-    select option:checked {
-      color: #fff7ec;
-      background: #7a5732;
-    }
-
-    .search input {
-      border-color: rgba(255,255,255,.1);
-      background: rgba(30,29,28,.32);
-    }
-
-    .check {
-      align-self: center;
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      min-height: 32px;
-      margin: 17px 4px 0;
-      color: var(--primary-text-color);
-      font-size: 12px;
-      text-transform: none;
-    }
-
-    .check input {
-      width: auto;
-      min-height: 0;
-    }
-
-    .reset {
-      margin: 17px 4px 0;
-    }
-
-    :host-context(.theme-light) {
-      border-color: rgba(62,52,39,.13);
-      background: rgba(255,253,250,.88);
-      box-shadow: 0 10px 28px rgba(78,61,39,.07);
-      backdrop-filter: none;
-    }
-
-    :host-context(.theme-light) button {
-      color:#3b3731;
-      border-color:rgba(62,52,39,.14);
-      background:rgba(255,255,255,.76);
-    }
-
-    :host-context(.theme-light) .tab.active {
-      color:#fffaf2;
-      border-color:rgba(184,121,38,.34);
-      background:linear-gradient(135deg,#c99543,#a86c27);
-    }
-
-    :host-context(.theme-light) label { color:#797268; }
-
-    :host-context(.theme-light) input,
-    :host-context(.theme-light) select {
-      color:#29251f;
-      border-color:rgba(62,52,39,.15);
-      background:#fffdfa;
-    }
-
-    :host-context(.theme-light) select { color-scheme:light; }
-    :host-context(.theme-light) select option,
-    :host-context(.theme-light) select optgroup { color:#29251f; background:#fffdfa; }
-    :host-context(.theme-light) select option:checked { color:#2b2114; background:#ead5b3; }
-
-    :host-context(.theme-light) .check { color:#3b3731; }
-
-    @media (max-width: 1100px) {
-      .nav {
-        flex: 1 0 100%;
-        padding: 2px 2px 8px;
-        border-right: 0;
-        border-bottom: 1px solid var(--divider-color);
-      }
-    }
-
-    @media (max-width: 700px) {
-      :host { gap:7px; padding:9px; }
-      .nav { padding:2px 2px 8px; }
-      .field { box-sizing:border-box; flex:1 1 calc(50% - 4px); min-width:0; padding:2px 5px; }
-      .field.search { flex-basis:100%; min-width:0; }
-      .check, .reset { margin-top:5px; margin-bottom:0; }
-      .check { margin-inline:5px; }
-      .reset { margin-left:auto; margin-right:5px; }
-    }
-
-    @media (max-width: 380px) {
-      .field:not(.search) { flex-basis:100%; }
-    }
+    @media(prefers-reduced-motion:reduce) { * { transition:none!important; } }
   `;
 }
 

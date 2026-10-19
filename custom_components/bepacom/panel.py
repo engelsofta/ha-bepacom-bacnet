@@ -38,7 +38,7 @@ PANEL_URL = "bepacom_explorer"
 PANEL_NAME = "bepacom-explorer-panel"
 PANEL_STATIC_URL = "/bepacom_static"
 PANEL_EVENT = "bepacom_explorer_updated"
-PANEL_VERSION = "0691"
+PANEL_VERSION = "0694"
 
 _WS_REGISTERED = "websocket_registered"
 _PANEL_REGISTERED = "panel_registered"

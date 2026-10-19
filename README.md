@@ -1,6 +1,6 @@
 # Engelsoft Beacon BACnet/IP for Home Assistant
 
-![Version](https://img.shields.io/badge/Version-1.4.3-gold)
+![Version](https://img.shields.io/badge/Version-1.5.0-gold)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.6.0%2B-41BDF5)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 [![GitHub Downloads](https://img.shields.io/github/downloads/engelsofta/ha-bepacom-bacnet/total?label=Downloads)](https://github.com/engelsofta/ha-bepacom-bacnet/releases)
@@ -26,6 +26,8 @@ The Engelsoft Beacon BACnet/IP integration connects BACnet/IP data points from *
 - services for releasing BACnet priority slots
 - dedicated GLT/AS write profiles
 - integrated BACnet Explorer in the Home Assistant sidebar
+- Engelsoft glass design with RoomControl backgrounds and automatic light/dark appearance
+- compact icon navigation, responsive point editing, and collapsible mobile filters
 - indexed search that prepares full editor data only for displayed matches
 - incremental runtime updates that refresh changed rows while preserving active inputs
 - separate Configuration, Live View, and Diagnostics workspaces

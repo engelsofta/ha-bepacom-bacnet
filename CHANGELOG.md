@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.5.0 - 2026-10-19
+
+**🕶️ BACnet got a glow-up.**
+
+- Give Beacon the RoomControl/CoverControl family look: calm glass surfaces, warm accents, consistent typography and controls. Same points, better outfit.
+- Adopt RoomControl's living-room background and matching dark shading, plus its light background treatment. The sofa remains strictly read-only.
+- Move desktop navigation into a compact 48 px icon rail; keep a horizontal menu on smaller screens, with labels and keyboard focus intact.
+- Keep mobile search in sight and tuck extra filters into an expandable panel with an active-filter count. Less scrolling through furniture, more finding sensors.
+- Remove the mobile HA menu button while retaining the swipe from the left edge.
+- Stack Point Inspector headings and actions so long BACnet names can breathe.
+- Centralize design tokens and extract structural styles from the main view implementation.
+- Preserve incremental updates, stable table rows, search behavior and active-input protection from 1.4.3.
+- Validate six demo browser layouts from 320 to 1440 px; rebuild the bundled frontend with cache build `0694`.
+
 ## 1.4.3 - 2026-10-19
 
 **🚀 Less BAClog. More BACnet.**
