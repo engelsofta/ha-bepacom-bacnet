@@ -18,6 +18,11 @@ export const ENGELSOFT_THEME = `
     --es-field:rgba(255,255,255,.055); --es-elevated:#333230; --es-cell:#2d2c29;
     --es-active:rgba(255,255,255,.085); --es-hover:rgba(255,255,255,.045);
     --es-shadow:0 18px 44px rgba(0,0,0,.2),inset 0 1px rgba(255,255,255,.1);
+    /* EnergyFlow room-card.glass, including its final smoky-glass overrides. */
+    --es-card-background:radial-gradient(ellipse 42% 85% at 21% 95%,rgba(211,133,50,.22),transparent 80%),radial-gradient(ellipse 46% 90% at 83% 96%,rgba(184,118,52,.16),transparent 82%),radial-gradient(ellipse 56% 70% at 8% 3%,rgba(229,228,220,.13),transparent 78%),linear-gradient(130deg,rgba(96,95,88,.29),rgba(54,55,54,.31) 54%,rgba(79,64,52,.32));
+    --es-card-border:rgba(240,231,211,.29);
+    --es-card-shadow:0 17px 38px rgba(0,0,0,.22),0 2px 6px rgba(0,0,0,.11),inset 0 1px rgba(255,255,255,.27),inset 0 -1px rgba(0,0,0,.16);
+    --es-card-filter:blur(22px) saturate(120%); --es-card-radius:16px;
     --es-radius:20px; --es-control-radius:10px; --es-rail:48px; --es-rail-gap:8px;
     --primary-color:var(--es-accent); --accent-color:var(--es-accent);
     --primary-text-color:var(--es-ink); --text-primary-color:var(--es-ink);
@@ -39,6 +44,9 @@ export const ENGELSOFT_THEME = `
     --es-field:rgba(255,255,255,.5); --es-elevated:#eeece6; --es-cell:#f1efe9;
     --es-active:rgba(112,98,76,.08); --es-hover:rgba(112,98,76,.045);
     --es-shadow:0 18px 44px rgba(57,50,40,.1),inset 0 1px rgba(255,255,255,.7);
+    --es-card-background:rgba(248,250,249,.62); --es-card-border:rgba(255,255,255,.85);
+    --es-card-shadow:0 12px 36px rgba(51,83,121,.09),inset 0 1px rgba(255,255,255,.7);
+    --es-card-filter:blur(28px) saturate(145%);
     --primary-color:var(--es-accent); --accent-color:var(--es-accent);
     --primary-text-color:var(--es-ink); --secondary-text-color:var(--es-muted);
     --text-primary-color:var(--es-ink); --card-background-color:var(--es-cell);
@@ -173,9 +181,12 @@ export const ENGELSOFT_THEME = `
   /* The page is an open canvas; only individual content cards carry glass. */
   .wrap .main-status-strip,.wrap .card,.wrap .toolbar,.wrap .table-wrap,.wrap .side,
   .wrap .dashboard-diagnostics-grid > .dashboard-group,
-  .wrap .dashboard-content-live .dashboard-monitor-group {
-    background:var(--es-surface); border:1px solid var(--es-line); border-top-color:var(--es-highlight);
-    border-radius:14px; box-shadow:var(--es-shadow); backdrop-filter:blur(24px);
+  .wrap .dashboard-content-live .dashboard-monitor-group,
+  .wrap .side-virtual-card,.wrap details.detail-section,
+  .wrap .diagnostic-flow .diagnostic-flow-step,.wrap .protocol-health {
+    background:var(--es-card-background); border:1px solid var(--es-card-border);
+    border-radius:var(--es-card-radius); box-shadow:var(--es-card-shadow);
+    backdrop-filter:var(--es-card-filter); -webkit-backdrop-filter:var(--es-card-filter);
   }
   .wrap .main-dashboard .dashboard-shell { background:transparent; border:0; border-radius:0; box-shadow:none; backdrop-filter:none; }
   .wrap .main-dashboard .dashboard-content { padding:0; }
@@ -223,7 +234,7 @@ export const ENGELSOFT_THEME = `
     .wrap .transport-overview .status-overview-value { border:0; }
     .wrap .transport-overview .status-overview-value.efficiency { display:none; }
     .wrap .table-wrap { border:0; background:transparent; border-radius:0; box-shadow:none; backdrop-filter:none; }
-    .wrap .table-wrap > table > tbody > tr.point-card { background:var(--es-surface); border-color:var(--es-line); box-shadow:none; backdrop-filter:blur(24px); }
+    .wrap .table-wrap > table > tbody > tr.point-card { background:var(--es-card-background); border:1px solid var(--es-card-border); border-radius:var(--es-card-radius); box-shadow:var(--es-card-shadow); backdrop-filter:var(--es-card-filter); -webkit-backdrop-filter:var(--es-card-filter); }
     .wrap .table-wrap > table > tbody > tr.point-card > td[data-col='object'] { background:var(--es-active)!important; }
     .wrap .dashboard-page-heading { padding:14px; }
     .wrap .main-dashboard .dashboard-content { padding:0; }

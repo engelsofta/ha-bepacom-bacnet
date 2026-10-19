@@ -154,7 +154,7 @@ export class BepacomExplorerToolbar extends LitElement {
   }
 
   static styles = css`
-    :host { box-sizing:border-box; display:flex; flex-wrap:wrap; align-items:flex-end; flex:0 0 auto; gap:9px; margin-bottom:12px; padding:12px; border:1px solid var(--es-line); border-radius:14px; background:var(--es-inset); color:var(--es-ink); font:inherit; }
+    :host { box-sizing:border-box; display:flex; flex-wrap:wrap; align-items:flex-end; flex:0 0 auto; gap:9px; margin-bottom:12px; padding:12px; border:1px solid var(--es-card-border); border-radius:var(--es-card-radius); background:var(--es-card-background); box-shadow:var(--es-card-shadow); backdrop-filter:var(--es-card-filter); -webkit-backdrop-filter:var(--es-card-filter); color:var(--es-ink); font:inherit; }
     .nav { display:flex; flex:1 0 100%; align-items:center; gap:6px; padding:0 0 10px; border-bottom:1px solid var(--es-line); }
     .filter-options { display:contents; }
     .filters-toggle { display:none; }

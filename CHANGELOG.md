@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.3 - 2026-10-20
+
+**🥃 Stay glassy, BACnet.**
+
+- Borrow EnergyFlow's original smoky-glass card styling: warm local highlights, fine borders, layered shadows, and matching blur. Beacon finally got invited to the family furniture catalog.
+- Use shared card tokens across the status strip, Explorer, Inspector, Live View, Diagnostics, virtual-entity cards, and mobile point cards. Everyone got the same dress code.
+- Fix the filter toolbar's separate styling so it actually receives the same glass treatment. It can stop pretending to be a transparent sandwich bag now.
+- Carry EnergyFlow's matching light appearance into the shared card settings. Sunglasses remain optional.
+- Keep cards directly on the background and retain the quieter typography and static diagnostic indicators from 1.5.2.
+- Rebuild the production frontend with cache build `0702`.
+
 ## 1.5.2 - 2026-10-19
 
 **🛋️ Less glass, more class.**
