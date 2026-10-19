@@ -2336,7 +2336,7 @@ const ENGELSOFT_THEME = `
   .wrap .table-wrap { border-radius:13px; }
   .wrap th,.wrap .table-wrap th,.wrap th.object-col { color:var(--es-muted); background:var(--es-elevated); border-color:var(--es-line); font-weight:500; font-size:10px; letter-spacing:.035em; }
   .wrap td { color:var(--es-ink); border-color:var(--es-line); }
-  .wrap td.select-col,.wrap td[data-col='object'] { background:var(--es-cell); }
+  .wrap .table-wrap td.select-col,.wrap .table-wrap td[data-col='object'] { background:transparent; box-shadow:none; }
   .wrap .table-wrap .name { color:var(--es-muted); font-weight:450; }
   .wrap .table-wrap .entity-link { color:var(--es-ink); font-weight:450; }
   .wrap .table-wrap .transport-state-ok b { color:var(--es-muted); font-weight:450; }
@@ -2405,6 +2405,39 @@ const ENGELSOFT_THEME = `
   .wrap .diagnostic-flow .diagnostic-flow-head b { color:var(--es-muted); background:transparent; font-weight:450; }
   .wrap .diagnostic-flow > i { background:var(--es-line); }
   .wrap .diagnostic-flow > i::before,.wrap .diagnostic-flow > i::after,.wrap .diagnostic-flow-step::after { display:none; }
+  .wrap .protocol-health { grid-template-columns:minmax(240px,1.2fr) repeat(3,minmax(140px,1fr)); gap:0; padding:20px; }
+  .wrap .protocol-health-lead,.wrap .protocol-health-item { min-height:76px; padding:6px 20px; border-radius:0; }
+  .wrap .protocol-health-item { border-left:1px solid var(--es-line); }
+  .wrap .protocol-health strong { font-size:clamp(24px,2vw,32px); line-height:1.2; letter-spacing:-.025em; }
+  .wrap .protocol-health-lead { display:grid; grid-template-columns:8px minmax(0,1fr); gap:6px 12px; }
+  .wrap .protocol-health-lead strong { font-size:20px; }
+  .wrap .protocol-health-lead em { grid-column:2; margin:0; font-size:11px; }
+  .wrap .protocol-health small { font-size:11px; margin-bottom:4px; }
+  .wrap .protocol-health-version { position:static; grid-column:1/-1; padding:12px 20px 0; margin-top:12px; border-top:1px solid var(--es-line); text-align:right; }
+  /* Decorative packets illustrate direction, rather than individual network events. */
+  .wrap .diagnostic-flow > i { height:2px; position:relative; overflow:hidden; border-radius:4px; background:var(--es-line); }
+  .wrap .diagnostic-flow > i::after { display:block; content:""; position:absolute; width:14px; height:2px; top:0; left:-14px; margin:0; border-radius:4px; background:var(--es-accent); box-shadow:0 0 6px color-mix(in srgb,var(--es-accent) 45%,transparent); animation:none; }
+  .wrap .diagnostic-flow.flow-running > i::after { animation:beacon-packet 2.8s linear infinite; }
+  .wrap .diagnostic-flow.flow-running > i:nth-of-type(2)::after { animation-delay:.7s; }
+  .wrap .diagnostic-flow.flow-running > i:nth-of-type(3)::after { animation-delay:1.4s; }
+  .wrap .diagnostic-flow.flow-running > i:nth-of-type(4)::after { animation-delay:2.1s; }
+  @keyframes beacon-packet { 0% { left:-14px; opacity:0; } 15% { opacity:1; } 85% { opacity:1; } 100% { left:100%; opacity:0; } }
+  @media(max-width:1100px) {
+    .wrap .protocol-health { grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px 0; }
+    .wrap .protocol-health-item:nth-child(3) { border-left:0; }
+  }
+  @media(max-width:1000px) {
+    .wrap .diagnostic-flow > i { width:2px; height:28px; }
+    .wrap .diagnostic-flow > i::after { width:2px; height:14px; left:0; top:-14px; }
+    .wrap .diagnostic-flow.flow-running > i::after { animation-name:beacon-packet-vertical; }
+  }
+  @keyframes beacon-packet-vertical { 0% { top:-14px; opacity:0; } 15% { opacity:1; } 85% { opacity:1; } 100% { top:100%; opacity:0; } }
+  @media(max-width:600px) {
+    .wrap .protocol-health { grid-template-columns:1fr; padding:14px; gap:12px; }
+    .wrap .protocol-health-lead,.wrap .protocol-health-item { min-height:0; padding:10px 4px; border-left:0; }
+    .wrap .protocol-health-item { border-top:1px solid var(--es-line); }
+    .wrap .protocol-health-version { padding:12px 4px 0; margin:0; text-align:left; }
+  }
   /* The page is an open canvas; only individual content cards carry glass. */
   .wrap .main-status-strip,.wrap .card,.wrap .toolbar,.wrap .table-wrap,.wrap .side,
   .wrap .dashboard-diagnostics-grid > .dashboard-group,
@@ -2470,7 +2503,7 @@ const ENGELSOFT_THEME = `
     .wrap .transport-overview .status-overview-value.efficiency { display:none; }
     .wrap .table-wrap { border:0; background:transparent; border-radius:0; box-shadow:none; backdrop-filter:none; }
     .wrap .table-wrap > table > tbody > tr.point-card { background:var(--es-card-background); border:1px solid var(--es-card-border); border-radius:var(--es-card-radius); box-shadow:var(--es-card-shadow); backdrop-filter:var(--es-card-filter); -webkit-backdrop-filter:var(--es-card-filter); }
-    .wrap .table-wrap > table > tbody > tr.point-card > td[data-col='object'] { background:var(--es-active)!important; }
+    .wrap .table-wrap > table > tbody > tr.point-card > td[data-col='object'] { background:transparent!important; }
     .wrap .dashboard-page-heading { padding:14px; }
     .wrap .main-dashboard .dashboard-content { padding:0; }
     .wrap .dashboard-content-live .dashboard-monitor-group { padding:12px; }
@@ -8015,7 +8048,7 @@ let BepacomRuntimeDashboard = class extends i$3 {
         <strong>${String(value ?? "-")}</strong><span>${hint}</span>
       </div>`;
     return b`
-      <div class="diagnostic-flow" aria-label="Verarbeitungskette">
+      <div class=${`diagnostic-flow ${this.model.protocol.connected ? "flow-running" : ""}`} aria-label="Verarbeitungskette mit simulierter Datenfluss-Animation">
         ${step("Nachrichten", pipeline.messages, "vom WebSocket", "↯", "incoming")}<i aria-hidden="true"></i>
         ${step("Objekte geprüft", pipeline.inspected, "im Payload", "◎", "inspected")}<i aria-hidden="true"></i>
         ${step("Gefiltert", pipeline.filtered, `${pipeline.filterRate} unverändert`, "◇", "filtered")}<i aria-hidden="true"></i>
@@ -8039,7 +8072,11 @@ let BepacomRuntimeDashboard = class extends i$3 {
         </div>
         <div class=${`protocol-health-item ${Number(protocol.commandErrors || 0) ? "warn" : ""}`}>
           <small>Befehle</small><strong>${commands}</strong>
-          <span>Erfolgreich / Fehler · ${String(protocol.commandLatency ?? "-")}</span>
+          <span>Erfolgreich / Fehler</span>
+        </div>
+        <div class="protocol-health-item">
+          <small>Antwortzeit</small><strong>${String(protocol.commandLatency ?? "-")}</strong>
+          <span>Befehlsverarbeitung</span>
         </div>
         <div class="protocol-health-version">App ${String(protocol.appVersion ?? "-")} · Protokoll ${String(protocol.protocolVersion ?? "-")}</div>
       </div>

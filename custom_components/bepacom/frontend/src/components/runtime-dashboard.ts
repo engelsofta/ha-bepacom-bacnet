@@ -327,7 +327,7 @@ export class BepacomRuntimeDashboard extends LitElement {
         <strong>${String(value ?? "-")}</strong><span>${hint}</span>
       </div>`;
     return html`
-      <div class="diagnostic-flow" aria-label="Verarbeitungskette">
+      <div class=${`diagnostic-flow ${this.model.protocol.connected ? "flow-running" : ""}`} aria-label="Verarbeitungskette mit simulierter Datenfluss-Animation">
         ${step("Nachrichten", pipeline.messages, "vom WebSocket", "\u21af", "incoming")}<i aria-hidden="true"></i>
         ${step("Objekte gepr\u00fcft", pipeline.inspected, "im Payload", "\u25ce", "inspected")}<i aria-hidden="true"></i>
         ${step("Gefiltert", pipeline.filtered, `${pipeline.filterRate} unver\u00e4ndert`, "\u25c7", "filtered")}<i aria-hidden="true"></i>
@@ -352,7 +352,11 @@ export class BepacomRuntimeDashboard extends LitElement {
         </div>
         <div class=${`protocol-health-item ${Number(protocol.commandErrors || 0) ? "warn" : ""}`}>
           <small>Befehle</small><strong>${commands}</strong>
-          <span>Erfolgreich / Fehler · ${String(protocol.commandLatency ?? "-")}</span>
+          <span>Erfolgreich / Fehler</span>
+        </div>
+        <div class="protocol-health-item">
+          <small>Antwortzeit</small><strong>${String(protocol.commandLatency ?? "-")}</strong>
+          <span>Befehlsverarbeitung</span>
         </div>
         <div class="protocol-health-version">App ${String(protocol.appVersion ?? "-")} · Protokoll ${String(protocol.protocolVersion ?? "-")}</div>
       </div>

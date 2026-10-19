@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.5 - 2026-10-20
+
+**⚡ Go with the BACflow.**
+
+- Bring motion back to Diagnostics with staggered golden packets traveling through the processing pipeline. Your data has a tiny express lane again.
+- Turn the animation vertically on smaller screens, pause it when disconnected, and respect reduced-motion preferences. Decorative packets illustrate direction; they are not individual network events wearing gold jackets.
+- Give protocol health a clearer layout with larger figures, fine separators, and a dedicated command-response-time metric. No magnifying glass required.
+- Move gateway version details into a tidy footer and adapt the metrics layout for tablets and phones.
+- Remove the dark background blocks behind table checkboxes and object IDs, including mobile object cells. The glass table has evicted its two awkward roommates.
+- Preserve fixed table columns and rebuild the production frontend with cache build `0705`.
+
 ## 1.5.4 - 2026-10-20
 
 **☀️ I can see clearly now, the haze is gone.**
