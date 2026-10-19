@@ -1826,6 +1826,9 @@ export class BepacomExplorerView extends HTMLElement {
     const selectionEnd = typeof active?.selectionEnd === "number" ? active.selectionEnd : null;
     const selected = this._selected;
     const pendingChanges = new Set([...this._pendingTransportIds, ...this._pendingReloadIds]).size;
+    const sectionTitle = this._mainSection === "live" ? "Live-Ansicht"
+      : this._mainSection === "diagnostics" ? "Diagnose"
+      : this._activeView === "virtual" ? "Virtuelle Entitäten" : "Explorer";
     const styles = EXPLORER_BASE_STYLES;
 
     const languageStyles = this._language === "en" ? `
@@ -1856,7 +1859,7 @@ export class BepacomExplorerView extends HTMLElement {
               <div class="brand-mark" aria-hidden="true">${ENGELSOFT_NAV_ICONS.beacon}</div>
               <div class="brand-copy">
               <div class="brand-eyebrow">BACnet · Building Automation</div>
-              <h1>Engelsoft Beacon</h1>
+              <div class="brand-heading"><h1>Engelsoft Beacon</h1><span class="brand-section">${this._escape(sectionTitle)}</span></div>
               <div class="frontend-version">${this._versionLabel()}</div>
               </div>
             </div>
@@ -2011,7 +2014,7 @@ export class BepacomExplorerView extends HTMLElement {
       <div class="dashboard-headline-card status-overview ${connectionTone}">
         <div class="status-overview-grid status-overview-grid-two">
           <span class="status-overview-value connected"><strong>${this._escape(connectedLabel)}</strong><small>Verbunden</small></span>
-          <span class="status-overview-value errors"><strong>${this._escape(connectionFailures)}</strong><small>Verbindungsfehler</small></span>
+          <span class="status-overview-value errors ${Number(connectionFailures) > 0 ? "has-errors" : ""}"><strong>${this._escape(connectionFailures)}</strong><small>Verbindungsfehler</small></span>
         </div>
       </div>`;
     const protocolV2 = diagnostics.api_transport === "protocol_v2";

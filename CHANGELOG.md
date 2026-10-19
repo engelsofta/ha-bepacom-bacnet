@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.5.1 - 2026-10-19
+
+**🧘 Keep calm and BACnet on.**
+
+- Remove the green tint from dark/light surfaces. The table has retired from its brief career as a cucumber.
+- Replace individual metric cards with one quiet status strip and fine separators. Fewer boxes, same useful numbers.
+- Give object IDs neutral colors, lighten table typography and keep gold for meaningful accents.
+- Shrink runtime dots, remove glow rings and make normal direct-write markers neutral while retaining transport colors, GLT distinction and tooltips.
+- De-emphasize Standard/Override labels and remove colored group bars. The dashboard has switched to decaf.
+- Keep zero connection failures neutral; actual failures still stand out.
+- Move area titles beside Engelsoft Beacon with RoomControl's fine gold separator; remove duplicate Live View/Diagnostics headings.
+- Add breathing room below Point Inspector tabs and reduce section headings to 16 px.
+- Preserve search, runtime updates, mobile gestures, settings and the RoomControl backgrounds.
+- Rebuild the production frontend with cache build `0698` and validate six demo browser layouts.
+
 ## 1.5.0 - 2026-10-19
 
 **🕶️ BACnet got a glow-up.**

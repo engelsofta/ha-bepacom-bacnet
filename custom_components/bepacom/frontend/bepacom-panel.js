@@ -2240,11 +2240,11 @@ const ENGELSOFT_NAV_ICONS = {
 const ENGELSOFT_THEME = `
   :host { height:100dvh; overflow:hidden; font-family:"Segoe UI Variable",Inter,"Segoe UI",sans-serif; }
   .wrap {
-    --es-ink:#f4f2ed; --es-muted:#b9bdb4; --es-accent:#c6a368;
+    --es-ink:#f4f2ed; --es-muted:#bab6ae; --es-accent:#c6a368;
     --es-line:rgba(223,216,192,.18); --es-highlight:rgba(255,255,255,.13);
-    --es-surface:rgba(40,45,40,.76); --es-inset:rgba(255,255,255,.035);
-    --es-field:rgba(255,255,255,.055); --es-elevated:#30362f; --es-cell:#2b312b;
-    --es-active:rgba(174,188,133,.15); --es-hover:rgba(223,216,192,.065);
+    --es-surface:rgba(43,42,40,.76); --es-inset:rgba(255,255,255,.035);
+    --es-field:rgba(255,255,255,.055); --es-elevated:#333230; --es-cell:#2d2c29;
+    --es-active:rgba(255,255,255,.085); --es-hover:rgba(255,255,255,.045);
     --es-shadow:0 18px 44px rgba(0,0,0,.2),inset 0 1px rgba(255,255,255,.1);
     --es-radius:20px; --es-control-radius:10px; --es-rail:48px; --es-rail-gap:8px;
     --primary-color:var(--es-accent); --accent-color:var(--es-accent);
@@ -2261,12 +2261,12 @@ const ENGELSOFT_THEME = `
       url('/bepacom_static/engelsoft-background-dark.png?v=0694') center center / cover fixed,#171512;
   }
   .wrap.theme-light {
-    --es-ink:#333b34; --es-muted:#656f64; --es-accent:#866b3f;
-    --es-line:rgba(78,91,72,.2); --es-highlight:rgba(255,255,255,.8);
-    --es-surface:rgba(240,243,235,.82); --es-inset:rgba(255,255,255,.3);
-    --es-field:rgba(255,255,255,.5); --es-elevated:#eef1e8; --es-cell:#edf0e7;
-    --es-active:rgba(133,152,99,.14); --es-hover:rgba(103,122,84,.08);
-    --es-shadow:0 18px 44px rgba(50,63,42,.1),inset 0 1px rgba(255,255,255,.7);
+    --es-ink:#36332f; --es-muted:#746e65; --es-accent:#866b3f;
+    --es-line:rgba(86,78,66,.18); --es-highlight:rgba(255,255,255,.8);
+    --es-surface:rgba(247,245,240,.82); --es-inset:rgba(255,255,255,.3);
+    --es-field:rgba(255,255,255,.5); --es-elevated:#eeece6; --es-cell:#f1efe9;
+    --es-active:rgba(112,98,76,.08); --es-hover:rgba(112,98,76,.045);
+    --es-shadow:0 18px 44px rgba(57,50,40,.1),inset 0 1px rgba(255,255,255,.7);
     --primary-color:var(--es-accent); --accent-color:var(--es-accent);
     --primary-text-color:var(--es-ink); --secondary-text-color:var(--es-muted);
     --text-primary-color:var(--es-ink); --card-background-color:var(--es-cell);
@@ -2284,6 +2284,9 @@ const ENGELSOFT_THEME = `
   .brand-mark svg { width:27px; height:27px; }
   .wrap .brand-eyebrow { margin:0 0 5px; color:var(--es-muted); font-size:9px; font-weight:500; letter-spacing:.14em; }
   .wrap h1 { color:var(--es-ink); font-size:25px; font-weight:450; line-height:1.12; letter-spacing:-.035em; }
+  .brand-heading { display:flex; align-items:center; gap:16px; min-width:0; }
+  .brand-section { display:flex; align-items:center; gap:16px; color:var(--es-accent); font-size:19px; font-weight:400; line-height:1.25; white-space:nowrap; }
+  .brand-section::before { content:""; display:block; width:1px; height:26px; flex:none; background:linear-gradient(transparent,var(--es-accent) 18%,var(--es-accent) 82%,transparent); opacity:.75; }
   .wrap .frontend-version { margin:5px 0 0; color:var(--es-muted); font-size:9px; opacity:.75; }
   .wrap .main-nav { display:flex; flex-direction:column; align-items:center; align-self:start; width:48px; min-height:0; box-sizing:border-box; margin:16px 0 0; padding:9px 5px; gap:8px; border:1px solid var(--es-line); border-top-color:var(--es-highlight); border-radius:24px; background:var(--es-surface); box-shadow:var(--es-shadow); backdrop-filter:blur(24px); }
   .wrap .main-nav-item,.wrap .main-nav-item:hover:not(:disabled) { display:flex; align-items:center; justify-content:center; flex:0 0 36px; width:36px; min-width:36px; height:36px; min-height:36px; box-sizing:border-box; margin:0; padding:0; border:0; border-radius:50%; color:var(--es-muted); background:transparent; box-shadow:none; transform:none; }
@@ -2292,24 +2295,29 @@ const ENGELSOFT_THEME = `
   .wrap .main-nav-icon { display:grid; place-items:center; width:19px; height:19px; font-size:19px; }
   .main-nav-icon svg { display:block; width:19px; height:19px; }
   .wrap .main-nav-copy { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
-  .wrap .main-status-strip { display:grid; grid-template-columns:1.3fr .9fr .85fr 1.1fr; gap:10px; flex:0 0 auto; margin:0 0 18px; padding:0; border:0; background:transparent; box-shadow:none; }
+  .wrap .main-status-strip { display:grid; grid-template-columns:1.3fr .9fr .85fr 1.1fr; gap:0; flex:0 0 auto; margin:0 0 18px; padding:10px 4px; border:1px solid var(--es-line); border-radius:13px; background:var(--es-inset); box-shadow:none; }
+  .wrap .main-status-strip > .dashboard-headline-card { min-height:72px; padding:8px 14px; border:0; border-right:1px solid var(--es-line); border-radius:0; background:transparent; box-shadow:none; }
+  .wrap .main-status-strip > .dashboard-headline-card:last-child { border-right:0; }
+  .wrap .main-status-strip .status-overview-value { border-right:0; }
   .wrap .dashboard-headline-card { min-width:0; min-height:82px; padding:12px 14px; border:1px solid var(--es-line); border-radius:13px; background:var(--es-inset); box-shadow:inset 0 1px rgba(255,255,255,.035); }
   .wrap .dashboard-headline-card.status-overview { padding:12px 14px; }
   .wrap .status-overview-grid { gap:10px; }
   .wrap .status-overview-value { padding-right:8px; border-color:var(--es-line); }
   .wrap .status-overview-value strong { font-size:22px; font-weight:450; letter-spacing:-.035em; font-variant-numeric:tabular-nums; }
   .wrap .status-overview-value small { color:var(--es-muted); font-size:8px; font-weight:500; letter-spacing:.04em; }
-  .wrap .status-overview-value.total strong,.wrap .status-overview-value.efficiency strong { color:var(--es-accent); }
+  .wrap .status-overview-value.total strong,.wrap .status-overview-value.efficiency strong { color:var(--es-ink); }
+  .wrap .status-overview-value.errors:not(.has-errors) strong { color:var(--es-muted); }
   .wrap .status-overview-value.active strong,.wrap .status-overview-value.connected strong { color:#a8c497; }
   .theme-light .status-overview-value.active strong,.theme-light .status-overview-value.connected strong { color:#557d49; }
   .wrap .status-overview-value.disabled strong { color:var(--es-muted); }
   .wrap .status-transport-line,.wrap .api-protocol-meta { color:var(--es-muted); font-size:9px; font-weight:450; }
+  .wrap .status-transport-line i { width:5px; height:5px; flex-basis:5px; box-shadow:none; }
   .wrap .api-protocol-title { color:var(--es-muted); font-weight:500; }
   .wrap .api-protocol-name { color:var(--es-ink); font-size:15px; font-weight:500; }
   .wrap .api-protocol-card.protocol-v2 .api-protocol-name { color:#a8c497; }
   .wrap.theme-light .api-protocol-card.protocol-v2 .api-protocol-name { color:#557d49; }
   .wrap .api-protocol-card::after { display:none; }
-  .wrap .api-protocol-badge { color:var(--es-accent); border-color:var(--es-line); background:var(--es-active); }
+  .wrap .api-protocol-badge { color:var(--es-muted); border:0; background:transparent; font-weight:450; }
   .wrap button.secondary,.wrap .more-actions-toggle,.wrap .view-tab,.wrap .icon-action { color:var(--es-ink); border:1px solid var(--es-line); border-radius:var(--es-control-radius); background:var(--es-field); box-shadow:none; font-weight:500; }
   .wrap button:hover:not(:disabled) { transform:none; filter:none; }
   .wrap button.secondary:hover:not(:disabled),.wrap .view-tab:hover { color:var(--es-accent); border-color:var(--es-accent); background:var(--es-hover); }
@@ -2322,23 +2330,30 @@ const ENGELSOFT_THEME = `
   .wrap th,.wrap .table-wrap th,.wrap th.object-col { color:var(--es-muted); background:var(--es-elevated); border-color:var(--es-line); font-weight:500; font-size:10px; letter-spacing:.035em; }
   .wrap td { color:var(--es-ink); border-color:var(--es-line); }
   .wrap td.select-col,.wrap td[data-col='object'] { background:var(--es-cell); }
-  .wrap .table-wrap .name { color:var(--es-accent); font-weight:500; }
-  .wrap .table-wrap .entity-link { color:var(--es-ink); font-weight:500; }
+  .wrap .table-wrap .name { color:var(--es-muted); font-weight:450; }
+  .wrap .table-wrap .entity-link { color:var(--es-ink); font-weight:450; }
+  .wrap .table-wrap .transport-state-ok b { color:var(--es-muted); font-weight:450; }
+  .wrap .table-wrap .transport-state-stack b { font-weight:450; }
+  .wrap .table-wrap .unit-display { color:var(--es-muted); font-weight:450; }
   .wrap .table-wrap .value-link { color:var(--es-ink); font-size:15px; font-weight:450; font-variant-numeric:tabular-nums; }
   .wrap .table-wrap tr:hover { background:var(--es-hover); }
   .wrap .table-wrap tr.selected { background:var(--es-active); }
-  .wrap .group-row td { background:var(--es-elevated); }
-  .wrap .group-toggle { color:var(--es-accent); font-weight:500; }
+  .wrap .table-wrap .group-row td { background:transparent; box-shadow:none; border-color:var(--es-line); }
+  .wrap .group-toggle { color:var(--es-ink); font-weight:500; }
   .wrap .pill { color:var(--es-muted); border-color:var(--es-line); background:transparent; font-weight:450; }
   .wrap .pill.ok { color:var(--es-accent); background:var(--es-active); }
+  .wrap .table-wrap .pill,.wrap .table-wrap .pill.ok { padding:0; border:0; border-radius:0; color:var(--es-muted); background:transparent; box-shadow:none; font-weight:450; font-size:11px; }
   .wrap .muted,.wrap label { color:var(--es-muted); }
   .wrap .side { padding:0; overflow:hidden; }
   .wrap .point-inspector-head { flex-direction:column; align-items:stretch; gap:12px; margin:0; padding:16px; border-bottom:1px solid var(--es-line); border-radius:0; background:var(--es-elevated); box-shadow:none; backdrop-filter:none; }
-  .wrap .point-inspector-head h2 { color:var(--es-accent); font-size:20px; font-weight:450; overflow-wrap:anywhere; }
+  .wrap .point-inspector-head h2 { color:var(--es-accent); font-size:16px; font-weight:500; overflow-wrap:anywhere; }
   .wrap .inspector-head-actions { width:100%; justify-content:flex-start; flex-wrap:wrap; }
   .wrap .inspector-head-actions button { color:var(--es-ink); background:var(--es-field); border:1px solid var(--es-line); border-radius:var(--es-control-radius); font-weight:500; }
   .wrap #saveOverride { color:var(--es-accent); background:var(--es-active); border:1px solid var(--es-line); box-shadow:none; }
   .wrap .side-body { padding:0 16px 16px; }
+  .wrap .side-section-head { margin:0 0 14px; padding:20px 0 14px; background:transparent; border-bottom:1px solid var(--es-line); }
+  .wrap .side-section-head h2 { margin:0 0 7px; color:var(--es-ink); font-size:16px; line-height:1.35; font-weight:500; letter-spacing:-.015em; }
+  .wrap .side-section-head .muted { font-size:12px; line-height:1.5; }
   .wrap .point-title,.wrap .section-title { color:var(--es-accent); font-weight:500; }
   .wrap .side-tabs { background:transparent; border-color:var(--es-line); }
   .wrap .side-tab { color:var(--es-muted); border:0; background:transparent; }
@@ -2347,6 +2362,7 @@ const ENGELSOFT_THEME = `
   .wrap select option,.wrap select optgroup { color:var(--es-ink); background:var(--es-elevated); }
   .wrap .view-tab.active,.wrap.theme-light .view-tab.active { color:var(--es-accent)!important; border-color:var(--es-line)!important; background:var(--es-active)!important; box-shadow:none; }
   .wrap .dashboard-page-heading { padding:18px 20px; background:transparent; }
+  .wrap .main-dashboard .dashboard-content { padding:16px 20px 18px; }
   .wrap .dashboard-toggle-title { color:var(--es-ink); font-weight:450; }
   .wrap .dashboard-summary,.wrap .live-summary { color:var(--es-muted); }
   .wrap .live-chart,.wrap .live-table-wrap,.wrap .dashboard-group { background:var(--es-inset); border-color:var(--es-line); }
@@ -2357,7 +2373,7 @@ const ENGELSOFT_THEME = `
   .wrap .diagnostic-flow-step:hover { transform:none; }
   .wrap .detail-rail-toggle { border-color:var(--es-line); background:var(--es-field); color:var(--es-accent); }
   @media(min-width:1101px) { .wrap .content { grid-template-columns:minmax(0,1fr) 28px minmax(390px,440px); gap:10px; } .wrap .content.details-hidden { grid-template-columns:minmax(0,1fr) 28px; } }
-  @media(max-width:1300px) { .wrap .main-status-strip { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-bottom:12px; } .workspace { padding:18px; } .wrap .header { margin-bottom:16px; } }
+  @media(max-width:1300px) { .wrap .main-status-strip { grid-template-columns:repeat(2,minmax(0,1fr)); gap:0; margin-bottom:12px; } .wrap .main-status-strip > .dashboard-headline-card:nth-child(2) { border-right:0; } .wrap .main-status-strip > .dashboard-headline-card:nth-child(-n+2) { border-bottom:1px solid var(--es-line); } .workspace { padding:18px; } .wrap .header { margin-bottom:16px; } }
   @media(min-width:901px) and (max-width:1100px) { :host { height:100dvh; overflow:hidden; } .wrap { height:100dvh; overflow:auto; } .workspace { overflow:auto; } .wrap .content { flex:none; } .wrap #explorerView { flex:none; overflow:visible; } .wrap .table-wrap { height:65dvh; min-height:320px; } }
   @media(max-width:900px) {
     :host { height:100dvh; overflow:hidden; }
@@ -2386,6 +2402,7 @@ const ENGELSOFT_THEME = `
     .wrap .more-actions-toggle { min-width:36px; height:36px; padding:0 8px; font-size:11px; }
     .wrap .main-status-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }
     .wrap .dashboard-headline-card,.wrap .dashboard-headline-card.status-overview { padding:8px; min-height:64px; }
+    .wrap .main-status-strip > .dashboard-headline-card { padding:10px 8px; min-height:64px; }
     .wrap .status-overview-grid { gap:6px; }
     .wrap .status-overview-value { padding-right:4px; }
     .wrap .status-overview-value strong { font-size:18px; }
@@ -2400,7 +2417,7 @@ const ENGELSOFT_THEME = `
     .wrap .table-wrap > table > tbody > tr.point-card { background:var(--es-inset); border-color:var(--es-line); box-shadow:none; }
     .wrap .table-wrap > table > tbody > tr.point-card > td[data-col='object'] { background:var(--es-active)!important; }
     .wrap .dashboard-page-heading { padding:14px; }
-    .wrap .main-dashboard .dashboard-content { padding:0 12px 14px; }
+    .wrap .main-dashboard .dashboard-content { padding:12px 12px 14px; }
     .wrap .pending-reload { max-width:100%; font-size:9px; }
   }
   @media(prefers-reduced-motion:reduce) { .wrap *,.wrap *::before,.wrap *::after { scroll-behavior:auto!important; animation:none!important; transition:none!important; } }
@@ -4438,6 +4455,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     const selectionEnd = typeof active?.selectionEnd === "number" ? active.selectionEnd : null;
     this._selected;
     const pendingChanges = (/* @__PURE__ */ new Set([...this._pendingTransportIds, ...this._pendingReloadIds])).size;
+    const sectionTitle = this._mainSection === "live" ? "Live-Ansicht" : this._mainSection === "diagnostics" ? "Diagnose" : this._activeView === "virtual" ? "Virtuelle Entitäten" : "Explorer";
     const styles = EXPLORER_BASE_STYLES;
     const languageStyles = this._language === "en" ? `
       @media (max-width: 760px) {
@@ -4467,7 +4485,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
               <div class="brand-mark" aria-hidden="true">${ENGELSOFT_NAV_ICONS.beacon}</div>
               <div class="brand-copy">
               <div class="brand-eyebrow">BACnet · Building Automation</div>
-              <h1>Engelsoft Beacon</h1>
+              <div class="brand-heading"><h1>Engelsoft Beacon</h1><span class="brand-section">${this._escape(sectionTitle)}</span></div>
               <div class="frontend-version">${this._versionLabel()}</div>
               </div>
             </div>
@@ -4602,7 +4620,7 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       <div class="dashboard-headline-card status-overview ${connectionTone}">
         <div class="status-overview-grid status-overview-grid-two">
           <span class="status-overview-value connected"><strong>${this._escape(connectedLabel)}</strong><small>Verbunden</small></span>
-          <span class="status-overview-value errors"><strong>${this._escape(connectionFailures)}</strong><small>Verbindungsfehler</small></span>
+          <span class="status-overview-value errors ${Number(connectionFailures) > 0 ? "has-errors" : ""}"><strong>${this._escape(connectionFailures)}</strong><small>Verbindungsfehler</small></span>
         </div>
       </div>`;
     const protocolV2 = diagnostics.api_transport === "protocol_v2";
@@ -6630,7 +6648,7 @@ let BepacomRuntimeIndicator = class extends i$3 {
 };
 BepacomRuntimeIndicator.styles = i$6`
     :host { display:inline-flex; align-items:center; justify-content:center; }
-    span { display:inline-block; width:11px; height:11px; border:1px solid color-mix(in srgb,currentColor 35%,transparent); border-radius:50%; background:var(--secondary-text-color); box-shadow:0 0 0 3px color-mix(in srgb,currentColor 10%,transparent); }
+    span { display:inline-block; width:7px; height:7px; border:1px solid color-mix(in srgb,currentColor 35%,transparent); border-radius:50%; background:var(--secondary-text-color); box-shadow:none; }
     .off { color:var(--secondary-text-color); opacity:.55; }
     .snapshot,.push { color:#1e88e5; background:currentColor; }
     .poll { color:#43a047; background:currentColor; }
@@ -6658,7 +6676,7 @@ let BepacomObjectBadge = class extends i$3 {
 };
 BepacomObjectBadge.styles = i$6`
     :host { display:inline-flex; flex:0 0 auto; }
-    span { box-sizing:border-box; display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border:1px solid var(--divider-color); border-radius:10px; background:var(--secondary-background-color); color:var(--primary-text-color); font-size:11px; font-weight:800; letter-spacing:.2px; }
+    span { box-sizing:border-box; display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border:1px solid var(--divider-color); border-radius:10px; background:var(--secondary-background-color); color:var(--primary-text-color); font-size:11px; font-weight:500; letter-spacing:.2px; }
     .ai,.ao,.av { color:#64b5f6; border-color:color-mix(in srgb,#64b5f6 50%,var(--divider-color)); }
     .bi,.bo,.bv { color:#81c784; border-color:color-mix(in srgb,#81c784 50%,var(--divider-color)); }
     .ms { color:#ffb74d; border-color:color-mix(in srgb,#ffb74d 50%,var(--divider-color)); }
@@ -6687,8 +6705,8 @@ let BepacomWriteProfileIndicator = class extends i$3 {
 };
 BepacomWriteProfileIndicator.styles = i$6`
     :host { display:inline-flex; align-items:center; justify-content:center; }
-    span { display:inline-block; width:10px; height:10px; border-radius:50%; border:1px solid color-mix(in srgb,currentColor 45%,transparent); box-shadow:0 0 0 3px color-mix(in srgb,currentColor 10%,transparent); }
-    .direct { color:var(--primary-color); background:currentColor; }
+    span { display:inline-block; width:7px; height:7px; border-radius:50%; border:1px solid color-mix(in srgb,currentColor 45%,transparent); box-shadow:none; }
+    .direct { color:var(--secondary-text-color); background:currentColor; opacity:.65; }
     .glt { color:#ab47bc; background:currentColor; }
   `;
 __decorateClass$5([
@@ -7974,10 +7992,7 @@ let BepacomRuntimeDashboard = class extends i$3 {
   render() {
     const model = this.model || EMPTY_MODEL;
     return b`
-      <section class="dashboard-shell">
-        <div class="dashboard-page-heading">
-          <span class="dashboard-toggle-title">${model.tab === "live" ? "Live-Ansicht" : "Diagnose"}</span>
-        </div>
+      <section class="dashboard-shell" aria-label=${model.tab === "live" ? "Live-Ansicht" : "Diagnose"}>
         <div class=${`dashboard-content dashboard-content-${model.tab}`}>
           ${model.tab === "live" ? b`
                 <section class="dashboard-group dashboard-group-wide dashboard-monitor-group">

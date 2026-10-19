@@ -362,10 +362,7 @@ export class BepacomRuntimeDashboard extends LitElement {
   protected render() {
     const model = this.model || EMPTY_MODEL;
     return html`
-      <section class="dashboard-shell">
-        <div class="dashboard-page-heading">
-          <span class="dashboard-toggle-title">${model.tab === "live" ? "Live-Ansicht" : "Diagnose"}</span>
-        </div>
+      <section class="dashboard-shell" aria-label=${model.tab === "live" ? "Live-Ansicht" : "Diagnose"}>
         <div class=${`dashboard-content dashboard-content-${model.tab}`}>
           ${model.tab === "live"
             ? html`
