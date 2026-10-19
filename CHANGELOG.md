@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.5.2 - 2026-10-19
+
+**🛋️ Less glass, more class.**
+
+- Remove the giant glass pane behind the workspace. Cards now sit directly on the RoomControl background, just like their Engelsoft siblings. The dashboard has moved out of its display cabinet.
+- Extend the Explorer's calm styling to Live View and Diagnostics: neutral surfaces, lighter typography, quieter chart bars, and plain source labels. The interface has officially switched to indoor voices.
+- Retire pulsing indicators, glowing dots, traveling particles, and colorful diagnostic gradients. Actual errors still get to raise their hand.
+- Give selection checkboxes their own compact sizing instead of treating them like text fields, addressing the tiny white visual hitchhikers.
+- Keep the open-card layout consistent in light mode, dark mode, and mobile views.
+- Bring the README back to the present: document automatic/manual setup, API tokens, MSO representations, managed polling, pending changes, and export limits. Remove the imaginary global-options menu. No treasure map required.
+- Rebuild the production frontend with cache build `0701`.
+
 ## 1.5.1 - 2026-10-19
 
 **🧘 Keep calm and BACnet on.**

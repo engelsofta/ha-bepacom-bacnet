@@ -1,6 +1,6 @@
 # Engelsoft Beacon BACnet/IP for Home Assistant
 
-![Version](https://img.shields.io/badge/Version-1.5.1-gold)
+![Version](https://img.shields.io/badge/Version-1.5.2-gold)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.6.0%2B-41BDF5)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 [![GitHub Downloads](https://img.shields.io/github/downloads/engelsofta/ha-bepacom-bacnet/total?label=Downloads)](https://github.com/engelsofta/ha-bepacom-bacnet/releases)
@@ -15,7 +15,7 @@ The Engelsoft Beacon BACnet/IP integration connects BACnet/IP data points from *
 - automatic discovery of BACnet devices and objects exposed by Engelsoft BACstac
 - configuration through the Home Assistant user interface
 - stable entity IDs using the format `bepacom_<device>_<object-type>_<object-id>`
-- automatic mapping to `sensor`, `binary_sensor`, `number`, and `switch` entities
+- automatic mapping to `sensor`, `binary_sensor`, `number`, and `switch` entities, with optional `light` representation for Multi-State Outputs
 - normalization of common BACnet engineering units
 - automatic Home Assistant device-class and state-class detection
 - WebSocket/COV push updates
@@ -32,11 +32,11 @@ The Engelsoft Beacon BACnet/IP integration connects BACnet/IP data points from *
 - incremental runtime updates that refresh changed rows while preserving active inputs
 - separate Configuration, Live View, and Diagnostics workspaces
 - full-width live change log with activity chart and transport filters
-- persistent connection and BACnet inventory status cards
+- a compact connection and BACnet inventory status strip
 - per-point entity overrides and runtime settings
 - bulk point editing plus override import and export
 - virtual binary sensors derived from numeric or multi-state BACnet values
-- privacy-safe Home Assistant diagnostics, recent value history, and data export
+- Explorer runtime diagnostics, recent value history, and data export
 - support for multiple Engelsoft Beacon BACnet/IP connections
 
 ## Requirements
@@ -62,12 +62,13 @@ Configure and start BACstac. Verify that its HTTP API is reachable from Home Ass
 ### 2. Install through HACS
 
 1. Open HACS in Home Assistant.
-2. Open **Integrations**.
-3. Open the menu in the upper-right corner and select **Custom repositories**.
-4. Enter the URL of this GitHub repository.
-5. Select **Integration** as the category.
-6. Install **Engelsoft Beacon BACnet/IP**.
-7. Restart Home Assistant completely.
+2. Open the menu in the upper-right corner and select **Custom repositories**.
+3. Enter `https://github.com/engelsofta/ha-bepacom-bacnet`.
+4. Select **Integration** as the type and add the repository.
+5. Find and download **Engelsoft Beacon BACnet/IP**.
+6. Restart Home Assistant completely.
+
+See the official [HACS custom repository instructions](https://www.hacs.dev/docs/faq/custom_repositories/) for details.
 
 ### 3. Manual installation
 
@@ -80,13 +81,14 @@ Configure and start BACstac. Verify that its HTTP API is reachable from Home Ass
 1. Open **Settings → Devices & services**.
 2. Select **Add integration**.
 3. Search for **Engelsoft Beacon BACnet/IP**.
-4. Enter the host/IP address and API port of Engelsoft BACstac.
-5. Confirm the setup.
+4. Choose **Automatic** to try known local add-on addresses on port `8099`, or **Manual** to enter a host, port, and optional API token. Use Manual for a different port, an external host, or a gateway that requires authentication.
+5. Confirm the setup. The connection must pass BACstac Protocol V2 validation.
 
 | Setting | Description | Default |
 |---|---|---:|
 | Host | IP address or hostname of the Engelsoft BACstac add-on | – |
 | Port | Port of the HTTP/WebSocket API | `8099` |
+| API token | Token configured in BACstac, if authentication is enabled (manual setup) | empty |
 
 After the initial full BACnet inventory has been loaded, the integration creates devices and entities. The **BACnet Explorer** is also added to the Home Assistant sidebar.
 
@@ -97,19 +99,21 @@ The final entity mapping takes the BACnet object type, write capability, and ava
 | BACnet object type | Home Assistant entity | Writable |
 |---|---|---|
 | Analog Input | Sensor | no |
-| Analog Value | Number | yes |
+| Analog Value | Number | when writable |
 | Analog Output | Number | when supported by the gateway |
 | Binary Input | Binary Sensor | no |
-| Binary Value | Switch | yes |
+| Binary Value | Switch | when writable |
 | Binary Output | Switch | when supported by the gateway |
 | Multi-State Input | Sensor | no |
-| Multi-State Output | Number | yes |
+| Multi-State Output | Number; optionally Switch, Outlet, or Light | when writable |
 | Temperature Sensor | Sensor | no |
 | Humidity Sensor | Sensor | no |
 | Pressure Sensor | Sensor | no |
 | Loop | Sensor | depends on gateway metadata |
 
-Unknown internal or proprietary objects are not exposed as arbitrary Home Assistant sensors. Writable inputs may be represented as `number` entities when the gateway metadata marks them as writable.
+Gateway write permissions take precedence over the usual object capabilities. Writable objects normally mapped to Sensor may become Number entities. Some unlisted object types are recognized through naming heuristics; unsupported objects do not automatically become entities.
+
+For Multi-State Outputs, the Explorer lets you select Number, Switch, Outlet (a Switch entity with the outlet device class), or Light. Configure the corresponding on/off stages and, optionally, a separate feedback point.
 
 ## BACnet Explorer
 
@@ -132,7 +136,9 @@ The BACnet Explorer is the central management and diagnostics interface. It prov
 - JSON, CSV, and Excel-compatible export
 - bulk editing of multiple BACnet points
 
-Changes that affect the Home Assistant entity type or registry metadata may require an integration reload or a Home Assistant restart before they become fully effective.
+After saving point settings, use **Apply changes** when the Explorer indicates pending changes. It applies pending update modes and reloads the integration when entity changes require it. A full Home Assistant restart is normally unnecessary for these edits.
+
+Search responses load at most **2,000 points**. Narrow the search or object-type filter for larger inventories. Point-data exports use the loaded result set; they are not a guaranteed complete inventory export, and local display filters do not necessarily reduce the export.
 
 ## Updates and data flow
 
@@ -140,26 +146,19 @@ Changes that affect the Home Assistant entity type or registry metadata may requ
 
 The integration primarily uses the WebSocket subscriptions provided by the gateway. Only actual value changes are forwarded to the affected Home Assistant entity. Identical snapshot values and duplicate push messages are filtered before they create unnecessary Home Assistant state updates.
 
-### Fallback polling
+### Managed COV and polling
 
-If a subscription cannot be established for a BACnet point, the integration automatically enables targeted fallback polling. The default interval is 30 seconds. An optional periodic full refresh can also be enabled in the integration settings.
+The integration sends each point's selected update mode to BACstac. In the normal managed snapshot mode, **BACstac owns the COV subscriptions and polling tasks** and sends updates over the shared WebSocket feed. Configure per-point subscription or polling mode and polling intervals in the Explorer, then apply the pending changes.
+
+Fallback behavior also depends on BACstac and the BACnet device. There is no global periodic full-refresh toggle in the integration's current setup interface.
 
 ### Connection monitoring
 
 WebSocket connections are monitored through a heartbeat timeout. When a connection is lost, the integration reconnects with a bounded backoff and restores its subscriptions. Diagnostics in the Explorer distinguish raw BACnet notifications, processed object updates, suppressed duplicates, callbacks, and polling updates.
 
-## Global options
+## Runtime settings
 
-Open **Settings → Devices & services → Engelsoft Beacon BACnet/IP → Configure** to access the global runtime options:
-
-| Option | Description |
-|---|---|
-| Periodic data refresh | enables regular full BACnet database refreshes |
-| Snapshot WebSocket mode | supports gateways that send complete snapshots instead of individual object updates |
-| Log push values | logs received push values for troubleshooting |
-| Heartbeat timeout | controls when an inactive WebSocket connection is considered disconnected |
-
-Object-specific settings are managed exclusively through the BACnet Explorer.
+Point-specific transport, entity, and write settings are managed through the **BACnet Explorer**. The current integration does not expose a separate global **Configure** options form. Snapshot transport and heartbeat handling are automatic; received push-value logging follows Home Assistant's debug logging level (see below).
 
 ## Writing BACnet values
 
@@ -224,7 +223,7 @@ After releasing a priority, some gateways return an empty `presentValue` togethe
 
 ## Virtual binary sensors
 
-The Explorer can create virtual Binary Sensor entities from BACnet Sensor and Multi-State Input objects. Each virtual entity supports:
+The Explorer can create virtual Binary Sensor entities from a selected BACnet source point. Each virtual entity supports:
 
 - a custom name and unique ID
 - a Home Assistant device class
@@ -256,11 +255,14 @@ During startup, the integration attempts to migrate older generated entity IDs t
 
 ## Performance
 
-Version 1.2.6 is designed for larger BACnet installations:
+The integration reduces repeated work in larger BACnet installations:
 
 - unchanged push values are filtered before they reach Home Assistant
 - only the affected entity writes a new Home Assistant state
-- the Explorer periodically loads compact runtime data instead of complete object metadata
+- an indexed search matches points before preparing full editor metadata
+- runtime requests return changed point records instead of resending every loaded point
+- stable table rows update while the pointer is over the table, while active edits are preserved
+- feedback candidates are grouped once per device during point preparation
 - browser updates pause while the Explorer tab is hidden
 - write confirmation reads a single object instead of the complete BACnet database
 - history is bounded and browser-side history is kept only for the selected point
@@ -279,14 +281,14 @@ Version 1.2.6 is designed for larger BACnet installations:
 
 - inspect its subscription and polling status in the BACnet Explorer
 - verify that the gateway reports a new BACnet value
-- temporarily enable push-value logging if necessary
+- temporarily enable debug logging (see below) to inspect received push values
 - check the log for subscription, heartbeat, or fallback-polling messages
 
 ### The Explorer shows an old version after updating
 
 1. Restart Home Assistant completely.
 2. Reload the browser page while bypassing or clearing the cache.
-3. Check the integration version and frontend build displayed in the Explorer header.
+3. Check the integration version and frontend build displayed in the Explorer desktop header.
 
 ### Debug logging
 
@@ -304,7 +306,7 @@ Debug logging can produce a large number of messages. Disable it again after tro
 1. Install the new version through HACS, or replace the integration directory manually.
 2. Restart Home Assistant completely.
 3. Clear or bypass the browser cache if the Explorer still shows the previous frontend build.
-4. After major updates, reload the Engelsoft Beacon BACnet/IP integration and review the Explorer diagnostics.
+4. Review the Explorer diagnostics and apply any pending point-setting changes.
 
 A Home Assistant configuration backup is recommended before updating.
 
@@ -322,6 +324,8 @@ When reporting a problem, please include:
 - affected BACnet device ID, object type, and object ID
 - relevant BACnet Explorer diagnostics
 - a short debug-log excerpt covering the time of the problem
+
+Review diagnostics, exports, and logs before sharing them: they may contain addresses, point names, values, or credentials. Remove sensitive information first.
 
 Please use the GitHub repository's issue tracker for bug reports and feature requests.
 
