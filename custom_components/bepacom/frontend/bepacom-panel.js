@@ -2289,7 +2289,7 @@ const ENGELSOFT_THEME = `
   .wrap .brand-mark { width:42px; height:42px; flex-basis:42px; border:1px solid var(--es-line); border-radius:13px; color:var(--es-accent); background:var(--es-field); box-shadow:inset 0 1px var(--es-highlight); }
   .brand-mark svg { width:27px; height:27px; }
   .wrap .brand-eyebrow { margin:0 0 5px; color:var(--es-muted); font-size:9px; font-weight:500; letter-spacing:.14em; }
-  .wrap h1 { color:var(--es-ink); font-size:25px; font-weight:450; line-height:1.12; letter-spacing:-.035em; }
+  .wrap h1 { color:var(--es-ink); font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",sans-serif; font-size:clamp(28px,2.5vw,38px); font-weight:650; line-height:1.12; letter-spacing:-.035em; }
   .brand-heading { display:flex; align-items:center; gap:16px; min-width:0; }
   .brand-section { display:flex; align-items:center; gap:16px; color:var(--es-accent); font-size:19px; font-weight:400; line-height:1.25; white-space:nowrap; }
   .brand-section::before { content:""; display:block; width:1px; height:26px; flex:none; background:linear-gradient(transparent,var(--es-accent) 18%,var(--es-accent) 82%,transparent); opacity:.75; }
@@ -2298,6 +2298,10 @@ const ENGELSOFT_THEME = `
   .wrap .main-nav-item,.wrap .main-nav-item:hover:not(:disabled) { display:flex; align-items:center; justify-content:center; flex:0 0 36px; width:36px; min-width:36px; height:36px; min-height:36px; box-sizing:border-box; margin:0; padding:0; border:0; border-radius:50%; color:var(--es-muted); background:transparent; box-shadow:none; transform:none; }
   .wrap .main-nav-item:hover:not(:disabled) { color:var(--es-ink); background:var(--es-hover); }
   .wrap .main-nav-item.active,.wrap .main-nav-item.active:hover:not(:disabled) { color:var(--es-accent); background:var(--es-active); box-shadow:inset 0 0 0 1px var(--es-line); }
+  .wrap .main-nav-item[data-bacstac-addon] { color:#d58e86; background:rgba(194,91,80,.1); box-shadow:inset 0 0 0 1px rgba(194,91,80,.18); }
+  .wrap .main-nav-item[data-bacstac-addon]:hover { color:#e8aaa2; background:rgba(194,91,80,.19); box-shadow:inset 0 0 0 1px rgba(194,91,80,.3); }
+  .wrap.theme-light .main-nav-item[data-bacstac-addon] { color:#a4544b; }
+  .wrap.theme-light .main-nav-item[data-bacstac-addon]:hover { color:#853e36; }
   .wrap .main-nav-icon { display:grid; place-items:center; width:19px; height:19px; font-size:19px; }
   .main-nav-icon svg { display:block; width:19px; height:19px; }
   .wrap .main-nav-copy { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
@@ -2398,7 +2402,7 @@ const ENGELSOFT_THEME = `
   .wrap .side-tab { color:var(--es-muted); border:0; background:transparent; }
   .wrap .side-tab.active { color:var(--es-accent); background:var(--es-active); box-shadow:none; }
   /* Match the inspector tabs; keep the entire header above scrolling rows. */
-  .wrap .table-wrap > table > thead { position:sticky; top:0; z-index:30; background:var(--es-inset); backdrop-filter:blur(16px); box-shadow:0 1px 0 var(--es-line); }
+  .wrap .table-wrap > table > thead { position:sticky; top:0; z-index:30; background:var(--es-elevated); box-shadow:0 1px 0 var(--es-line); }
   .wrap .table-wrap > table > thead th { height:55px; padding:10px 3px 0; top:auto; color:var(--es-muted); background:transparent!important; border-bottom:1px solid var(--es-line); box-shadow:none; font-size:12px; font-weight:700; letter-spacing:normal; }
   .wrap .table-wrap > table > thead th.select-col { padding:10px 12px 0; vertical-align:middle; }
   .wrap .table-wrap .sort-btn,.wrap .table-wrap .sort-btn:hover:not(:disabled) { display:flex; align-items:center; justify-content:center; width:100%; min-height:44px; height:100%; padding:8px 10px; border:0; border-radius:10px 10px 0 0; color:var(--es-muted); background:transparent; font:inherit; white-space:normal; }
