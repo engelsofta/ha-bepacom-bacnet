@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.5.6 - 2026-10-20
+
+**Click responsibly. BACnet is watching.**
+
+- Give the table header Inspector-style tabs, a highlighted sort column, and a sticky seat above scrolling rows. The headings have finally learned to stay put.
+- Line up status labels, numbers, and supporting details. The metrics have stopped playing musical chairs.
+- Retire the Diagnostics version footer. App and Protocol have left the chat (and the extra divider).
+- Hide the Device filter when there is only one device. A one-item guest list does not need a bouncer.
+- Shorten filter labels and dress supported dropdown menus in matching rounded surfaces, warm accents, and selection checkmarks. Native menus remain the fallback on other browsers.
+- Give Inspector and virtual-entity source boxes matching glass cards. Fit Save, Discard, and Reset into one civilized row.
+- Open Home Assistant dialogs only from entity-name links. Values, icons, and spare table space now select the point for the Inspector instead of launching surprise parties.
+- Double-click the search field to clear it immediately. Your typo now has an emergency exit.
+- Simplify the header by removing its extra brand mark and build label.
+- Rebuild the production frontend with cache build `0716`.
+
 ## 1.5.5 - 2026-10-20
 
 **⚡ Go with the BACflow.**

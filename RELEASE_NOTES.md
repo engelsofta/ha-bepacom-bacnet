@@ -1,33 +1,22 @@
-# Engelsoft Beacon BACnet/IP 1.5.1
+# Engelsoft Beacon BACnet/IP 1.5.6
 
-## 🧘 Keep calm and BACnet on.
+## 1.5.6 - 2026-10-20
 
-The Explorer has finished its enthusiastic phase of highlighting absolutely everything. Your building is still busy. Your screen no longer has to be.
+**Click responsibly. BACnet is watching.**
 
-### Less visual caffeine
-
-- Replace the greenish surface tint with neutral, gently warm greys in both light and dark mode. The table has officially stopped cosplaying as a cucumber.
-- Combine the top metrics into one quiet status strip with fine separators instead of a small housing estate of individual cards.
-- Give object IDs neutral text and use lighter weights for entity names, units and normal transport labels. Gold now has fewer meetings to attend.
-- Shrink runtime indicators and remove their glow rings while keeping blue Push/COV and green Polling semantics.
-- Make ordinary direct-write markers neutral; keep GLT writing distinct and retain accessible descriptions and tooltips.
-- Render Standard and Override labels without decorative pill frames, and remove the colored bars behind object groups.
-- Display zero connection failures neutrally. Red is reserved for actual failures, because zero is usually good news.
-
-### Titles have found their proper seats
-
-- Put Explorer, Virtual entities, Live view and Diagnostics beside the Engelsoft Beacon title, separated by a fine gold line, like RoomControl.
-- Remove the duplicate heading blocks above Live View and Diagnostics, leaving more room for useful data.
-- Give Point Inspector section headings breathing room below the tabs and reduce their size to 16 px; keep the selection hint smaller and quieter.
-
-### Same building, calmer dashboard
-
-- Preserve search, filters, changed-row updates, mobile sidebar swiping and existing BACnet settings.
-- Retain the RoomControl backgrounds and the automatic HA light/dark selection.
-- Rebuild the production frontend and refresh the cache identifier to `0698`.
+- Give the table header Inspector-style tabs, a highlighted sort column, and a sticky seat above scrolling rows. The headings have finally learned to stay put.
+- Line up status labels, numbers, and supporting details. The metrics have stopped playing musical chairs.
+- Retire the Diagnostics version footer. App and Protocol have left the chat (and the extra divider).
+- Hide the Device filter when there is only one device. A one-item guest list does not need a bouncer.
+- Shorten filter labels and dress supported dropdown menus in matching rounded surfaces, warm accents, and selection checkmarks. Native menus remain the fallback on other browsers.
+- Give Inspector and virtual-entity source boxes matching glass cards. Fit Save, Discard, and Reset into one civilized row.
+- Open Home Assistant dialogs only from entity-name links. Values, icons, and spare table space now select the point for the Inspector instead of launching surprise parties.
+- Double-click the search field to clear it immediately. Your typo now has an emergency exit.
+- Simplify the header by removing its extra brand mark and build label.
+- Rebuild the production frontend with cache build `0716`.
 
 ### Validation and updating
 
-Local regression tests, frontend type checking and the production build passed. The UI was checked with demo data in six browser layouts from 320 to 1440 pixels, including light/dark views, responsive controls, search and hover updates. Live Home Assistant installation validation remains a separate step.
+Frontend type checking, production build, and all 13 Explorer regression tests passed locally. GitHub checks validate the release commit before publication. Live Home Assistant appearance and installation have not been checked in this session.
 
-Update through HACS and restart Home Assistant to load the new panel registration. If the old styling persists, reload the Explorer without the browser cache. Expected version: `1.5.1`; frontend build: `0698`.
+Update through HACS and restart Home Assistant to load the panel registration. Expected integration version: 1.5.6; frontend build: 0716.

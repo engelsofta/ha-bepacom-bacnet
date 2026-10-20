@@ -38,6 +38,12 @@ export class BepacomExplorerToolbar extends LitElement {
     );
   }
 
+  protected updated(): void {
+    if (this.devices.length === 1 && this.filters.device_id !== "all") {
+      this._emit("filter", "device_id", "all");
+    }
+  }
+
   protected render() {
     const activeFilters = Number(this.filters.device_id !== "all")
       + Number(this.filters.object_type !== "all") + Number(this.filters.runtime !== "all")
@@ -62,6 +68,10 @@ export class BepacomExplorerToolbar extends LitElement {
           placeholder="820*, Rollo, multiStateInput 82*"
           @input=${(event: Event) =>
             this._emit("filter", "search", (event.target as HTMLInputElement).value)}
+          @dblclick=${(event: MouseEvent) => {
+            (event.currentTarget as HTMLInputElement).value = "";
+            this._emit("filter", "search", "");
+          }}
         >
       </div>
 
@@ -70,7 +80,7 @@ export class BepacomExplorerToolbar extends LitElement {
         <span>${this.language === "de" ? "Filter" : "Filters"}${activeFilters ? ` (${activeFilters})` : ""}</span> <span aria-hidden="true">${this._filtersExpanded ? "−" : "+"}</span>
       </button>
       <div id="filterOptions" class=${`filter-options ${this._filtersExpanded ? "expanded" : ""}`}>
-      <div class="field">
+      ${this.devices.length > 1 ? html`<div class="field">
         <label for="device">Device</label>
         <select
           id="device"
@@ -78,10 +88,10 @@ export class BepacomExplorerToolbar extends LitElement {
           @change=${(event: Event) =>
             this._emit("filter", "device_id", (event.target as HTMLSelectElement).value)}
         >
-          <option value="all">Alle Devices</option>
+          <option value="all">Alle</option>
           ${this.devices.map((device) => html`<option value=${device}>Device ${device}</option>`)}
         </select>
-      </div>
+      </div>` : ""}
 
       <div class="field">
         <label for="type">Objekttyp</label>
@@ -91,7 +101,7 @@ export class BepacomExplorerToolbar extends LitElement {
           @change=${(event: Event) =>
             this._emit("filter", "object_type", (event.target as HTMLSelectElement).value)}
         >
-          <option value="all">Alle Objekttypen</option>
+          <option value="all">Alle</option>
           ${this.objectTypes.map((type) => html`<option value=${type}>${type}</option>`)}
         </select>
       </div>
@@ -107,9 +117,9 @@ export class BepacomExplorerToolbar extends LitElement {
           <option value="all">Alle</option>
           <option value="enabled">Aktiv</option>
           <option value="disabled">Deaktiviert</option>
-          <option value="subscribe">Push / Subscribe</option>
+          <option value="subscribe">Push</option>
           <option value="polling">Polling</option>
-          <option value="fallback">Polling-Fallback</option>
+          <option value="fallback">Fallback</option>
         </select>
       </div>
 
@@ -122,8 +132,8 @@ export class BepacomExplorerToolbar extends LitElement {
             this._emit("group", "groupBy", (event.target as HTMLSelectElement).value)}
         >
           <option value="none">Keine</option>
-          <option value="type">Nach BACnet-Typ</option>
-          <option value="device">Nach Device</option>
+          <option value="type">BACnet-Typ</option>
+          <option value="device">Device</option>
         </select>
       </div>
 
@@ -167,6 +177,27 @@ export class BepacomExplorerToolbar extends LitElement {
     input,select { box-sizing:border-box; width:100%; min-height:34px; padding:7px 9px; border:1px solid var(--es-line); border-radius:var(--es-control-radius,10px); background:var(--es-field); color:var(--es-ink); font:inherit; font-size:12px; color-scheme:inherit; }
     select option,select optgroup { color:var(--es-ink); background:var(--es-elevated); }
     select option:checked { color:var(--es-ink); background:var(--es-active); }
+    select { cursor:pointer; transition:border-color .15s ease,background .15s ease; }
+    select:hover { border-color:var(--es-accent); background:var(--es-hover); }
+    @supports (appearance:base-select) {
+      select,select::picker(select) { appearance:base-select; }
+      select { display:flex; align-items:center; gap:8px; font-weight:450; }
+      select::picker-icon { margin-inline-start:auto; color:var(--es-muted); font-size:10px; transition:rotate .15s ease; }
+      select:open::picker-icon { rotate:180deg; color:var(--es-accent); }
+      select:open { border-color:var(--es-accent); background:var(--es-active); }
+      select::picker(select) {
+        box-sizing:border-box; min-width:anchor-size(width); max-width:calc(100vw - 24px); max-height:min(360px,60dvh);
+        margin-block:6px; padding:5px; overflow:auto;
+        border:1px solid var(--es-line); border-radius:12px;
+        background:var(--es-elevated); color:var(--es-ink);
+        box-shadow:0 12px 32px rgba(0,0,0,.24); font:inherit; font-size:12px;
+        scrollbar-width:thin; scrollbar-color:var(--es-line) transparent;
+      }
+      select option { display:flex; align-items:center; gap:12px; min-height:34px; padding:8px 10px; border:0; border-radius:7px; background:transparent; color:var(--es-muted); cursor:pointer; }
+      select option:hover,select option:focus-visible { outline:none; background:var(--es-hover); color:var(--es-ink); }
+      select option:checked { background:var(--es-active); color:var(--es-accent); font-weight:550; }
+      select option::checkmark { order:1; margin-inline-start:auto; color:var(--es-accent); }
+    }
     input::placeholder { color:var(--es-muted); opacity:.75; }
     input:focus-visible,select:focus-visible,button:focus-visible { outline:2px solid var(--es-accent); outline-offset:3px; }
     .check { display:inline-flex; align-items:center; gap:6px; align-self:flex-end; min-height:34px; margin:0 2px; color:var(--es-muted); font-size:11px; text-transform:none; letter-spacing:0; white-space:nowrap; }

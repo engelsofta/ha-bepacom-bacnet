@@ -358,7 +358,6 @@ export class BepacomRuntimeDashboard extends LitElement {
           <small>Antwortzeit</small><strong>${String(protocol.commandLatency ?? "-")}</strong>
           <span>Befehlsverarbeitung</span>
         </div>
-        <div class="protocol-health-version">App ${String(protocol.appVersion ?? "-")} · Protokoll ${String(protocol.protocolVersion ?? "-")}</div>
       </div>
     `;
   }

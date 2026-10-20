@@ -2234,8 +2234,7 @@ const ENGELSOFT_NAV_ICONS = {
   configuration: icon('<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>'),
   live: icon('<path d="M3 12h4l3-7 4 14 3-7h4"/>'),
   diagnostics: icon('<path d="M4 19V9m8 10V4m8 15v-7"/><circle cx="4" cy="6" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="20" cy="9" r="2"/>'),
-  gateway: icon('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8m-4-4v4M7 8h4m-4 4h8"/><circle cx="17" cy="8" r=".5"/>'),
-  beacon: icon('<path d="M8 21h8l-1-10H9L8 21ZM9 7a3 3 0 0 1 6 0v4H9V7ZM3 7h2m14 0h2M5 2l2 2m10 0 2-2M12 1v2"/>')
+  gateway: icon('<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8m-4-4v4M7 8h4m-4 4h8"/><circle cx="17" cy="8" r=".5"/>')
 };
 const ENGELSOFT_THEME = `
   :host { height:100dvh; overflow:hidden; font-family:"Segoe UI Variable",Inter,"Segoe UI",sans-serif; }
@@ -2302,8 +2301,8 @@ const ENGELSOFT_THEME = `
   .wrap .main-nav-icon { display:grid; place-items:center; width:19px; height:19px; font-size:19px; }
   .main-nav-icon svg { display:block; width:19px; height:19px; }
   .wrap .main-nav-copy { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
-  .wrap .main-status-strip { display:grid; grid-template-columns:1.3fr .9fr .85fr 1.1fr; gap:0; flex:0 0 auto; margin:0 0 18px; padding:10px 4px; border:1px solid var(--es-line); border-radius:13px; background:var(--es-inset); box-shadow:none; }
-  .wrap .main-status-strip > .dashboard-headline-card { min-height:72px; padding:8px 14px; border:0; border-right:1px solid var(--es-line); border-radius:0; background:transparent; box-shadow:none; }
+  .wrap .main-status-strip { display:grid; grid-template-columns:minmax(0,3fr) minmax(0,2fr) minmax(0,1.8fr) minmax(0,2.6fr); gap:0; flex:0 0 auto; margin:0 0 18px; padding:16px 6px; border:1px solid var(--es-line); border-radius:13px; background:var(--es-inset); box-shadow:none; }
+  .wrap .main-status-strip > .dashboard-headline-card { min-height:76px; padding:0 20px; border:0; border-right:1px solid var(--es-line); border-radius:0; background:transparent; box-shadow:none; }
   .wrap .main-status-strip > .dashboard-headline-card:last-child { border-right:0; }
   .wrap .main-status-strip .status-overview-value { border-right:0; }
   .wrap .dashboard-headline-card { min-width:0; min-height:82px; padding:12px 14px; border:1px solid var(--es-line); border-radius:13px; background:var(--es-inset); box-shadow:inset 0 1px rgba(255,255,255,.035); }
@@ -2325,6 +2324,28 @@ const ENGELSOFT_THEME = `
   .wrap.theme-light .api-protocol-card.protocol-v2 .api-protocol-name { color:#557d49; }
   .wrap .api-protocol-card::after { display:none; }
   .wrap .api-protocol-badge { color:var(--es-muted); border:0; background:transparent; font-weight:450; }
+  .wrap .main-status-strip .status-overview-grid { width:100%; gap:16px; align-items:start; }
+  .wrap .main-status-strip .status-overview-value { display:grid; grid-template-rows:18px 32px auto; gap:4px; padding:0; min-width:0; align-content:start; }
+  .wrap .main-status-strip .status-overview-value > small { grid-row:1; margin:0; font-size:9px; line-height:1.35; letter-spacing:.035em; }
+  .wrap .main-status-strip .status-overview-value > strong { grid-row:2; margin:0; font-size:25px; line-height:32px; }
+  .wrap .main-status-strip .status-transport-line { grid-row:3; margin:0; flex-wrap:wrap; gap:4px; font-size:10px; line-height:16px; }
+  .wrap .main-status-strip .api-protocol-content { display:grid; grid-template-rows:18px 32px auto; gap:4px; }
+  .wrap .main-status-strip .api-protocol-title { font-size:9px; line-height:1.35; letter-spacing:.035em; }
+  .wrap .main-status-strip .api-protocol-row { justify-content:flex-start; gap:10px; }
+  .wrap .main-status-strip .api-protocol-name { font-size:20px; line-height:32px; white-space:nowrap; }
+  .wrap .main-status-strip .api-protocol-badge { padding:3px 6px; border-radius:5px; background:var(--es-active); font-size:8px; }
+  .wrap .main-status-strip .api-protocol-meta { font-size:9px; line-height:16px; text-transform:none; letter-spacing:0; }
+  @media(max-width:600px) {
+    .wrap .main-status-strip { padding:6px; }
+    .wrap .main-status-strip .status-overview-grid { gap:8px; }
+    .wrap .main-status-strip .status-overview-value { grid-template-rows:28px 28px auto; }
+    .wrap .main-status-strip .status-overview-value > small { font-size:8px; }
+    .wrap .main-status-strip .status-overview-value > strong { font-size:21px; line-height:28px; }
+    .wrap .main-status-strip .status-transport-line { font-size:9px; }
+    .wrap .main-status-strip .api-protocol-content { grid-template-rows:28px 28px auto; }
+    .wrap .main-status-strip .api-protocol-name { font-size:16px; line-height:28px; white-space:normal; }
+    .wrap .main-status-strip .api-protocol-row { flex-wrap:wrap; gap:4px; }
+  }
   .wrap button.secondary,.wrap .more-actions-toggle,.wrap .view-tab,.wrap .icon-action { color:var(--es-ink); border:1px solid var(--es-line); border-radius:var(--es-control-radius); background:var(--es-field); box-shadow:none; font-weight:500; }
   .wrap button:hover:not(:disabled) { transform:none; filter:none; }
   .wrap button.secondary:hover:not(:disabled),.wrap .view-tab:hover { color:var(--es-accent); border-color:var(--es-accent); background:var(--es-hover); }
@@ -2339,6 +2360,10 @@ const ENGELSOFT_THEME = `
   .wrap .table-wrap td.select-col,.wrap .table-wrap td[data-col='object'] { background:transparent; box-shadow:none; }
   .wrap .table-wrap .name { color:var(--es-muted); font-weight:450; }
   .wrap .table-wrap .entity-link { color:var(--es-ink); font-weight:450; }
+  .wrap .table-wrap .entity-link { align-self:flex-start; width:fit-content; max-width:100%; min-height:0; padding:0; }
+  .wrap .table-wrap .linked-entity-row { display:flex; align-items:center; gap:4px; color:var(--es-muted); font-size:12px; line-height:1.25; }
+  .wrap .table-wrap .linked-entity-link { flex:0 1 auto; width:fit-content; min-width:0; min-height:0; padding:0; }
+  .wrap .table-wrap .linked-state { flex:0 0 auto; }
   .wrap .table-wrap .transport-state-ok b { color:var(--es-muted); font-weight:450; }
   .wrap .table-wrap .transport-state-stack b { font-weight:450; }
   .wrap .table-wrap .unit-display { color:var(--es-muted); font-weight:450; }
@@ -2352,10 +2377,17 @@ const ENGELSOFT_THEME = `
   .wrap .table-wrap .pill,.wrap .table-wrap .pill.ok { padding:0; border:0; border-radius:0; color:var(--es-muted); background:transparent; box-shadow:none; font-weight:450; font-size:11px; }
   .wrap .muted,.wrap label { color:var(--es-muted); }
   .wrap .side { padding:0; overflow:hidden; }
-  .wrap .point-inspector-head { flex-direction:column; align-items:stretch; gap:12px; margin:0; padding:16px; border-bottom:1px solid var(--es-line); border-radius:0; background:var(--es-elevated); box-shadow:none; backdrop-filter:none; }
-  .wrap .point-inspector-head h2 { color:var(--es-accent); font-size:16px; font-weight:500; overflow-wrap:anywhere; }
-  .wrap .inspector-head-actions { width:100%; justify-content:flex-start; flex-wrap:wrap; }
-  .wrap .inspector-head-actions button { color:var(--es-ink); background:var(--es-field); border:1px solid var(--es-line); border-radius:var(--es-control-radius); font-weight:500; }
+  .wrap .point-inspector-head { flex-direction:column; align-items:stretch; gap:14px; top:8px; margin:12px 0 14px; padding:14px; border:1px solid var(--es-card-border); border-radius:var(--es-card-radius); background:var(--es-card-background); box-shadow:inset 0 1px 0 var(--es-highlight); backdrop-filter:var(--es-card-filter); -webkit-backdrop-filter:var(--es-card-filter); }
+  .wrap .point-inspector-head h2 { margin:0 0 4px; color:var(--es-accent); font-size:16px; line-height:1.3; font-weight:550; overflow-wrap:anywhere; }
+  .wrap .point-inspector-head > div > .muted { font-size:11px; line-height:1.4; overflow-wrap:anywhere; }
+  .wrap .selected-source-box { display:flex; flex-direction:column; gap:4px; margin:10px 0 0; padding:14px; border:1px solid var(--es-card-border); border-radius:var(--es-card-radius); background:var(--es-card-background); box-shadow:inset 0 1px 0 var(--es-highlight); backdrop-filter:var(--es-card-filter); -webkit-backdrop-filter:var(--es-card-filter); overflow-wrap:anywhere; }
+  .wrap .selected-source-box > div:first-child { color:var(--es-accent); font-size:14px; line-height:1.4; font-weight:550; }
+  .wrap .selected-source-box > div:first-child strong { font-weight:inherit; }
+  .wrap .selected-source-box .muted { font-size:11px; line-height:1.4; }
+  .wrap .selected-source-box > div:last-child { margin-top:7px; padding-top:10px; border-top:1px solid var(--es-line); }
+  .wrap .inspector-head-actions { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); width:100%; gap:6px; padding-top:12px; border-top:1px solid var(--es-line); }
+  .wrap .inspector-head-actions button { min-width:0; min-height:34px; padding:7px 4px; color:var(--es-ink); background:var(--es-field); border:1px solid var(--es-line); border-radius:8px; font-size:11px; line-height:1.2; font-weight:500; white-space:nowrap; }
+  .wrap .inspector-head-actions button:hover:not(:disabled) { color:var(--es-accent); background:var(--es-hover); border-color:var(--es-accent); }
   .wrap #saveOverride { color:var(--es-accent); background:var(--es-active); border:1px solid var(--es-line); box-shadow:none; }
   .wrap .side-body { padding:0 16px 16px; }
   .wrap .side-section-head { margin:0 0 14px; padding:20px 0 14px; background:transparent; border-bottom:1px solid var(--es-line); }
@@ -2365,6 +2397,13 @@ const ENGELSOFT_THEME = `
   .wrap .side-tabs { background:transparent; border-color:var(--es-line); }
   .wrap .side-tab { color:var(--es-muted); border:0; background:transparent; }
   .wrap .side-tab.active { color:var(--es-accent); background:var(--es-active); box-shadow:none; }
+  /* Match the inspector tabs; keep the entire header above scrolling rows. */
+  .wrap .table-wrap > table > thead { position:sticky; top:0; z-index:30; background:var(--es-inset); backdrop-filter:blur(16px); box-shadow:0 1px 0 var(--es-line); }
+  .wrap .table-wrap > table > thead th { height:55px; padding:10px 3px 0; top:auto; color:var(--es-muted); background:transparent!important; border-bottom:1px solid var(--es-line); box-shadow:none; font-size:12px; font-weight:700; letter-spacing:normal; }
+  .wrap .table-wrap > table > thead th.select-col { padding:10px 12px 0; vertical-align:middle; }
+  .wrap .table-wrap .sort-btn,.wrap .table-wrap .sort-btn:hover:not(:disabled) { display:flex; align-items:center; justify-content:center; width:100%; min-height:44px; height:100%; padding:8px 10px; border:0; border-radius:10px 10px 0 0; color:var(--es-muted); background:transparent; font:inherit; white-space:normal; }
+  .wrap .table-wrap .sort-btn.active,.wrap .table-wrap .sort-btn.active:hover:not(:disabled) { color:var(--es-accent); background:var(--es-active); box-shadow:none; }
+  .wrap .table-wrap .sort-btn:hover:not(:disabled) { color:var(--es-accent); }
   .wrap input,.wrap select,.wrap textarea,.wrap .live-filters input,.wrap .live-filters select { color:var(--es-ink); background:var(--es-field); border:1px solid var(--es-line); border-radius:var(--es-control-radius); color-scheme:inherit; }
   .wrap input[type="checkbox"] { appearance:auto; width:14px; height:14px; min-width:14px; min-height:14px; padding:0; margin:0; border:0; border-radius:0; box-shadow:none; vertical-align:middle; accent-color:var(--es-accent); }
   .wrap select option,.wrap select optgroup { color:var(--es-ink); background:var(--es-elevated); }
@@ -4571,11 +4610,9 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
           <div class="mobile-header-row">
             <button id="haMenuToggle" class="ha-menu-toggle" type="button" title="Home Assistant Menü" aria-label="Home Assistant Menü öffnen">☰</button>
             <div class="brand-lockup">
-              <div class="brand-mark" aria-hidden="true">${ENGELSOFT_NAV_ICONS.beacon}</div>
               <div class="brand-copy">
               <div class="brand-eyebrow">BACnet · Building Automation</div>
               <div class="brand-heading"><h1>Engelsoft Beacon</h1><span class="brand-section">${this._escape(sectionTitle)}</span></div>
-              <div class="frontend-version">${this._versionLabel()}</div>
               </div>
             </div>
           </div>
@@ -6842,6 +6879,11 @@ let BepacomExplorerToolbar = class extends i$3 {
       })
     );
   }
+  updated() {
+    if (this.devices.length === 1 && this.filters.device_id !== "all") {
+      this._emit("filter", "device_id", "all");
+    }
+  }
   render() {
     const activeFilters = Number(this.filters.device_id !== "all") + Number(this.filters.object_type !== "all") + Number(this.filters.runtime !== "all") + Number(this.filters.only_overrides) + Number(this.filters.only_subscribe);
     return b`
@@ -6863,6 +6905,10 @@ let BepacomExplorerToolbar = class extends i$3 {
           .value=${this.filters.search || ""}
           placeholder="820*, Rollo, multiStateInput 82*"
           @input=${(event) => this._emit("filter", "search", event.target.value)}
+          @dblclick=${(event) => {
+      event.currentTarget.value = "";
+      this._emit("filter", "search", "");
+    }}
         >
       </div>
 
@@ -6874,17 +6920,17 @@ let BepacomExplorerToolbar = class extends i$3 {
         <span>${this.language === "de" ? "Filter" : "Filters"}${activeFilters ? ` (${activeFilters})` : ""}</span> <span aria-hidden="true">${this._filtersExpanded ? "−" : "+"}</span>
       </button>
       <div id="filterOptions" class=${`filter-options ${this._filtersExpanded ? "expanded" : ""}`}>
-      <div class="field">
+      ${this.devices.length > 1 ? b`<div class="field">
         <label for="device">Device</label>
         <select
           id="device"
           .value=${this.filters.device_id || "all"}
           @change=${(event) => this._emit("filter", "device_id", event.target.value)}
         >
-          <option value="all">Alle Devices</option>
+          <option value="all">Alle</option>
           ${this.devices.map((device) => b`<option value=${device}>Device ${device}</option>`)}
         </select>
-      </div>
+      </div>` : ""}
 
       <div class="field">
         <label for="type">Objekttyp</label>
@@ -6893,7 +6939,7 @@ let BepacomExplorerToolbar = class extends i$3 {
           .value=${this.filters.object_type || "all"}
           @change=${(event) => this._emit("filter", "object_type", event.target.value)}
         >
-          <option value="all">Alle Objekttypen</option>
+          <option value="all">Alle</option>
           ${this.objectTypes.map((type) => b`<option value=${type}>${type}</option>`)}
         </select>
       </div>
@@ -6908,9 +6954,9 @@ let BepacomExplorerToolbar = class extends i$3 {
           <option value="all">Alle</option>
           <option value="enabled">Aktiv</option>
           <option value="disabled">Deaktiviert</option>
-          <option value="subscribe">Push / Subscribe</option>
+          <option value="subscribe">Push</option>
           <option value="polling">Polling</option>
-          <option value="fallback">Polling-Fallback</option>
+          <option value="fallback">Fallback</option>
         </select>
       </div>
 
@@ -6922,8 +6968,8 @@ let BepacomExplorerToolbar = class extends i$3 {
           @change=${(event) => this._emit("group", "groupBy", event.target.value)}
         >
           <option value="none">Keine</option>
-          <option value="type">Nach BACnet-Typ</option>
-          <option value="device">Nach Device</option>
+          <option value="type">BACnet-Typ</option>
+          <option value="device">Device</option>
         </select>
       </div>
 
@@ -6965,6 +7011,27 @@ BepacomExplorerToolbar.styles = i$6`
     input,select { box-sizing:border-box; width:100%; min-height:34px; padding:7px 9px; border:1px solid var(--es-line); border-radius:var(--es-control-radius,10px); background:var(--es-field); color:var(--es-ink); font:inherit; font-size:12px; color-scheme:inherit; }
     select option,select optgroup { color:var(--es-ink); background:var(--es-elevated); }
     select option:checked { color:var(--es-ink); background:var(--es-active); }
+    select { cursor:pointer; transition:border-color .15s ease,background .15s ease; }
+    select:hover { border-color:var(--es-accent); background:var(--es-hover); }
+    @supports (appearance:base-select) {
+      select,select::picker(select) { appearance:base-select; }
+      select { display:flex; align-items:center; gap:8px; font-weight:450; }
+      select::picker-icon { margin-inline-start:auto; color:var(--es-muted); font-size:10px; transition:rotate .15s ease; }
+      select:open::picker-icon { rotate:180deg; color:var(--es-accent); }
+      select:open { border-color:var(--es-accent); background:var(--es-active); }
+      select::picker(select) {
+        box-sizing:border-box; min-width:anchor-size(width); max-width:calc(100vw - 24px); max-height:min(360px,60dvh);
+        margin-block:6px; padding:5px; overflow:auto;
+        border:1px solid var(--es-line); border-radius:12px;
+        background:var(--es-elevated); color:var(--es-ink);
+        box-shadow:0 12px 32px rgba(0,0,0,.24); font:inherit; font-size:12px;
+        scrollbar-width:thin; scrollbar-color:var(--es-line) transparent;
+      }
+      select option { display:flex; align-items:center; gap:12px; min-height:34px; padding:8px 10px; border:0; border-radius:7px; background:transparent; color:var(--es-muted); cursor:pointer; }
+      select option:hover,select option:focus-visible { outline:none; background:var(--es-hover); color:var(--es-ink); }
+      select option:checked { background:var(--es-active); color:var(--es-accent); font-weight:550; }
+      select option::checkmark { order:1; margin-inline-start:auto; color:var(--es-accent); }
+    }
     input::placeholder { color:var(--es-muted); opacity:.75; }
     input:focus-visible,select:focus-visible,button:focus-visible { outline:2px solid var(--es-accent); outline-offset:3px; }
     .check { display:inline-flex; align-items:center; gap:6px; align-self:flex-end; min-height:34px; margin:0 2px; color:var(--es-muted); font-size:11px; text-transform:none; letter-spacing:0; white-space:nowrap; }
@@ -7170,8 +7237,8 @@ let BepacomPointTable = class extends i$3 {
   _header(key, label, className = "") {
     const marker = this.sortKey === key ? this.sortDirection === "asc" ? " ▲" : " ▼" : "";
     return b`
-      <th class=${`sortable ${className}`}>
-        <button class="sort-btn" @click=${() => this._action("sort", { key })}>${label}${marker}</button>
+      <th class=${`sortable ${className}`} aria-sort=${this.sortKey === key ? this.sortDirection === "asc" ? "ascending" : "descending" : "none"}>
+        <button class=${`sort-btn ${this.sortKey === key ? "active" : ""}`} @click=${() => this._action("sort", { key })}>${label}${marker}</button>
       </th>
     `;
   }
@@ -7227,15 +7294,16 @@ let BepacomPointTable = class extends i$3 {
                     </span>
                     ${row.linkedEntities.map(
       (link) => b`
-                        <button
-                          class="linked-entity-link"
-                          title=${link.title}
-                          ?disabled=${!link.entityId}
-                          @click=${(event) => {
+                        <div class="linked-entity-row" title=${link.title}>
+                          <span>↳</span> <span class="linked-icon">${link.icon}</span>
+                          <button class="linked-entity-link linked-name" ?disabled=${!link.entityId}
+                            @click=${(event) => {
         event.stopPropagation();
         this._action("more-info", { entityId: link.entityId });
       }}
-                        >↳ <span class="linked-icon">${link.icon}</span> <span class="linked-name">${link.name}</span> <span class="linked-state">${link.state}</span></button>
+                          >${link.name}</button>
+                          <span class="linked-state">${link.state}</span>
+                        </div>
                       `
     )}
                   </div>
@@ -7243,13 +7311,7 @@ let BepacomPointTable = class extends i$3 {
           </div>
         </td>
         <td data-col="value">
-          <button
-            class="link-cell value-link"
-            @click=${(event) => {
-      event.stopPropagation();
-      this._action("more-info", { entityId: row.entityId });
-    }}
-          >${row.value}</button>
+          <span class="value-link">${row.value}</span>
         </td>
         <td data-col="unit"><div class="unit-stack"><span class="unit-display">${row.unit}</span></div></td>
         <td data-col="override">${row.overrideActive ? b`<span class="pill ok">Override</span>` : b`<span class="pill">Standard</span>`}</td>
@@ -7734,8 +7796,8 @@ let BepacomPointInspector = class extends i$3 {
         <div><h2>${point.object_key}</h2><div class="muted">${point.object_name || "-"}</div></div>
         <div class="inspector-head-actions">
           <button id="saveOverride" ?disabled=${this.model.saving}>Speichern${this.model.saving ? " …" : ""}</button>
-          <button id="discardEditor" class="secondary" ?disabled=${!this.model.dirty || this.model.saving}>Änderungen verwerfen</button>
-          <button id="resetOverride" class="secondary" ?disabled=${this.model.saving}>Override zurücksetzen</button>
+          <button id="discardEditor" class="secondary" title="Änderungen verwerfen" ?disabled=${!this.model.dirty || this.model.saving}>Verwerfen</button>
+          <button id="resetOverride" class="secondary" title="Override zurücksetzen" ?disabled=${this.model.saving}>Zurücksetzen</button>
         </div>
       </div>
       <div id="editorDirtyBanner" class="dirty-banner" ?hidden=${!this.model.dirty}><strong>Ungespeicherte Änderungen</strong> – bitte speichern oder verwerfen.</div>
@@ -8078,7 +8140,6 @@ let BepacomRuntimeDashboard = class extends i$3 {
           <small>Antwortzeit</small><strong>${String(protocol.commandLatency ?? "-")}</strong>
           <span>Befehlsverarbeitung</span>
         </div>
-        <div class="protocol-health-version">App ${String(protocol.appVersion ?? "-")} · Protokoll ${String(protocol.protocolVersion ?? "-")}</div>
       </div>
     `;
   }

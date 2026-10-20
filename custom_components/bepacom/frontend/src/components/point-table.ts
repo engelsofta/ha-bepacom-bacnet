@@ -62,8 +62,8 @@ export class BepacomPointTable extends LitElement {
   private _header(key: string, label: string, className = "") {
     const marker = this.sortKey === key ? (this.sortDirection === "asc" ? " ▲" : " ▼") : "";
     return html`
-      <th class=${`sortable ${className}`}>
-        <button class="sort-btn" @click=${() => this._action("sort", { key })}>${label}${marker}</button>
+      <th class=${`sortable ${className}`} aria-sort=${this.sortKey === key ? (this.sortDirection === "asc" ? "ascending" : "descending") : "none"}>
+        <button class=${`sort-btn ${this.sortKey === key ? "active" : ""}`} @click=${() => this._action("sort", { key })}>${label}${marker}</button>
       </th>
     `;
   }
@@ -121,15 +121,16 @@ export class BepacomPointTable extends LitElement {
                     </span>
                     ${row.linkedEntities.map(
                       (link) => html`
-                        <button
-                          class="linked-entity-link"
-                          title=${link.title}
-                          ?disabled=${!link.entityId}
-                          @click=${(event: MouseEvent) => {
-                            event.stopPropagation();
-                            this._action("more-info", { entityId: link.entityId });
-                          }}
-                        >↳ <span class="linked-icon">${link.icon}</span> <span class="linked-name">${link.name}</span> <span class="linked-state">${link.state}</span></button>
+                        <div class="linked-entity-row" title=${link.title}>
+                          <span>↳</span> <span class="linked-icon">${link.icon}</span>
+                          <button class="linked-entity-link linked-name" ?disabled=${!link.entityId}
+                            @click=${(event: MouseEvent) => {
+                              event.stopPropagation();
+                              this._action("more-info", { entityId: link.entityId });
+                            }}
+                          >${link.name}</button>
+                          <span class="linked-state">${link.state}</span>
+                        </div>
                       `,
                     )}
                   </div>
@@ -138,13 +139,7 @@ export class BepacomPointTable extends LitElement {
           </div>
         </td>
         <td data-col="value">
-          <button
-            class="link-cell value-link"
-            @click=${(event: MouseEvent) => {
-              event.stopPropagation();
-              this._action("more-info", { entityId: row.entityId });
-            }}
-          >${row.value}</button>
+          <span class="value-link">${row.value}</span>
         </td>
         <td data-col="unit"><div class="unit-stack"><span class="unit-display">${row.unit}</span></div></td>
         <td data-col="override">${row.overrideActive ? html`<span class="pill ok">Override</span>` : html`<span class="pill">Standard</span>`}</td>

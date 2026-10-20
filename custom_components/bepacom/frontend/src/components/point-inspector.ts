@@ -351,8 +351,8 @@ export class BepacomPointInspector extends LitElement {
         <div><h2>${point.object_key}</h2><div class="muted">${point.object_name || "-"}</div></div>
         <div class="inspector-head-actions">
           <button id="saveOverride" ?disabled=${this.model.saving}>Speichern${this.model.saving ? " …" : ""}</button>
-          <button id="discardEditor" class="secondary" ?disabled=${!this.model.dirty || this.model.saving}>Änderungen verwerfen</button>
-          <button id="resetOverride" class="secondary" ?disabled=${this.model.saving}>Override zurücksetzen</button>
+          <button id="discardEditor" class="secondary" title="Änderungen verwerfen" ?disabled=${!this.model.dirty || this.model.saving}>Verwerfen</button>
+          <button id="resetOverride" class="secondary" title="Override zurücksetzen" ?disabled=${this.model.saving}>Zurücksetzen</button>
         </div>
       </div>
       <div id="editorDirtyBanner" class="dirty-banner" ?hidden=${!this.model.dirty}><strong>Ungespeicherte Änderungen</strong> – bitte speichern oder verwerfen.</div>

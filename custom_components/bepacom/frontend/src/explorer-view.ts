@@ -1856,11 +1856,9 @@ export class BepacomExplorerView extends HTMLElement {
           <div class="mobile-header-row">
             <button id="haMenuToggle" class="ha-menu-toggle" type="button" title="Home Assistant Menü" aria-label="Home Assistant Menü öffnen">☰</button>
             <div class="brand-lockup">
-              <div class="brand-mark" aria-hidden="true">${ENGELSOFT_NAV_ICONS.beacon}</div>
               <div class="brand-copy">
               <div class="brand-eyebrow">BACnet · Building Automation</div>
               <div class="brand-heading"><h1>Engelsoft Beacon</h1><span class="brand-section">${this._escape(sectionTitle)}</span></div>
-              <div class="frontend-version">${this._versionLabel()}</div>
               </div>
             </div>
           </div>
