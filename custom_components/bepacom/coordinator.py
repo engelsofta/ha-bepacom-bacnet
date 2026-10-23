@@ -29,7 +29,6 @@ from .websocket_manager import BepacomWebSocketManager
 _LOGGER = logging.getLogger(__name__)
 _MAX_INVALID_FALLBACK_RESPONSES = 3
 _PUSH_UPDATE_DEBOUNCE_SECONDS = 0.5
-_SUBSCRIBE_CONCURRENCY = 5
 _INVENTORY_STABLE_SAMPLES = 3
 _INVENTORY_STABLE_SAMPLE_DELAY_SECONDS = 5
 _INVENTORY_MISSING_POINT_GRACE_SECONDS = 60
@@ -51,7 +50,6 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Transport behavior is automatic. Object-specific Push/Polling choices
         # remain managed in the sidebar explorer.
         self._polling_enabled = False
-        self._snapshot_websocket_mode = True
         self._push_value_logging = _LOGGER.isEnabledFor(logging.DEBUG)
 
         super().__init__(
@@ -75,10 +73,9 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "Bepacom cyclic polling disabled; using initial discovery and WebSocket/subscription updates only",
             )
 
-        if self._snapshot_websocket_mode:
-            _LOGGER.debug(
-                "Bepacom snapshot WebSocket mode enabled; only one gateway subscription will be created and configured objects will be processed from each snapshot",
-            )
+        _LOGGER.debug(
+            "Bepacom snapshot WebSocket mode enabled; only one gateway subscription will be created and configured objects will be processed from each snapshot",
+        )
 
         self.discovery = DiscoveryEngine()
         self.point_registry = BepacomPointRegistry(entry.options)
@@ -182,7 +179,7 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         diagnostics.update(
             {
                 "polling_enabled": self._polling_enabled,
-                "snapshot_websocket_mode": self._snapshot_websocket_mode,
+                "snapshot_websocket_mode": True,
                 "subscriptions_started": self._subscriptions_started,
                 "subscriptions_initialized": self._subscriptions_initialized,
                 "last_subscription_summary": self._last_subscription_summary,
@@ -217,8 +214,6 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 raise UpdateFailed(
                     f"Unexpected response type: {type(raw)}"
                 )
-
-
 
 
             if not self._discovery_completed:
@@ -449,8 +444,6 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             _LOGGER.debug("Skipping Bepacom subscriptions because subscriptions are disabled.")
             return
 
-        targets = self._iter_subscription_targets()
-        polling_targets = self._iter_polling_targets()
         managed_targets = self._iter_managed_targets()
         active_managed_targets = [
             (device_id, object_id)
@@ -458,73 +451,45 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if update_mode != "disabled"
         ]
 
-        if self._snapshot_websocket_mode:
-            initial_values = self._snapshot_initial_values(active_managed_targets)
-            self._websocket_manager.set_snapshot_targets(
-                active_managed_targets, initial_values
-            )
-            managed_result = await self.client.async_set_managed_targets(
-                managed_targets
-            )
-            if not managed_result.get("accepted"):
-                raise UpdateFailed(
-                    "Engelsoft STAC rejected the managed-target configuration"
-                )
-            _LOGGER.debug(
-                "Bepacom managed targets configured: strategy=%s targets=%s cov=%s polling=%s disabled=%s",
-                managed_result.get("strategy"),
-                managed_result.get("targets"),
-                managed_result.get("cov_targets", "n/a"),
-                managed_result.get("polling_targets", "n/a"),
-                managed_result.get("disabled_targets", "n/a"),
-            )
-
-            successful = 0
-            if active_managed_targets:
-                # The managed endpoint owns BACnet COV/polling tasks. Listening
-                # to the global feed avoids creating a duplicate COV merely to
-                # obtain the WebSocket URL.
-                successful = int(
-                    await self._websocket_manager.async_connect_managed_snapshot()
-                )
-            self._subscriptions_initialized = True
-            self._last_subscription_summary = (
-                successful,
-                len(active_managed_targets),
-            )
-            _LOGGER.debug(
-                "Bepacom managed snapshot WebSocket initialized: connected=%s processed_targets=%s",
-                successful,
-                len(active_managed_targets),
-            )
-            return
-
-        if not targets:
-            if polling_targets:
-                _LOGGER.debug(
-                    "No Engelsoft Beacon subscription targets configured; starting per-object polling for %s objects.",
-                    len(polling_targets),
-                )
-                self._ensure_fallback_polling()
-            else:
-                _LOGGER.debug(
-                    "No Engelsoft Beacon subscription or per-object polling targets configured."
-                )
-            self._subscriptions_initialized = True
-            self._last_subscription_summary = (0, 0)
-            return
-
-        self._websocket_manager.clear_snapshot_targets()
-        _LOGGER.debug("Initializing Bepacom subscriptions for %s objects...", len(targets))
-        successful = await self._async_subscribe_discovered_objects(targets)
-
-        self._subscriptions_initialized = True
-        self._last_subscription_summary = (successful, len(targets))
-        _LOGGER.debug(
-            "Bepacom subscriptions initialized: %s/%s active",
-            successful,
-            len(targets),
+        initial_values = self._snapshot_initial_values(active_managed_targets)
+        self._websocket_manager.set_snapshot_targets(
+            active_managed_targets, initial_values
         )
+        managed_result = await self.client.async_set_managed_targets(
+            managed_targets
+        )
+        if not managed_result.get("accepted"):
+            raise UpdateFailed(
+                "Engelsoft STAC rejected the managed-target configuration"
+            )
+        _LOGGER.debug(
+            "Bepacom managed targets configured: strategy=%s targets=%s cov=%s polling=%s disabled=%s",
+            managed_result.get("strategy"),
+            managed_result.get("targets"),
+            managed_result.get("cov_targets", "n/a"),
+            managed_result.get("polling_targets", "n/a"),
+            managed_result.get("disabled_targets", "n/a"),
+        )
+
+        successful = 0
+        if active_managed_targets:
+            # The managed endpoint owns BACnet COV/polling tasks. Listening
+            # to the global feed avoids creating a duplicate COV merely to
+            # obtain the WebSocket URL.
+            successful = int(
+                await self._websocket_manager.async_connect_managed_snapshot()
+            )
+        self._subscriptions_initialized = True
+        self._last_subscription_summary = (
+            successful,
+            len(active_managed_targets),
+        )
+        _LOGGER.debug(
+            "Bepacom managed snapshot WebSocket initialized: connected=%s processed_targets=%s",
+            successful,
+            len(active_managed_targets),
+        )
+        return
 
     def _snapshot_initial_values(
         self,
@@ -541,27 +506,10 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         return initial_values
 
-    async def _async_subscribe_discovered_objects(
-        self,
-        targets: list[tuple[str, str]] | None = None,
-    ) -> int:
-        """Subscribe to discovered objects and return the number of active subscriptions."""
-        if not self._websocket_manager.subscriptions_enabled:
-            return 0
-
-        subscription_targets = targets if targets is not None else self._iter_subscription_targets()
-
-        if not subscription_targets:
-            return 0
-
-        successful = await self._async_subscribe_targets(subscription_targets)
-
-        self._ensure_fallback_polling()
-        return successful
 
     async def _async_restore_managed_targets(self) -> None:
         """Restore managed gateway targets after a WebSocket reconnect."""
-        if not self._snapshot_websocket_mode or not self.data:
+        if not self.data:
             return
 
         async with self._managed_target_restore_lock:
@@ -597,13 +545,6 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             "disabled": sum(mode == "disabled" for _, _, mode in targets),
         }
 
-        if not self._snapshot_websocket_mode:
-            return {
-                **counts,
-                "accepted": False,
-                "mode": "integration_transport_not_active",
-            }
-
         active_targets = [
             (device_id, object_id)
             for device_id, object_id, mode in targets
@@ -622,93 +563,6 @@ class BepacomCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             await self.async_gateway_target_status(force=True)
 
         return {**counts, **result}
-
-    async def _async_subscribe_targets(
-        self,
-        targets: list[tuple[str, str]],
-    ) -> int:
-        """Subscribe targets with bounded concurrency.
-
-        This is the central subscription scheduler. It is used during startup and can later
-        also be reused for reconnect/resubscribe handling.
-        """
-        if not targets:
-            return 0
-
-        queue: asyncio.Queue[tuple[str, str]] = asyncio.Queue()
-
-        for target in targets:
-            queue.put_nowait(target)
-
-        successful = 0
-        successful_lock = asyncio.Lock()
-
-        async def worker(worker_id: int) -> None:
-            nonlocal successful
-
-            while True:
-                try:
-                    device_id, object_id = queue.get_nowait()
-                except asyncio.QueueEmpty:
-                    return
-
-                try:
-                    subscribed = await self._websocket_manager.async_subscribe(
-                        device_id,
-                        object_id,
-                    )
-
-                    if subscribed:
-                        self._fallback_objects.discard((device_id, object_id))
-                        self.point_registry.mark_subscription(device_id, object_id, True)
-                        self.point_registry.mark_fallback_polling(device_id, object_id, False)
-                        self._fallback_invalid_responses.pop((device_id, object_id), None)
-
-                        async with successful_lock:
-                            successful += 1
-
-                except Exception:
-                    _LOGGER.exception(
-                        "Subscription worker %s failed for %s/%s",
-                        worker_id,
-                        device_id,
-                        object_id,
-                    )
-                finally:
-                    queue.task_done()
-
-        worker_count = min(_SUBSCRIBE_CONCURRENCY, len(targets))
-
-        _LOGGER.debug(
-            "Starting Bepacom subscription scheduler: targets=%s workers=%s",
-            len(targets),
-            worker_count,
-        )
-
-        workers = [
-            self.hass.async_create_task(
-                worker(index + 1),
-                name=f"bepacom-subscribe-worker-{index + 1}",
-            )
-            for index in range(worker_count)
-        ]
-
-        try:
-            await queue.join()
-        finally:
-            for task in workers:
-                if not task.done():
-                    task.cancel()
-
-            await asyncio.gather(*workers, return_exceptions=True)
-
-        _LOGGER.debug(
-            "Bepacom subscription scheduler finished: successful=%s targets=%s",
-            successful,
-            len(targets),
-        )
-
-        return successful
 
 
     def _iter_polling_targets(self) -> list[tuple[str, str]]:

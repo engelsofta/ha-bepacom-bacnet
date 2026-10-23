@@ -343,7 +343,7 @@ export class BepacomRuntimeDashboard extends LitElement {
       <div class=${`protocol-health ${protocol.connected ? "healthy" : "offline"}`}>
         <div class="protocol-health-lead">
           <i aria-hidden="true"></i>
-          <span><small>Protocol V2</small><strong>${protocol.connected ? "Aktiv & synchron" : "Getrennt"}</strong></span>
+          <span><small>Gateway-Verbindung</small><strong>${protocol.connected ? "Aktiv & synchron" : "Getrennt"}</strong></span>
           <em>${String(protocol.lastEvent ?? "-")}</em>
         </div>
         <div class="protocol-health-item">

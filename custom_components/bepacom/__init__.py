@@ -541,7 +541,7 @@ async def async_setup_entry(
             translation_key="gateway_incompatible",
         )
         raise ConfigEntryError(
-            "This integration requires the current Engelsoft STAC add-on"
+            "Protocol V2 is required. Update BACstac and the integration together."
         ) from err
     except (CannotConnect, InvalidResponse) as err:
         await client.async_close()

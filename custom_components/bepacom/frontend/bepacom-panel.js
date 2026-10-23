@@ -4421,7 +4421,6 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
     }) : "-";
     const pushChangeValue = `${pushNotificationsRaw ?? "-"} / ${averageChangesPerPush}`;
     [
-      ["API / Protokoll", d2.api_transport_label ?? "Legacy API"],
       ["App-Version", d2.gateway_app_version ?? "-"],
       ["Protokollversion", d2.gateway_protocol_version ?? "-"],
       ["WebSocket", d2.connected === void 0 ? "-" : d2.connected ? "Verbunden" : "Getrennt"],
@@ -4746,14 +4745,13 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
           <span class="status-overview-value errors ${Number(connectionFailures) > 0 ? "has-errors" : ""}"><strong>${this._escape(connectionFailures)}</strong><small>Verbindungsfehler</small></span>
         </div>
       </div>`;
-    const protocolV2 = diagnostics.api_transport === "protocol_v2";
     const processingCard = `
-      <div class="dashboard-headline-card api-protocol-card ${protocolV2 ? "protocol-v2" : "legacy-api"}">
+      <div class="dashboard-headline-card api-protocol-card protocol-v2">
         <div class="api-protocol-content">
-          <div class="api-protocol-title"><i class="api-protocol-dot" aria-hidden="true"></i>API / Protokoll</div>
+          <div class="api-protocol-title"><i class="api-protocol-dot" aria-hidden="true"></i>Verarbeitung</div>
           <div class="api-protocol-row">
-            <strong class="api-protocol-name">${this._escape(diagnostics.api_transport_label ?? "Legacy API")}</strong>
-            <span class="api-protocol-badge">${protocolV2 ? "Aktiv" : "Fallback"}</span>
+            <strong class="api-protocol-name">Push-Verbindung</strong>
+            <span class="api-protocol-badge">${diagnostics.connected ? "Aktiv" : "Getrennt"}</span>
           </div>
           <div class="api-protocol-meta">Push-Verarbeitung · ${this._escape(pushTime)}</div>
         </div>
@@ -5571,7 +5569,6 @@ Während des Reloads können Entitäten kurz nicht verfügbar sein.`
       open: !!this._statusOpen,
       tab: ["configuration", "developer"].includes(this._dashboardTab) ? this._dashboardTab : "live",
       summary: [
-        `API: ${d2.api_transport_label ?? "Legacy API"}`,
         `Punkte: ${d2.objects ?? this._total ?? "-"}`,
         `aktiv: ${d2.enabled ?? "-"}`,
         `Push: ${d2.configured_push ?? "-"}/${d2.subscribed ?? "-"}`,
@@ -8122,7 +8119,7 @@ let BepacomRuntimeDashboard = class extends i$3 {
       <div class=${`protocol-health ${protocol.connected ? "healthy" : "offline"}`}>
         <div class="protocol-health-lead">
           <i aria-hidden="true"></i>
-          <span><small>Protocol V2</small><strong>${protocol.connected ? "Aktiv & synchron" : "Getrennt"}</strong></span>
+          <span><small>Gateway-Verbindung</small><strong>${protocol.connected ? "Aktiv & synchron" : "Getrennt"}</strong></span>
           <em>${String(protocol.lastEvent ?? "-")}</em>
         </div>
         <div class="protocol-health-item">

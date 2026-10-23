@@ -1652,7 +1652,6 @@ export class BepacomExplorerView extends HTMLElement {
       : "-";
     const pushChangeValue = `${pushNotificationsRaw ?? "-"} / ${averageChangesPerPush}`;
     const runtime = [
-      ["API / Protokoll", d.api_transport_label ?? "Legacy API"],
       ["App-Version", d.gateway_app_version ?? "-"],
       ["Protokollversion", d.gateway_protocol_version ?? "-"],
       ["WebSocket", d.connected === undefined ? "-" : (d.connected ? "Verbunden" : "Getrennt")],
@@ -2015,14 +2014,13 @@ export class BepacomExplorerView extends HTMLElement {
           <span class="status-overview-value errors ${Number(connectionFailures) > 0 ? "has-errors" : ""}"><strong>${this._escape(connectionFailures)}</strong><small>Verbindungsfehler</small></span>
         </div>
       </div>`;
-    const protocolV2 = diagnostics.api_transport === "protocol_v2";
     const processingCard = `
-      <div class="dashboard-headline-card api-protocol-card ${protocolV2 ? "protocol-v2" : "legacy-api"}">
+      <div class="dashboard-headline-card api-protocol-card protocol-v2">
         <div class="api-protocol-content">
-          <div class="api-protocol-title"><i class="api-protocol-dot" aria-hidden="true"></i>API / Protokoll</div>
+          <div class="api-protocol-title"><i class="api-protocol-dot" aria-hidden="true"></i>Verarbeitung</div>
           <div class="api-protocol-row">
-            <strong class="api-protocol-name">${this._escape(diagnostics.api_transport_label ?? "Legacy API")}</strong>
-            <span class="api-protocol-badge">${protocolV2 ? "Aktiv" : "Fallback"}</span>
+            <strong class="api-protocol-name">Push-Verbindung</strong>
+            <span class="api-protocol-badge">${diagnostics.connected ? "Aktiv" : "Getrennt"}</span>
           </div>
           <div class="api-protocol-meta">Push-Verarbeitung · ${this._escape(pushTime)}</div>
         </div>
@@ -2895,7 +2893,6 @@ export class BepacomExplorerView extends HTMLElement {
       open: !!this._statusOpen,
       tab: ["configuration", "developer"].includes(this._dashboardTab) ? this._dashboardTab : "live",
       summary: [
-        `API: ${d.api_transport_label ?? "Legacy API"}`,
         `Punkte: ${d.objects ?? this._total ?? "-"}`,
         `aktiv: ${d.enabled ?? "-"}`,
         `Push: ${d.configured_push ?? "-"}/${d.subscribed ?? "-"}`,

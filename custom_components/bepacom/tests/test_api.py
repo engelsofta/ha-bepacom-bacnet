@@ -68,14 +68,14 @@ def test_normalize_object_path_id() -> None:
 
 
 @pytest.mark.asyncio
-async def test_validate_stac_rejects_gateway_without_managed_targets() -> None:
-    """Only gateways exposing the Engelsoft STAC API are accepted."""
+async def test_validate_stac_rejects_gateway_without_protocol_v2() -> None:
+    """An old REST schema is not a substitute for Protocol V2."""
     client = UnsupportedSchemaClient()
 
     with pytest.raises(UnsupportedGateway):
         await client.async_validate_stac()
 
-    assert client.get_requests == ["/bepacom/info", "/openapi.json"]
+    assert client.get_requests == ["/bepacom/info"]
     assert client._session is None
 
 
@@ -83,7 +83,7 @@ def test_managed_snapshot_websocket_uses_stac_global_endpoint() -> None:
     """Managed targets are read from Engelsoft STAC's global feed."""
     client = BepacomClient("192.0.2.10")
 
-    assert client.snapshot_websocket_url() == "ws://192.0.2.10:8099/ws"
+    assert client.snapshot_websocket_url() == "ws://192.0.2.10:8099/ws/v2"
 
 
 @pytest.mark.asyncio

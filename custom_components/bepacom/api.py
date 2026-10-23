@@ -7,44 +7,15 @@ import json
 import logging
 import re
 import time
-from collections import deque
 from typing import Any
 
 import aiohttp
 from yarl import URL
 
-from .const import DEFAULT_SUBSCRIPTION_LIFETIME, PROTOCOL_VERSION, WEBSOCKET_PING_INTERVAL
+from .const import PROTOCOL_VERSION, WEBSOCKET_PING_INTERVAL
 from .exceptions import CannotConnect, InvalidResponse, UnsupportedGateway, WriteError
 
 _LOGGER = logging.getLogger(__name__)
-# Gateways return different key names depending on firmware/API variant.
-_SUBSCRIPTION_URL_KEYS = (
-    "url",
-    "ws_url",
-    "wsUrl",
-    "websocket_url",
-    "websocketUrl",
-    "webSocketUrl",
-    "websocket",
-    "webSocket",
-    "location",
-)
-_SUBSCRIPTION_HEADER_KEYS = (
-    "Location",
-    "Content-Location",
-    "X-Subscription-Url",
-    "X-Subscription-URL",
-    "X-WebSocket-Url",
-    "X-WebSocket-URL",
-)
-_MAX_SUBSCRIPTION_DIAGNOSTIC_LOGS = 5
-_SUBSCRIPTION_CONFIRMATION_TYPE_FALLBACKS = (
-    "confirmed",
-    "unconfirmed",
-    "true",
-    "false",
-)
-_DEFAULT_SUBSCRIPTION_WS_PATH = "/ws"
 
 
 class BepacomClient:
@@ -53,9 +24,8 @@ class BepacomClient:
     def __init__(self, host: str, port: int = 8099, api_token: str | None = None) -> None:
         self._base = f"http://{host}:{port}"
         self._session: aiohttp.ClientSession | None = None
-        self._subscription_diagnostic_logs = 0
         self._gateway_info: dict[str, Any] = {}
-        self._transport = "legacy"
+        self._transport = "protocol_v2"
         self._transport_reason = "Protocol V2 has not been negotiated"
         self._protocol_socket: aiohttp.ClientWebSocketResponse | None = None
         self._protocol_request_id = 0
@@ -83,7 +53,7 @@ class BepacomClient:
         return {
             "api_transport": self._transport,
             "api_transport_label": (
-                "Protocol V2" if self._transport == "protocol_v2" else "Legacy API"
+                "Protocol V2"
             ),
             "api_transport_reason": self._transport_reason,
             "gateway_product": self._gateway_info.get("product"),
@@ -128,8 +98,7 @@ class BepacomClient:
         """Send a command over the durable V2 channel when it is available."""
         websocket = self._protocol_socket
         if (
-            self._transport != "protocol_v2"
-            or websocket is None
+            websocket is None
             or websocket.closed
         ):
             return False
@@ -208,6 +177,11 @@ class BepacomClient:
 
         except asyncio.TimeoutError as err:
             _LOGGER.debug("Bepacom GET timed out: path=%s", path)
+            raise CannotConnect from err
+
+        except aiohttp.ClientResponseError as err:
+            if path == "/bepacom/info" and err.status in (404, 405):
+                raise UnsupportedGateway("Update BACstac: Protocol V2 is required") from err
             raise CannotConnect from err
 
         except aiohttp.ClientError as err:
@@ -338,27 +312,11 @@ class BepacomClient:
         except json.JSONDecodeError as err:
             raise InvalidResponse from err
 
-    def _normalize_websocket_url(self, url: str) -> str:
-        """Normalize relative subscription URLs returned by the gateway."""
-        parsed_url = URL(url)
-
-        if parsed_url.is_absolute():
-            return str(parsed_url)
-
-        base_url = URL(self._base).with_scheme("ws")
-        return str(base_url.join(parsed_url))
-
-    def _default_subscription_websocket_url(self) -> str:
-        """Return the default WebSocket endpoint used by current addon firmware."""
-        base_url = URL(self._base).with_scheme("ws")
-        return str(base_url.join(URL(_DEFAULT_SUBSCRIPTION_WS_PATH)))
 
     def snapshot_websocket_url(self) -> str:
         """Return Engelsoft STAC's global managed-target WebSocket."""
-        if self._transport == "protocol_v2":
-            base_url = URL(self._base).with_scheme("ws")
-            return str(base_url.join(URL("/ws/v2")))
-        return self._default_subscription_websocket_url()
+        base_url = URL(self._base).with_scheme("ws")
+        return str(base_url.join(URL("/ws/v2")))
 
     def _normalize_device_path_id(self, device_id: str) -> str:
         """Normalize device identifiers for API paths.
@@ -371,7 +329,7 @@ class BepacomClient:
         return f"device:{device_id}"
 
     def _normalize_object_path_id(self, object_id: str) -> str:
-        """Normalize object identifiers for legacy API paths.
+        """Normalize object identifiers for gateway REST API paths.
 
         The gateway JSON uses keys like ``analogValue:729`` while the BACnet API
         paths expect BACnet notation like ``analog-value,729``.
@@ -407,68 +365,6 @@ class BepacomClient:
 
         return candidates
 
-    def _extract_subscription_url(self, payload: Any) -> str | None:
-        """Extract WebSocket URLs from string or nested dict subscription payloads."""
-        queue: deque[Any] = deque([payload])
-        visited: set[int] = set()
-
-        while queue:
-            candidate = queue.popleft()
-            candidate_id = id(candidate)
-
-            if candidate_id in visited:
-                continue
-
-            visited.add(candidate_id)
-
-            if isinstance(candidate, str):
-                return candidate
-
-            if not isinstance(candidate, dict):
-                continue
-
-            for key in _SUBSCRIPTION_URL_KEYS:
-                value = candidate.get(key)
-
-                if isinstance(value, str):
-                    return value
-
-            # Common response wrappers used by different gateway firmware variants.
-            for key in ("data", "result", "subscription"):
-                nested_payload = candidate.get(key)
-
-                if nested_payload is not None:
-                    queue.append(nested_payload)
-
-        return None
-
-    def _log_invalid_subscription_response(
-        self,
-        device_id: str,
-        object_id: str,
-        status: int,
-        headers: aiohttp.typedefs.LooseHeaders,
-        body: str,
-    ) -> None:
-        """Log a short diagnostic for unexpected subscription responses."""
-        if self._subscription_diagnostic_logs >= _MAX_SUBSCRIPTION_DIAGNOSTIC_LOGS:
-            return
-
-        self._subscription_diagnostic_logs += 1
-        relevant_headers = {
-            key: value
-            for key, value in headers.items()
-            if key.lower() in {"location", "content-location", "content-type"}
-            or key.lower().startswith("x-")
-        }
-        _LOGGER.warning(
-            "Unexpected subscribe response for %s/%s: status=%s headers=%s body_bytes=%s",
-            device_id,
-            object_id,
-            status,
-            relevant_headers,
-            len(body),
-        )
 
     async def async_get_database(self) -> dict[str, Any]:
         """Read the complete BACnet database."""
@@ -490,30 +386,20 @@ class BepacomClient:
             return False
 
     async def async_validate_stac(self) -> None:
-        """Negotiate Protocol V2 and retain the existing API as fallback."""
-        try:
-            info = await self._get("/bepacom/info")
-            versions = info.get("protocol_versions", [info.get("protocol_version")]) if isinstance(info, dict) else []
-            if (
-                isinstance(info, dict)
-                and info.get("product") == "engelsoft-bacstac"
-                and PROTOCOL_VERSION in versions
-            ):
-                self._gateway_info = info
-                self._transport = "protocol_v2"
-                self._transport_reason = "Gateway and integration support Protocol V2"
-                return
-        except (CannotConnect, InvalidResponse):
-            pass
-
-        schema = await self._get("/openapi.json")
-        paths = schema.get("paths") if isinstance(schema, dict) else None
-        if not isinstance(paths, dict) or "/apiv1/managed/targets" not in paths:
+        """Require a compatible Engelsoft BACstac Protocol V2 gateway."""
+        info = await self._get("/bepacom/info")
+        versions = info.get("protocol_versions", [info.get("protocol_version")]) if isinstance(info, dict) else []
+        if not (
+            isinstance(info, dict)
+            and info.get("product") == "engelsoft-bacstac"
+            and isinstance(versions, list)
+            and PROTOCOL_VERSION in versions
+        ):
             raise UnsupportedGateway(
-                "Gateway does not expose the Engelsoft STAC managed-target API"
+                "Gateway requires Protocol V2; update BACstac and the integration together"
             )
-        self._transport = "legacy"
-        self._transport_reason = "Gateway does not advertise compatible Protocol V2"
+        self._gateway_info = info
+        self._transport_reason = "Gateway and integration support Protocol V2"
 
     async def async_get_object(
         self,
@@ -584,172 +470,6 @@ class BepacomClient:
             ]
         }
 
-    async def async_subscribe(
-        self,
-        device_id: str,
-        object_id: str,
-        confirmation_type: str = "confirmed",
-        lifetime: int = DEFAULT_SUBSCRIPTION_LIFETIME,
-    ) -> str:
-        """Create a gateway subscription for one BACnet object."""
-        await self.async_connect()
-
-        assert self._session is not None
-
-        path_candidates: list[tuple[str, str]] = []
-
-        for device_path_id in self._get_device_path_candidates(device_id):
-            for object_path_id in self._get_object_path_candidates(object_id):
-                candidate = (device_path_id, object_path_id)
-
-                if candidate not in path_candidates:
-                    path_candidates.append(candidate)
-
-        attempted_confirmation_types: list[str] = []
-        confirmation_types_to_try = [confirmation_type]
-
-        for fallback_confirmation_type in _SUBSCRIPTION_CONFIRMATION_TYPE_FALLBACKS:
-            if fallback_confirmation_type not in confirmation_types_to_try:
-                confirmation_types_to_try.append(fallback_confirmation_type)
-
-        try:
-            for device_path_id, object_path_id in path_candidates:
-                url = f"{self._base}/apiv1/subscribe/{device_path_id}/{object_path_id}"
-
-                for confirmation_type_candidate in confirmation_types_to_try:
-                    attempted_confirmation_types.append(
-                        f"{device_path_id}/{object_path_id}:{confirmation_type_candidate}"
-                    )
-                    params = {
-                        "confirmationType": confirmation_type_candidate,
-                        "lifetime": lifetime,
-                    }
-
-                    _LOGGER.debug(
-                        "POST subscription request for %s/%s using confirmation type %s",
-                        device_id,
-                        object_id,
-                        confirmation_type_candidate,
-                    )
-
-                    async with self._session.post(url, params=params) as response:
-                        _LOGGER.debug("HTTP Status: %s", response.status)
-
-                        response.raise_for_status()
-
-                        text = await response.text()
-                        _LOGGER.debug(
-                            "Subscription response received for %s/%s: bytes=%s",
-                            device_id,
-                            object_id,
-                            len(text),
-                        )
-
-                        try:
-                            result = self._decode_response(text)
-                        except InvalidResponse:
-                            result = text.strip() or None
-
-                        ws_url = self._extract_subscription_url(result)
-
-                        if ws_url is None:
-                            for header_name in _SUBSCRIPTION_HEADER_KEYS:
-                                header_value = response.headers.get(header_name)
-
-                                if header_value:
-                                    ws_url = header_value
-                                    break
-
-                        if ws_url is not None:
-                            if (
-                                confirmation_type_candidate != confirmation_type
-                                or device_path_id != device_id
-                                or object_path_id != object_id
-                            ):
-                                _LOGGER.debug(
-                                    "Bepacom subscribe for %s/%s succeeded with path=%s/%s confirmationType=%s",
-                                    device_id,
-                                    object_id,
-                                    device_path_id,
-                                    object_path_id,
-                                    confirmation_type_candidate,
-                                )
-
-                            return self._normalize_websocket_url(ws_url)
-
-                        # Current addon variants return `null` on successful subscribe
-                        # and push updates over the global `/ws` endpoint.
-                        if result is None and response.status == 200:
-                            if (
-                                confirmation_type_candidate != confirmation_type
-                                or device_path_id != device_id
-                                or object_path_id != object_id
-                            ):
-                                _LOGGER.debug(
-                                    "Bepacom subscribe for %s/%s succeeded with path=%s/%s confirmationType=%s (using default websocket endpoint)",
-                                    device_id,
-                                    object_id,
-                                    device_path_id,
-                                    object_path_id,
-                                    confirmation_type_candidate,
-                                )
-
-                            return self._default_subscription_websocket_url()
-
-                        if str(result).strip().strip('"').lower() in {"400", "none"}:
-                            continue
-
-                        self._log_invalid_subscription_response(
-                            device_id=device_id,
-                            object_id=object_id,
-                            status=response.status,
-                            headers=response.headers,
-                            body=text,
-                        )
-                        break
-
-        except asyncio.TimeoutError as err:
-            _LOGGER.debug(
-                "Bepacom subscription timed out for %s/%s",
-                device_id,
-                object_id,
-            )
-            raise CannotConnect from err
-
-        except aiohttp.ClientError as err:
-            _LOGGER.debug(
-                "Bepacom subscription request failed for %s/%s: %s",
-                device_id,
-                object_id,
-                err,
-            )
-            raise CannotConnect from err
-
-        except Exception as err:
-            _LOGGER.exception("Unexpected API error during subscription")
-            raise InvalidResponse from err
-
-        _LOGGER.debug(
-            "Bepacom subscribe for %s/%s failed for confirmation types: %s",
-            device_id,
-            object_id,
-            attempted_confirmation_types,
-        )
-        raise InvalidResponse
-
-    async def async_unsubscribe(
-        self,
-        device_id: str,
-        object_id: str,
-    ) -> None:
-        """Remove a gateway subscription for one BACnet object."""
-        for device_path_id in self._get_device_path_candidates(device_id):
-            for object_path_id in self._get_object_path_candidates(object_id):
-                try:
-                    await self._delete(f"/apiv1/subscribe/{device_path_id}/{object_path_id}")
-                    return
-                except InvalidResponse:
-                    continue
 
     async def async_write_property(
         self,

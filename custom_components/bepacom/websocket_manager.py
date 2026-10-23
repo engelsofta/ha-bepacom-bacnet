@@ -18,8 +18,6 @@ from .exceptions import InvalidResponse
 
 _LOGGER = logging.getLogger(__name__)
 _MAX_INVALID_SUBSCRIPTION_WARNINGS = 5
-_MAX_INVALID_SUBSCRIPTION_FAILURES = 25
-_UNSUBSCRIBE_CONCURRENCY = 20
 
 type UpdateCallback = Callable[[str, str, dict[str, Any]], Awaitable[bool | None] | bool | None]
 type FailureCallback = Callable[[str, str], Awaitable[None] | None]
@@ -37,7 +35,6 @@ class _SubscriptionState:
     websocket: aiohttp.ClientWebSocketResponse | None = None
     stop_event: asyncio.Event = field(default_factory=asyncio.Event)
     owns_connection: bool = False
-    gateway_subscription: bool = True
 
 
 @dataclass(slots=True)
@@ -265,132 +262,6 @@ class BepacomWebSocketManager:
             "protocol_resyncs": self._protocol_resyncs,
         }
 
-    async def async_subscribe(self, device_id: str, object_id: str) -> bool:
-        """Subscribe to an object's change feed."""
-        key = (device_id, object_id)
-        self._subscribe_attempts += 1
-
-        if self._subscriptions_disabled:
-            _LOGGER.debug(
-                "Skipping subscription for %s/%s because subscriptions are disabled",
-                device_id,
-                object_id,
-            )
-            return False
-
-        if key in self._subscriptions:
-            _LOGGER.debug(
-                "Subscription for %s/%s already exists",
-                device_id,
-                object_id,
-            )
-            return True
-
-        _LOGGER.debug(
-            "Creating subscription for %s/%s (attempt %s)",
-            device_id,
-            object_id,
-            self._subscribe_attempts,
-        )
-
-        try:
-            ws_url = await self._client.async_subscribe(device_id, object_id)
-        except InvalidResponse:
-            self._invalid_subscription_failures += 1
-
-            if self._invalid_subscription_warnings < _MAX_INVALID_SUBSCRIPTION_WARNINGS:
-                _LOGGER.warning(
-                    "Gateway returned invalid subscription payload for %s/%s",
-                    device_id,
-                    object_id,
-                )
-            elif self._invalid_subscription_warnings == _MAX_INVALID_SUBSCRIPTION_WARNINGS:
-                _LOGGER.warning(
-                    "Additional invalid subscription payload warnings suppressed; using polling fallback",
-                )
-
-            self._invalid_subscription_warnings += 1
-
-            if (
-                self._invalid_subscription_failures >= _MAX_INVALID_SUBSCRIPTION_FAILURES
-                and not self._subscriptions
-            ):
-                self._subscriptions_disabled = True
-                _LOGGER.warning(
-                    "Disabling Bepacom subscriptions globally after repeated invalid responses; using polling only",
-                )
-                _LOGGER.warning(
-                    "Subscription diagnostics: attempts=%s subscribe_successes=%s websocket_connects=%s websocket_updates=%s",
-                    self._subscribe_attempts,
-                    self._subscribe_successes,
-                    self._websocket_connects,
-                    self._websocket_updates,
-                )
-
-            if self._on_subscription_failure is not None:
-                await self._invoke_failure_callback(device_id, object_id)
-
-            return False
-        except Exception as err:
-            if self._invalid_subscription_warnings < _MAX_INVALID_SUBSCRIPTION_WARNINGS:
-                _LOGGER.warning(
-                    "Subscription unavailable for %s/%s: %s",
-                    device_id,
-                    object_id,
-                    err,
-                )
-            self._invalid_subscription_warnings += 1
-
-            if self._on_subscription_failure is not None:
-                await self._invoke_failure_callback(device_id, object_id)
-
-            return False
-
-        state = _SubscriptionState(
-            device_id=device_id,
-            object_id=object_id,
-            ws_url=ws_url,
-        )
-        self._subscribe_successes += 1
-        self._stats_for_url(ws_url)
-
-        _LOGGER.debug(
-            "Subscription created for %s/%s using WebSocket URL %s",
-            device_id,
-            object_id,
-            ws_url,
-        )
-
-        owner_state = next(
-            (
-                existing
-                for existing in self._subscriptions.values()
-                if existing.ws_url == ws_url and existing.task is not None
-            ),
-            None,
-        )
-
-        if owner_state is None:
-            state.owns_connection = True
-            state.task = asyncio.create_task(
-                self._async_run_subscription(state),
-                name=f"bepacom-subscription-{device_id}-{object_id}",
-            )
-            _LOGGER.debug(
-                "Created new WebSocket listener for %s via %s",
-                f"{device_id}/{object_id}",
-                ws_url,
-            )
-        else:
-            _LOGGER.debug(
-                "Reusing existing WebSocket listener for %s via %s",
-                f"{device_id}/{object_id}",
-                ws_url,
-            )
-
-        self._subscriptions[key] = state
-        self._log_diagnostics(ws_url, reason="subscribe")
-        return True
 
     async def async_connect_managed_snapshot(self) -> bool:
         """Listen to Engelsoft STAC's managed-target snapshot feed."""
@@ -404,7 +275,6 @@ class BepacomWebSocketManager:
             object_id=key[1],
             ws_url=ws_url,
             owns_connection=True,
-            gateway_subscription=False,
         )
         state.task = asyncio.create_task(
             self._async_run_subscription(state),
@@ -448,17 +318,6 @@ class BepacomWebSocketManager:
 
         self._log_diagnostics(state.ws_url, reason="unsubscribe")
 
-        try:
-            if state.gateway_subscription:
-                await self._client.async_unsubscribe(device_id, object_id)
-        except Exception as err:
-            _LOGGER.debug(
-                "Could not remove subscription for %s/%s: %s",
-                device_id,
-                object_id,
-                err,
-            )
-
     async def async_unsubscribe_all(self) -> None:
         """Unsubscribe from all active object feeds."""
         states = list(self._subscriptions.values())
@@ -490,25 +349,6 @@ class BepacomWebSocketManager:
                 await state.task
             except asyncio.CancelledError:
                 pass
-
-        # Unsubscribe on the gateway in bounded parallelism.
-        semaphore = asyncio.Semaphore(_UNSUBSCRIBE_CONCURRENCY)
-
-        async def _unsubscribe_state(state: _SubscriptionState) -> None:
-            if not state.gateway_subscription:
-                return
-            async with semaphore:
-                try:
-                    await self._client.async_unsubscribe(state.device_id, state.object_id)
-                except Exception as err:
-                    _LOGGER.debug(
-                        "Could not remove subscription for %s/%s during shutdown: %s",
-                        state.device_id,
-                        state.object_id,
-                        err,
-                    )
-
-        await asyncio.gather(*(_unsubscribe_state(state) for state in states))
 
     async def _async_run_subscription(self, state: _SubscriptionState) -> None:
         """Keep a single subscription connected."""
@@ -557,59 +397,22 @@ class BepacomWebSocketManager:
             )
             self._log_diagnostics(state.ws_url, reason="reconnect scheduled")
             await asyncio.sleep(reconnect_delay)
-            await self._async_resubscribe_for_url(state.ws_url)
             reconnect_delay = min(reconnect_delay * 2, self._max_backoff)
 
-    async def _async_resubscribe_for_url(self, ws_url: str) -> None:
-        """Renew gateway subscriptions for one WebSocket URL after reconnect."""
-        states = [
-            subscription
-            for subscription in tuple(self._subscriptions.values())
-            if subscription.ws_url == ws_url
-        ]
-
-        if not states:
-            return
-
-        self._last_resubscribe = time.monotonic()
-
-        _LOGGER.debug(
-            "Renewing Bepacom subscriptions after reconnect: url=%s objects=%s",
-            ws_url,
-            len(states),
-        )
-
-        for subscription in states:
-            if subscription.stop_event.is_set() or not subscription.gateway_subscription:
-                continue
-
-            try:
-                await self._client.async_subscribe(
-                    subscription.device_id,
-                    subscription.object_id,
-                )
-            except Exception as err:
-                _LOGGER.debug(
-                    "Could not renew subscription for %s/%s: %s",
-                    subscription.device_id,
-                    subscription.object_id,
-                    err,
-                )
 
     async def _async_listen(self, state: _SubscriptionState) -> None:
         """Listen for updates on one WebSocket."""
         websocket = await self._client.async_ws_connect(state.ws_url)
-        if self._client.transport == "protocol_v2":
-            await websocket.send_json(
-                {
-                    "type": "hello",
-                    "client": "home-assistant-bepacom",
-                    "protocol_versions": [2],
-                    "token": self._client.api_token,
-                }
-            )
-            self._client.set_protocol_socket(websocket)
-            await self._client.async_restore_protocol_targets()
+        await websocket.send_json(
+            {
+                "type": "hello",
+                "client": "home-assistant-bepacom",
+                "protocol_versions": [2],
+                "token": self._client.api_token,
+            }
+        )
+        self._client.set_protocol_socket(websocket)
+        await self._client.async_restore_protocol_targets()
         now = time.monotonic()
         stats = self._stats_for_url(state.ws_url)
         stats.connect_count += 1
@@ -670,33 +473,32 @@ class BepacomWebSocketManager:
                 if payload is None:
                     continue
 
-                if self._client.transport == "protocol_v2":
-                    message_type = payload.get("type")
-                    if message_type == "welcome":
-                        continue
-                    if message_type == "result":
-                        self._client.handle_protocol_result(payload)
-                        continue
-                    if message_type == "error":
-                        raise InvalidResponse(str(payload.get("error")))
-                    if message_type != "event" or payload.get("event") not in {
-                        "snapshot", "point_changes"
-                    }:
-                        continue
-                    sequence = payload.get("sequence")
-                    if payload.get("event") == "snapshot":
-                        self._protocol_sequence = None
-                    elif isinstance(sequence, int):
-                        if (
-                            self._protocol_sequence is not None
-                            and sequence != self._protocol_sequence + 1
-                        ):
-                            self._protocol_resyncs += 1
-                            raise RuntimeError("Protocol V2 event sequence gap; reconnecting for snapshot")
-                        self._protocol_sequence = sequence
-                    payload = payload.get("payload")
-                    if not isinstance(payload, dict):
-                        continue
+                message_type = payload.get("type")
+                if message_type == "welcome":
+                    continue
+                if message_type == "result":
+                    self._client.handle_protocol_result(payload)
+                    continue
+                if message_type == "error":
+                    raise InvalidResponse(str(payload.get("error")))
+                if message_type != "event" or payload.get("event") not in {
+                    "snapshot", "point_changes"
+                }:
+                    continue
+                sequence = payload.get("sequence")
+                if payload.get("event") == "snapshot":
+                    self._protocol_sequence = None
+                elif isinstance(sequence, int):
+                    if (
+                        self._protocol_sequence is not None
+                        and sequence != self._protocol_sequence + 1
+                    ):
+                        self._protocol_resyncs += 1
+                        raise RuntimeError("Protocol V2 event sequence gap; reconnecting for snapshot")
+                    self._protocol_sequence = sequence
+                payload = payload.get("payload")
+                if not isinstance(payload, dict):
+                    continue
 
                 self._websocket_updates += 1
                 stats.push_count += 1
@@ -747,8 +549,7 @@ class BepacomWebSocketManager:
             )
             self._log_diagnostics(state.ws_url, reason="disconnected")
             state.websocket = None
-            if self._client.transport == "protocol_v2":
-                self._client.set_protocol_socket(None)
+            self._client.set_protocol_socket(None)
 
     async def _async_promote_shared_connection(self, ws_url: str) -> None:
         """Promote another subscription to own a shared WebSocket connection."""

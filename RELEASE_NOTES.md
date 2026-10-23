@@ -1,18 +1,25 @@
-# Engelsoft Beacon BACnet/IP 1.5.8
+# Engelsoft Beacon BACnet/IP 1.6.0
 
-## 1.5.8 - 2026-10-22
+## 1.6.0 - 2026-10-23
 
-**Headers need boundaries. And apparently, a solid background.**
+**V2 or not V2? That is no longer a question.**
 
-- Give the sticky Inspector header an opaque base beneath its glass finish. Form fields can no longer audition as subtitles behind the buttons.
-- Fix the light-theme background composition. A translucent color tried to join a list of background images; CSS declined the invitation.
-- Consolidate Inspector header and action styles, removing conflicting legacy, mobile, and light-mode rules. Fewer cooks, fewer mysterious casseroles.
-- Add a Chromium regression test using the actual production components. It checks sticky headers, opaque surfaces, foreground hit testing, and one-row Inspector actions in light and dark mode at desktop and phone widths. The desktop table header gets its own scrolling check; mobile keeps its cards.
-- Document how to run the browser test with an existing Playwright installation. No gateway required; the test building runs on demo data and optimism.
-- Rebuild the production frontend with cache build `0721`. Same controls, less accidental X-ray vision.
+### Compatibility change
+
+- Require Engelsoft BACstac Protocol V2. Gateways without compatible V2 support are rejected with an update message. Update BACstac before installing this release; the legacy compatibility lane is officially closed for renovation. Permanently.
+
+### One protocol, fewer plot twists
+
+- Remove legacy protocol negotiation, the old `/ws` connection path, individual REST subscription creation/renewal/removal, and the unused per-point subscription scheduler. The gateway now owns its COV and polling plan without an integration-side tribute band.
+- Preserve the REST endpoints still used by the current gateway for inventory, diagnostics, startup target configuration, and supported writes. A URL containing `apiv1` is not automatically a fossil.
+- Keep one V2 managed WebSocket feed with reconnect handling and event-sequence checks. No secret handshake with the previous century.
+- Replace repeated Protocol V2 labels with connection and processing information. The dashboard has stopped announcing its own plumbing at every opportunity.
+- Keep protocol details in technical diagnostics, where they can discuss version numbers in peace.
+- Add negotiation tests for current, old, foreign, malformed, and unavailable gateways. An offline gateway remains a connection error, not an unexpected history lesson.
+- Rebuild the frontend with cache build `0722`.
 
 ### Validation and updating
 
-The Chromium layout regression test passed in light/dark mode at desktop and phone widths. All 13 Explorer regression tests, frontend type checking, and the production build passed locally. Release publication follows successful Tests, Validate, HACS, and Hassfest checks on the release commit. The browser test is currently run locally, not by the GitHub workflow. Live Home Assistant installation remains unverified.
+Locally passed: three isolated protocol-negotiation tests, all 13 Explorer regression tests, the Chromium layout test, TypeScript checking, frontend build, and Python syntax checks. GitHub runs the full Home Assistant integration suite before publication. Live gateway and Home Assistant installation have not been verified in this session.
 
-Update through HACS and restart Home Assistant to load the panel registration. Expected integration version: 1.5.8; frontend build: 0721.
+Update BACstac to a version supporting Protocol V2 first, then update the integration through HACS and restart Home Assistant. Expected integration version: 1.6.0; frontend build: 0722.

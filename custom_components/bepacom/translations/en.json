@@ -5,11 +5,11 @@
       "automatic": {"title": "Local Engelsoft BACstac"},
       "manual": {"title": "External gateway", "data": {"host": "Host", "port": "Port", "api_token": "API token (optional)"}}
     },
-    "error": {"cannot_connect": "Cannot connect.", "unsupported_gateway": "This gateway is not supported.", "unknown": "Unknown error."},
+    "error": {"cannot_connect": "Cannot connect.", "unsupported_gateway": "Incompatible gateway version. Please update BACstac and the integration.", "unknown": "Unknown error."},
     "abort": {"already_configured": "Gateway is already configured.", "app_not_found": "Local Engelsoft BACstac was not found. Start it or use manual setup."}
   },
   "issues": {
     "app_unavailable": {"title": "Engelsoft BACstac unavailable", "description": "Engelsoft BACstac or the external gateway cannot be reached. Check that it is running and port 8099 is reachable."},
-    "gateway_incompatible": {"title": "Incompatible BACstac version", "description": "The gateway supports neither Protocol V2 nor the required legacy API. Update the app and integration together."}
+    "gateway_incompatible": {"title": "Incompatible BACstac version", "description": "The gateway requires Protocol V2. Update BACstac and the integration together."}
   }
 }
