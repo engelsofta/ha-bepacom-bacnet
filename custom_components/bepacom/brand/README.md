@@ -1,15 +1,5 @@
-# Home Assistant Brands assets
+# Local integration brand assets
 
-This folder is prepared for a future pull request to:
-
-```text
-home-assistant/brands
-```
-
-Target path:
-
-```text
-core_integrations/bepacom/
-```
-
-or the currently required path according to the Home Assistant Brands repository structure.
+The integration uses the flat icon.png and logo.png files in this folder.
+Do not add a separate brand manifest here: HACS submission checks require one
+unambiguous integration manifest under custom_components/.

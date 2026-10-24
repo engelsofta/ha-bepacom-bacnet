@@ -3,7 +3,7 @@
 Repository: https://github.com/engelsofta/ha-bepacom-bacnet
 Category: integration
 Integration domain: bepacom
-Release: https://github.com/engelsofta/ha-bepacom-bacnet/releases/tag/1.6.1
+Release: https://github.com/engelsofta/ha-bepacom-bacnet/releases/tag/1.6.2
 
 ## Repository requirements
 
@@ -16,7 +16,7 @@ Release: https://github.com/engelsofta/ha-bepacom-bacnet/releases/tag/1.6.1
 
 ## Submission steps
 
-1. Confirm HACS, Hassfest, Tests and Validate succeeded on the exact 1.6.1 release commit.
+1. Confirm HACS, Hassfest, Tests and Validate succeeded on the exact 1.6.2 release commit.
 2. Confirm the full release was published after validation and beacon.zip is attached.
 3. Fork hacs/default into your personal account and create a branch from master.
 4. Add engelsofta/ha-bepacom-bacnet alphabetically to the JSON array in integration.

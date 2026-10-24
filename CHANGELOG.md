@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.2 - 2026-10-24
+
+**One manifest to rule them all. The spare has left the building.**
+
+- Remove an obsolete nested Brands submission manifest and duplicate artwork. The HACS default-store checks can now identify the integration unambiguously.
+- Keep the integration's supported local brand/icon.png and brand/logo.png assets.
+- Add a repository-layout regression check for exactly one integration manifest.
+
 ## 1.6.1 - 2026-10-24
 
 **No BACstac? No panic. We brought directions.**
