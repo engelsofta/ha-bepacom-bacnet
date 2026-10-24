@@ -9,6 +9,7 @@ CONF_VIRTUAL_ENTITIES = "virtual_entities"
 CONF_PUSH_VALUE_LOGGING = "push_value_logging"
 CONF_HEARTBEAT_TIMEOUT = "heartbeat_timeout"
 CONF_API_TOKEN = "api_token"
+BACSTAC_REPOSITORY_URL = "https://github.com/engelsofta/engelsoft-bacstac-ha-addon"
 
 DEFAULT_PORT = 8099
 PROTOCOL_VERSION = 2

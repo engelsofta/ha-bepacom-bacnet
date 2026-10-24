@@ -35,7 +35,19 @@ async def test_failure_offers_retry_and_manual_setup(monkeypatch, error, step):
     assert result["type"] == "menu"
     assert result["step_id"] == step
     assert result["menu_options"] == ["automatic", "manual"]
+    assert result["description_placeholders"] == {
+        "bacstac_repository_url": config_flow.BACSTAC_REPOSITORY_URL
+    }
     client.async_close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_initial_menu_provides_repository_link(monkeypatch):
+    flow, _ = make_flow(monkeypatch)
+    result = await flow.async_step_user()
+    assert result["description_placeholders"]["bacstac_repository_url"].startswith(
+        "https://github.com/engelsofta/"
+    )
 
 
 @pytest.mark.asyncio

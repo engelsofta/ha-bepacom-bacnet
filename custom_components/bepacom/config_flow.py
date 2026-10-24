@@ -13,6 +13,7 @@ from homeassistant.data_entry_flow import AbortFlow, FlowResult
 
 from .api import BepacomClient
 from .const import (
+    BACSTAC_REPOSITORY_URL,
     CONF_API_TOKEN,
     DEFAULT_PORT,
     DOMAIN,
@@ -54,7 +55,9 @@ class BepacomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle the initial setup step."""
         return self.async_show_menu(
-            step_id="user", menu_options=["automatic", "manual"]
+            step_id="user",
+            menu_options=["automatic", "manual"],
+            description_placeholders={"bacstac_repository_url": BACSTAC_REPOSITORY_URL},
         )
 
     async def async_step_automatic(
@@ -71,6 +74,7 @@ class BepacomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 "app_incompatible" if self._incompatible_gateway_found else "app_unavailable"
             ),
             menu_options=["automatic", "manual"],
+            description_placeholders={"bacstac_repository_url": BACSTAC_REPOSITORY_URL},
         )
 
     async def async_step_manual(self, user_input: dict[str, Any] | None = None) -> FlowResult:

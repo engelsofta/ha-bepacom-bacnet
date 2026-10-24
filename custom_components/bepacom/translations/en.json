@@ -7,7 +7,7 @@
           "automatic": "Find local Engelsoft BACstac",
           "manual": "Configure an external gateway"
         },
-        "description": "This integration requires the Engelsoft BACstac app or an external BACstac gateway. Install and start BACstac before continuing.\n\n[BACstac installation / GitHub repository](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)"
+        "description": "This integration requires the Engelsoft BACstac app or an external BACstac gateway. Install and start BACstac before continuing.\n\n[BACstac installation / GitHub repository]({bacstac_repository_url})"
       },
       "automatic": {
         "title": "Local Engelsoft BACstac"
@@ -22,7 +22,7 @@
       },
       "app_unavailable": {
         "title": "BACstac could not be reached",
-        "description": "The local Engelsoft BACstac app could not be reached. Install and start it, then search again. If it is already running, check its logs and whether port 8099 is reachable. Alternatively, configure an external gateway.\n\n[BACstac installation / GitHub repository](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)",
+        "description": "The local Engelsoft BACstac app could not be reached. Install and start it, then search again. If it is already running, check its logs and whether port 8099 is reachable. Alternatively, configure an external gateway.\n\n[BACstac installation / GitHub repository]({bacstac_repository_url})",
         "menu_options": {
           "automatic": "Search again",
           "manual": "Configure an external gateway"
@@ -30,7 +30,7 @@
       },
       "app_incompatible": {
         "title": "Incompatible BACstac version",
-        "description": "A local gateway was reached, but it does not support the required Engelsoft BACstac Protocol V2. Update BACstac and the integration together, then search again.\n\n[BACstac installation / GitHub repository](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)",
+        "description": "A local gateway was reached, but it does not support the required Engelsoft BACstac Protocol V2. Update BACstac and the integration together, then search again.\n\n[BACstac installation / GitHub repository]({bacstac_repository_url})",
         "menu_options": {
           "automatic": "Search again",
           "manual": "Configure an external gateway"

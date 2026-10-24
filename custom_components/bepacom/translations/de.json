@@ -7,7 +7,7 @@
           "automatic": "Lokale Engelsoft-BACstac-App automatisch finden",
           "manual": "Externes Gateway einrichten"
         },
-        "description": "Diese Integration benötigt die Engelsoft-BACstac-App oder ein externes BACstac-Gateway. Installiere und starte BACstac, bevor du fortfährst.\n\n[BACstac installieren / GitHub-Repository](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)"
+        "description": "Diese Integration benötigt die Engelsoft-BACstac-App oder ein externes BACstac-Gateway. Installiere und starte BACstac, bevor du fortfährst.\n\n[BACstac installieren / GitHub-Repository]({bacstac_repository_url})"
       },
       "automatic": {
         "title": "Lokale Engelsoft-BACstac-App"
@@ -22,7 +22,7 @@
       },
       "app_unavailable": {
         "title": "BACstac nicht erreichbar",
-        "description": "Die lokale Engelsoft-BACstac-App wurde nicht erreicht. Installiere und starte sie und suche anschließend erneut. Läuft sie bereits, prüfe ihre Protokolle und die Erreichbarkeit von Port 8099. Alternativ kannst du ein externes Gateway einrichten.\n\n[BACstac installieren / GitHub-Repository](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)",
+        "description": "Die lokale Engelsoft-BACstac-App wurde nicht erreicht. Installiere und starte sie und suche anschließend erneut. Läuft sie bereits, prüfe ihre Protokolle und die Erreichbarkeit von Port 8099. Alternativ kannst du ein externes Gateway einrichten.\n\n[BACstac installieren / GitHub-Repository]({bacstac_repository_url})",
         "menu_options": {
           "automatic": "Erneut suchen",
           "manual": "Externes Gateway einrichten"
@@ -30,7 +30,7 @@
       },
       "app_incompatible": {
         "title": "BACstac-Version nicht kompatibel",
-        "description": "Ein lokales Gateway wurde erreicht, unterstützt aber nicht das benötigte Engelsoft-BACstac-Protokoll V2. Aktualisiere BACstac und die Integration gemeinsam und suche anschließend erneut.\n\n[BACstac installieren / GitHub-Repository](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)",
+        "description": "Ein lokales Gateway wurde erreicht, unterstützt aber nicht das benötigte Engelsoft-BACstac-Protokoll V2. Aktualisiere BACstac und die Integration gemeinsam und suche anschließend erneut.\n\n[BACstac installieren / GitHub-Repository]({bacstac_repository_url})",
         "menu_options": {
           "automatic": "Erneut suchen",
           "manual": "Externes Gateway einrichten"
