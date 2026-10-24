@@ -38,8 +38,8 @@ async def test_diagnostics_redacts_host_and_summarizes_inventory() -> None:
     )
     entry = SimpleNamespace(
         entry_id="entry-1",
-        title="Bepacom",
-        data={"host": "192.0.2.10", "port": 8099},
+        title="Engelsoft Beacon BACnet/IP (192.0.2.10)",
+        data={"host": "192.0.2.10", "port": 8099, "api_token": "test-only-private-token"},
         options={"entity_overrides": {"private-point-id": {"enabled": True}}},
     )
     hass = SimpleNamespace(
@@ -50,6 +50,8 @@ async def test_diagnostics_redacts_host_and_summarizes_inventory() -> None:
     serialized = repr(result)
 
     assert result["config_entry"]["data"]["host"] == "**REDACTED**"
+    assert result["config_entry"]["data"]["api_token"] == "**REDACTED**"
+    assert result["config_entry"]["title"] == "**REDACTED**"
     assert result["config_entry"]["data"]["port"] == 8099
     assert result["inventory"] == {
         "device_count": 1,
@@ -59,5 +61,6 @@ async def test_diagnostics_redacts_host_and_summarizes_inventory() -> None:
     }
     assert result["transport"]["connected"] is True
     assert "192.0.2.10" not in serialized
+    assert "test-only-private-token" not in serialized
     assert "Sensitive room name" not in serialized
     assert "private-point-id" not in serialized

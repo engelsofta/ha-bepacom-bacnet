@@ -27,6 +27,7 @@ class BepacomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow."""
 
     VERSION = 1
+    _incompatible_gateway_found = False
 
     async def _async_create_for_host(self, host: str, port: int, api_token: str = "") -> FlowResult | None:
         """Validate and create an entry for one local or external gateway."""
@@ -42,7 +43,10 @@ class BepacomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 data={CONF_HOST: host, CONF_PORT: port, CONF_API_TOKEN: api_token},
                 options={},
             )
-        except (CannotConnect, InvalidResponse, UnsupportedGateway):
+        except UnsupportedGateway:
+            self._incompatible_gateway_found = True
+            return None
+        except (CannotConnect, InvalidResponse):
             return None
         finally:
             await client.async_close()
@@ -57,11 +61,17 @@ class BepacomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
         """Find the HA OS app by its stable aliases, with loopback fallback."""
+        self._incompatible_gateway_found = False
         for host in LOCAL_APP_HOSTS:
             result = await self._async_create_for_host(host, DEFAULT_PORT)
             if result is not None:
                 return result
-        return self.async_abort(reason="app_not_found")
+        return self.async_show_menu(
+            step_id=(
+                "app_incompatible" if self._incompatible_gateway_found else "app_unavailable"
+            ),
+            menu_options=["automatic", "manual"],
+        )
 
     async def async_step_manual(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Configure an externally hosted gateway."""

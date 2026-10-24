@@ -1,6 +1,6 @@
 # Engelsoft Beacon BACnet/IP for Home Assistant
 
-![Version](https://img.shields.io/badge/Version-1.6.0-gold)
+![Version](https://img.shields.io/badge/Version-1.6.1-gold)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.6.0%2B-41BDF5)
 ![HACS](https://img.shields.io/badge/HACS-Custom-orange)
 [![GitHub Downloads](https://img.shields.io/github/downloads/engelsofta/ha-bepacom-bacnet/total?label=Downloads)](https://github.com/engelsofta/ha-bepacom-bacnet/releases)
@@ -83,6 +83,8 @@ See the official [HACS custom repository instructions](https://www.hacs.dev/docs
 3. Search for **Engelsoft Beacon BACnet/IP**.
 4. Choose **Automatic** to try known local add-on addresses on port `8099`, or **Manual** to enter a host, port, and optional API token. Use Manual for a different port, an external host, or a gateway that requires authentication.
 5. Confirm the setup. The connection must pass BACstac Protocol V2 validation.
+
+The opening screen links to the BACstac installation repository. If automatic discovery cannot reach BACstac, setup offers **Search again** and **Configure an external gateway**. An incompatible gateway gets a separate update message. Discovery checks reachability and compatibility; it does not inspect the Supervisor installation list.
 
 | Setting | Description | Default |
 |---|---|---:|

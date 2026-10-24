@@ -9,10 +9,11 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PORT
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN
+from .const import CONF_API_TOKEN, DOMAIN
 from .coordinator import BepacomCoordinator
 
 _TO_REDACT = {
+    CONF_API_TOKEN,
     CONF_HOST,
     "hostname",
     "ip_address",
@@ -34,7 +35,7 @@ async def async_get_config_entry_diagnostics(
 
     diagnostics: dict[str, Any] = {
         "config_entry": {
-            "title": entry.title,
+            "title": "**REDACTED**",
             "data": async_redact_data(dict(entry.data), _TO_REDACT),
             "options": _diagnostic_option_summary(entry.options),
         },

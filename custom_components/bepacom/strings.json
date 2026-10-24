@@ -6,12 +6,35 @@
         "menu_options": {
           "automatic": "Lokale Engelsoft-BACstac-App automatisch finden",
           "manual": "Externes Gateway einrichten"
-        }
+        },
+        "description": "Diese Integration benötigt die Engelsoft-BACstac-App oder ein externes BACstac-Gateway. Installiere und starte BACstac, bevor du fortfährst.\n\n[BACstac installieren / GitHub-Repository](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)"
       },
-      "automatic": {"title": "Lokale Engelsoft-BACstac-App"},
+      "automatic": {
+        "title": "Lokale Engelsoft-BACstac-App"
+      },
       "manual": {
         "title": "Externes Gateway",
-        "data": {"host": "Host", "port": "Port", "api_token": "API-Token (optional)"}
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "api_token": "API-Token (optional)"
+        }
+      },
+      "app_unavailable": {
+        "title": "BACstac nicht erreichbar",
+        "description": "Die lokale Engelsoft-BACstac-App wurde nicht erreicht. Installiere und starte sie und suche anschließend erneut. Läuft sie bereits, prüfe ihre Protokolle und die Erreichbarkeit von Port 8099. Alternativ kannst du ein externes Gateway einrichten.\n\n[BACstac installieren / GitHub-Repository](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)",
+        "menu_options": {
+          "automatic": "Erneut suchen",
+          "manual": "Externes Gateway einrichten"
+        }
+      },
+      "app_incompatible": {
+        "title": "BACstac-Version nicht kompatibel",
+        "description": "Ein lokales Gateway wurde erreicht, unterstützt aber nicht das benötigte Engelsoft-BACstac-Protokoll V2. Aktualisiere BACstac und die Integration gemeinsam und suche anschließend erneut.\n\n[BACstac installieren / GitHub-Repository](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)",
+        "menu_options": {
+          "automatic": "Erneut suchen",
+          "manual": "Externes Gateway einrichten"
+        }
       }
     },
     "error": {
@@ -20,12 +43,17 @@
       "unknown": "Unbekannter Fehler."
     },
     "abort": {
-      "already_configured": "Gateway ist bereits eingerichtet.",
-      "app_not_found": "Die lokale Engelsoft-BACstac-App wurde nicht gefunden. Starte sie oder verwende die manuelle Einrichtung."
+      "already_configured": "Gateway ist bereits eingerichtet."
     }
   },
   "issues": {
-    "app_unavailable": {"title": "Engelsoft BACstac nicht erreichbar", "description": "Engelsoft BACstac oder das externe Gateway ist nicht erreichbar. Prüfe, ob die App gestartet ist und Port 8099 erreichbar ist."},
-    "gateway_incompatible": {"title": "BACstac-Version nicht kompatibel", "description": "Das Gateway benötigt Protocol V2. Aktualisiere BACstac und die Integration gemeinsam."}
+    "app_unavailable": {
+      "title": "Engelsoft BACstac nicht erreichbar",
+      "description": "Engelsoft BACstac oder das externe Gateway ist nicht erreichbar. Prüfe, ob die App gestartet ist und Port 8099 erreichbar ist."
+    },
+    "gateway_incompatible": {
+      "title": "BACstac-Version nicht kompatibel",
+      "description": "Das Gateway benötigt Protocol V2. Aktualisiere BACstac und die Integration gemeinsam."
+    }
   }
 }

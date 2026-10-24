@@ -1,15 +1,59 @@
 {
   "config": {
     "step": {
-      "user": {"title": "Engelsoft Beacon BACnet/IP", "menu_options": {"automatic": "Find local Engelsoft BACstac", "manual": "Configure an external gateway"}},
-      "automatic": {"title": "Local Engelsoft BACstac"},
-      "manual": {"title": "External gateway", "data": {"host": "Host", "port": "Port", "api_token": "API token (optional)"}}
+      "user": {
+        "title": "Engelsoft Beacon BACnet/IP",
+        "menu_options": {
+          "automatic": "Find local Engelsoft BACstac",
+          "manual": "Configure an external gateway"
+        },
+        "description": "This integration requires the Engelsoft BACstac app or an external BACstac gateway. Install and start BACstac before continuing.\n\n[BACstac installation / GitHub repository](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)"
+      },
+      "automatic": {
+        "title": "Local Engelsoft BACstac"
+      },
+      "manual": {
+        "title": "External gateway",
+        "data": {
+          "host": "Host",
+          "port": "Port",
+          "api_token": "API token (optional)"
+        }
+      },
+      "app_unavailable": {
+        "title": "BACstac could not be reached",
+        "description": "The local Engelsoft BACstac app could not be reached. Install and start it, then search again. If it is already running, check its logs and whether port 8099 is reachable. Alternatively, configure an external gateway.\n\n[BACstac installation / GitHub repository](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)",
+        "menu_options": {
+          "automatic": "Search again",
+          "manual": "Configure an external gateway"
+        }
+      },
+      "app_incompatible": {
+        "title": "Incompatible BACstac version",
+        "description": "A local gateway was reached, but it does not support the required Engelsoft BACstac Protocol V2. Update BACstac and the integration together, then search again.\n\n[BACstac installation / GitHub repository](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)",
+        "menu_options": {
+          "automatic": "Search again",
+          "manual": "Configure an external gateway"
+        }
+      }
     },
-    "error": {"cannot_connect": "Cannot connect.", "unsupported_gateway": "Incompatible gateway version. Please update BACstac and the integration.", "unknown": "Unknown error."},
-    "abort": {"already_configured": "Gateway is already configured.", "app_not_found": "Local Engelsoft BACstac was not found. Start it or use manual setup."}
+    "error": {
+      "cannot_connect": "Cannot connect.",
+      "unsupported_gateway": "Incompatible gateway version. Please update BACstac and the integration.",
+      "unknown": "Unknown error."
+    },
+    "abort": {
+      "already_configured": "Gateway is already configured."
+    }
   },
   "issues": {
-    "app_unavailable": {"title": "Engelsoft BACstac unavailable", "description": "Engelsoft BACstac or the external gateway cannot be reached. Check that it is running and port 8099 is reachable."},
-    "gateway_incompatible": {"title": "Incompatible BACstac version", "description": "The gateway requires Protocol V2. Update BACstac and the integration together."}
+    "app_unavailable": {
+      "title": "Engelsoft BACstac unavailable",
+      "description": "Engelsoft BACstac or the external gateway cannot be reached. Check that it is running and port 8099 is reachable."
+    },
+    "gateway_incompatible": {
+      "title": "Incompatible BACstac version",
+      "description": "The gateway requires Protocol V2. Update BACstac and the integration together."
+    }
   }
 }

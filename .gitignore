@@ -26,3 +26,13 @@ bepacom-HA-Addons-main/
 HA_Net_Mon/
 Omnibattery-1.0.1b5/
 UNO/
+
+# Local credentials and Home Assistant state.
+.env
+.env.*
+!.env.example
+secrets.yaml
+.storage/
+*.pem
+*.key
+.agents/

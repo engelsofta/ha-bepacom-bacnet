@@ -1,25 +1,17 @@
-# Engelsoft Beacon BACnet/IP 1.6.0
+# Engelsoft Beacon BACnet/IP 1.6.1
 
-## 1.6.0 - 2026-10-23
+## 1.6.1 - 2026-10-24
 
-**V2 or not V2? That is no longer a question.**
+**No BACstac? No panic. We brought directions.**
 
-### Compatibility change
+- Explain the BACstac prerequisite at the start of setup and link directly to its installation repository. Your gateway no longer needs to be found by interpretive dance.
+- Keep automatic setup open when BACstac cannot be reached, with **Search again** and **Configure an external gateway** actions.
+- Show a separate update message for an incompatible gateway. Offline and outdated now have their own name tags.
+- Include German and English guidance, with regression coverage for retries, compatibility checks, and successful discovery.
+- Redact API tokens and connection titles from downloaded diagnostics. Credentials have declined their invitation to the bug report.
 
-- Require Engelsoft BACstac Protocol V2. Gateways without compatible V2 support are rejected with an update message. Update BACstac before installing this release; the legacy compatibility lane is officially closed for renovation. Permanently.
+### Updating and validation
 
-### One protocol, fewer plot twists
+Requires Engelsoft BACstac Protocol V2 and Home Assistant 2026.6.0 or newer. Update through HACS and restart Home Assistant. Integration version: **1.6.1**; unchanged frontend build: **0722**.
 
-- Remove legacy protocol negotiation, the old `/ws` connection path, individual REST subscription creation/renewal/removal, and the unused per-point subscription scheduler. The gateway now owns its COV and polling plan without an integration-side tribute band.
-- Preserve the REST endpoints still used by the current gateway for inventory, diagnostics, startup target configuration, and supported writes. A URL containing `apiv1` is not automatically a fossil.
-- Keep one V2 managed WebSocket feed with reconnect handling and event-sequence checks. No secret handshake with the previous century.
-- Replace repeated Protocol V2 labels with connection and processing information. The dashboard has stopped announcing its own plumbing at every opportunity.
-- Keep protocol details in technical diagnostics, where they can discuss version numbers in peace.
-- Add negotiation tests for current, old, foreign, malformed, and unavailable gateways. An offline gateway remains a connection error, not an unexpected history lesson.
-- Rebuild the frontend with cache build `0722`.
-
-### Validation and updating
-
-Locally passed: three isolated protocol-negotiation tests, all 13 Explorer regression tests, the Chromium layout test, TypeScript checking, frontend build, and Python syntax checks. GitHub runs the full Home Assistant integration suite before publication. Live gateway and Home Assistant installation have not been verified in this session.
-
-Update BACstac to a version supporting Protocol V2 first, then update the integration through HACS and restart Home Assistant. Expected integration version: 1.6.0; frontend build: 0722.
+Automated checks are recorded in GitHub Actions for the release commit. Live Home Assistant setup and a real gateway have not been verified for this release.
