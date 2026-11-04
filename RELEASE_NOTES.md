@@ -1,11 +1,7 @@
-# Engelsoft Beacon BACnet/IP 1.6.2
+# Engelsoft Beacon BACnet/IP 1.6.3
 
-## 1.6.2 - 2026-10-24
+## 1.6.3 - 2026-11-04
 
-**One manifest to rule them all. The spare has left the building.**
-
-- Remove an obsolete nested Brands submission manifest and duplicate artwork. The HACS default-store checks can now identify the integration unambiguously.
-- Keep the integration's supported local brand/icon.png and brand/logo.png assets.
-- Add a repository-layout regression check for exactly one integration manifest.
-
-Requires BACstac Protocol V2 and Home Assistant 2026.6.0 or newer. Restart Home Assistant after updating. Frontend build remains 0722. Live installation has not been tested for this release.
+- Require administrator privileges for all twelve BACnet Explorer WebSocket commands, including reads, device writes, override changes, entity removal and integration reloads.
+- Reject non-admin requests before scheduling handlers or accessing BACnet devices and integration configuration.
+- Add regression coverage for every registered Explorer command and administrator authorization.

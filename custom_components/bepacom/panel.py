@@ -524,6 +524,7 @@ def _explorer_diagnostics(coordinator, registry) -> dict[str, Any]:
 
 
 @websocket_api.websocket_command({vol.Required("type"): "bepacom/explorer/entries"})
+@websocket_api.require_admin
 @websocket_api.async_response
 async def websocket_explorer_entries(
     hass: HomeAssistant,
@@ -560,6 +561,7 @@ async def websocket_explorer_entries(
         vol.Optional("limit", default=500): int,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def websocket_explorer_points(
     hass: HomeAssistant,
@@ -652,6 +654,7 @@ def _serialize_point_runtime(
         vol.Optional("known_versions"): vol.All({str: str}, vol.Length(max=2000)),
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def websocket_explorer_points_runtime(
     hass: HomeAssistant,
@@ -696,6 +699,7 @@ async def websocket_explorer_points_runtime(
         vol.Required("unique_id"): str,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def websocket_explorer_point(
     hass: HomeAssistant,
@@ -745,6 +749,7 @@ async def websocket_explorer_point(
         vol.Optional("limit", default=120): int,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def websocket_explorer_history(
     hass: HomeAssistant,
@@ -784,6 +789,7 @@ async def websocket_explorer_history(
         vol.Optional("limit", default=1000): int,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def websocket_explorer_changes(
     hass: HomeAssistant,
@@ -813,6 +819,7 @@ async def websocket_explorer_changes(
         vol.Optional("priority", default=8): int,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def websocket_explorer_write_property(
     hass: HomeAssistant,
@@ -1149,6 +1156,7 @@ async def _async_apply_override_options(
         vol.Optional("entry_id"): str,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def websocket_explorer_apply_update_modes(
     hass: HomeAssistant,
@@ -1224,6 +1232,7 @@ async def websocket_explorer_apply_update_modes(
         vol.Optional("virtual_binary_else_state"): vol.Any(str, None),
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def websocket_explorer_save_override(
     hass: HomeAssistant,
@@ -1470,6 +1479,7 @@ async def _async_delete_virtual_entity(
         vol.Required("virtual_unique_id"): str,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def websocket_explorer_delete_virtual_entity(
     hass: HomeAssistant,
@@ -1527,6 +1537,7 @@ async def websocket_explorer_delete_virtual_entity(
         vol.Required("unique_id"): str,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def websocket_explorer_reset_override(
     hass: HomeAssistant,
@@ -1576,6 +1587,7 @@ async def websocket_explorer_reset_override(
         vol.Optional("entry_id"): str,
     }
 )
+@websocket_api.require_admin
 @websocket_api.async_response
 async def websocket_explorer_reload_entry(
     hass: HomeAssistant,
