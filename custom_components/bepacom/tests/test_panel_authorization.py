@@ -43,7 +43,7 @@ class ExplorerAuthorizationTests(unittest.TestCase):
                 node.decorator_list = node.decorator_list[-2:]
                 scope = {"websocket_api": websocket_api}
                 exec(compile(ast.fix_missing_locations(ast.Module(body=[node], type_ignores=[])),
-                             str(SOURCE), "exec", flags=__future_annotations), scope)
+                             str(SOURCE), "exec", flags=ANNOTATIONS_FLAG), scope)
                 handler = scope[node.name]
                 hass = SimpleNamespace(async_create_background_task=Mock())
                 for user in (None, SimpleNamespace(is_admin=False)):
@@ -56,7 +56,7 @@ class ExplorerAuthorizationTests(unittest.TestCase):
 
 
 import __future__
-__future_annotations = __future__.annotations.compiler_flag
+ANNOTATIONS_FLAG = __future__.annotations.compiler_flag
 
 if __name__ == "__main__":
     unittest.main()
