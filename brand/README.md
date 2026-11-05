@@ -1,6 +1,3 @@
-<!-- Added by engelsofta in 2026 for Engelsoft Beacon BACnet/IP. -->
+# Beacon brand assets
 
-# HACS brand assets
-
-`icon.png` is the repository-level HACS icon for Engelsoft Beacon BACnet/IP.
-The same artwork is also shipped with the Home Assistant integration.
+Transparent gold artwork for Engelsoft Beacon BACnet/IP. Icons are 256×256 and 512×512 PNGs. The same mark is provided as logo and in dark variants. Local integration assets live directly in this folder, without an additional manifest. Repository URLs retain their existing names for compatibility.

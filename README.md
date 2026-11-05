@@ -1,6 +1,12 @@
-# Engelsoft Beacon BACnet/IP for Home Assistant
+<p align="center">
+  <img src="brand/icon@2x.png" alt="Engelsoft Beacon: gold buildings connected by a BACnet network with a beacon signal" width="200" height="200">
+</p>
 
-![Version](https://img.shields.io/badge/Version-1.6.4-gold)
+<h1 align="center">Engelsoft Beacon BACnet/IP</h1>
+
+<p align="center"><strong>Your building. Connected.</strong><br>Dedicated BACnet communication. A polished Home Assistant experience.</p>
+
+![Version](https://img.shields.io/badge/Version-1.6.5-gold)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.6.0%2B-41BDF5)
 ![Marketplace](https://img.shields.io/badge/Home%20Assistant-Marketplace-41BDF5)
 [![GitHub Downloads](https://img.shields.io/github/downloads/engelsofta/ha-bepacom-bacnet/total?label=Downloads)](https://github.com/engelsofta/ha-bepacom-bacnet/releases)

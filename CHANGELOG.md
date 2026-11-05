@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.5 - 2026-11-05
+
+- Introduce a polished gold Beacon icon matching the Engelsoft integration family.
+- Ship transparent standard, high-resolution, light and dark brand assets for Home Assistant and the Marketplace.
+- Add the new artwork and a centered product header to the README.
+
 ## 1.6.4 - 2026-11-05
 
 - Lead installation instructions with the built-in Marketplace on Home Assistant 2026.11+, including catalog search and Add from link; retain HACS guidance for older supported versions.
