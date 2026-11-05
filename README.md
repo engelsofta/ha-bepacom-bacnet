@@ -8,7 +8,19 @@
 The Engelsoft Beacon BACnet/IP integration connects BACnet/IP data points from **Engelsoft BACstac** to Home Assistant. It automatically discovers supported BACnet objects, creates suitable Home Assistant entities, and updates them primarily through managed WebSocket/COV notifications. The integrated **BACnet Explorer** provides a central interface for managing, customizing, and diagnosing BACnet points.
 
 > [!IMPORTANT]
-> This integration requires the **[Engelsoft BACstac Home Assistant Add-on](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)**. BACstac provides BACnet discovery, managed COV subscriptions, polling, write access, and the local API used by the integration. The integration will not work unless BACstac is installed, running, and reachable from Home Assistant.
+> This integration requires the **[Engelsoft BACstac Home Assistant app](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)**. BACstac provides BACnet discovery, managed COV subscriptions, polling, write access, and the local API used by the integration. The integration will not work unless BACstac is installed, running, and reachable from Home Assistant.
+
+> [!TIP]
+> ### Two components. One powerful BACnet experience.
+> **Engelsoft Beacon + the BACstac app combine a dedicated BACnet engine with a convenient Home Assistant interface.**
+>
+> - **Keep BACnet running through Home Assistant Core restarts.** The separate BACstac app can keep its BACnet communication and subscriptions active while Core restarts, provided the app and host remain running.
+> - **Give each component a focused job.** Discovery, COV subscriptions, polling and BACnet writes run in BACstac; Home Assistant provides entities, automations and the Explorer interface.
+> - **Separate processes, easier troubleshooting.** Inspect and restart the BACnet app independently of Home Assistant Core, with a clear boundary between gateway and integration diagnostics.
+> - **Local communication, responsive updates.** BACstac connects to your BACnet network locally and delivers managed updates to the integration over WebSocket.
+> - **Maintain the gateway and integration independently.** Update either component when needed, while keeping their supported protocol versions compatible.
+>
+> **A dedicated BACnet foundation. A familiar Home Assistant experience.**
 
 ## Features
 
@@ -43,9 +55,9 @@ The Engelsoft Beacon BACnet/IP integration connects BACnet/IP data points from *
 
 - Home Assistant `2026.6.0` or newer
 - the built-in Marketplace on Home Assistant 2026.11 or newer (HACS on older supported versions)
-- the **[Engelsoft BACstac Home Assistant Add-on](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)** installed and running
-- network access from Home Assistant to the add-on's HTTP and WebSocket API
-- TCP port `8099` by default, unless configured differently in the add-on
+- the **[Engelsoft BACstac Home Assistant app](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)** installed and running
+- network access from Home Assistant to the app's HTTP and WebSocket API
+- TCP port `8099` by default, unless configured differently in the app
 
 The integration is not a standalone BACnet/IP stack. BACnet communication, discovery, managed COV subscriptions, polling, and the gateway API are provided by Engelsoft BACstac.
 
@@ -53,7 +65,7 @@ The integration is not a standalone BACnet/IP stack. BACnet communication, disco
 
 ### 1. Install Engelsoft BACstac
 
-Install the add-on from:
+Install the app from:
 
 **[github.com/engelsofta/engelsoft-bacstac-ha-addon](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)**
 
@@ -85,14 +97,14 @@ See the official [Marketplace documentation](https://www.home-assistant.io/integ
 1. Open **Settings → Devices & services**.
 2. Select **Add integration**.
 3. Search for **Engelsoft Beacon BACnet/IP**.
-4. Choose **Automatic** to try known local add-on addresses on port `8099`, or **Manual** to enter a host, port, and optional API token. Use Manual for a different port, an external host, or a gateway that requires authentication.
+4. Choose **Automatic** to try known local app addresses on port `8099`, or **Manual** to enter a host, port, and optional API token. Use Manual for a different port, an external host, or a gateway that requires authentication.
 5. Confirm the setup. The connection must pass BACstac Protocol V2 validation.
 
 The opening screen links to the BACstac installation repository. If automatic discovery cannot reach BACstac, setup offers **Search again** and **Configure an external gateway**. An incompatible gateway gets a separate update message. Discovery checks reachability and compatibility; it does not inspect the Supervisor installation list.
 
 | Setting | Description | Default |
 |---|---|---:|
-| Host | IP address or hostname of the Engelsoft BACstac add-on | – |
+| Host | IP address or hostname of the Engelsoft BACstac app | – |
 | Port | Port of the HTTP/WebSocket API | `8099` |
 | API token | Token configured in BACstac, if authentication is enabled (manual setup) | empty |
 
@@ -281,7 +293,7 @@ The integration reduces repeated work in larger BACnet installations:
 - verify that Engelsoft BACstac is running
 - check the configured host and port
 - verify API reachability from the Home Assistant network
-- inspect both the add-on and Home Assistant logs
+- inspect both the app and Home Assistant logs
 
 ### An entity does not update
 
