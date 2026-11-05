@@ -1,5 +1,6 @@
 import { LitElement, html } from "lit";
 import { customElement, property } from "lit/decorators.js";
+import { localizeDom, type BepacomLanguage } from "../i18n";
 
 interface StatusCard {
   label: string;
@@ -80,8 +81,17 @@ const EMPTY_MODEL: RuntimeDashboardModel = {
 
 @customElement("bepacom-runtime-dashboard")
 export class BepacomRuntimeDashboard extends LitElement {
+  @property() public language: BepacomLanguage = "en";
   @property({ attribute: false })
   public model: RuntimeDashboardModel = EMPTY_MODEL;
+
+  protected updated(): void {
+    localizeDom(this, this.language);
+  }
+
+  private get _locale(): string {
+    return this.language === "de" ? "de-DE" : "en-US";
+  }
 
   protected createRenderRoot(): HTMLElement | DocumentFragment {
     return this;
@@ -207,7 +217,7 @@ export class BepacomRuntimeDashboard extends LitElement {
     const parsed = new Date(value);
     return Number.isNaN(parsed.getTime())
       ? value
-      : parsed.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      : parsed.toLocaleTimeString(this._locale, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   }
 
   private _displayValue(value: unknown): string {
@@ -232,7 +242,7 @@ export class BepacomRuntimeDashboard extends LitElement {
     }
     const peak = Math.max(0, ...bins);
     const lastMinute = bins.reduce((sum, count) => sum + count, 0);
-    const average = (lastMinute / 60).toLocaleString("de-DE", {
+    const average = (lastMinute / 60).toLocaleString(this._locale, {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
@@ -242,8 +252,8 @@ export class BepacomRuntimeDashboard extends LitElement {
     return html`
       <div class="live-monitor">
         <div class="live-summary">
-          <span><b>${this.model.liveChanges.length.toLocaleString("de-DE")}</b> gespeichert</span>
-          <span><b>${filtered.length.toLocaleString("de-DE")}</b> im Filter</span>
+          <span><b>${this.model.liveChanges.length.toLocaleString(this._locale)}</b> gespeichert</span>
+          <span><b>${filtered.length.toLocaleString(this._locale)}</b> im Filter</span>
           <span><b>${average}/s</b> letzte Minute</span>
           <span><b>${peak}/s</b> Spitze</span>
           <button class="secondary live-small-btn" @click=${() => this._action("toggle-live")}>

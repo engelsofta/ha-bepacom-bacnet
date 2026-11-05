@@ -1863,7 +1863,7 @@ export class BepacomExplorerView extends HTMLElement {
           </div>
           <div class="header-primary-actions">
             ${pendingChanges ? `<span class="pending-reload">${pendingChanges} Änderung${pendingChanges === 1 ? "" : "en"} wartet${pendingChanges === 1 ? "" : "en"}</span>` : ""}
-            <button class="primary" id="applyChanges" ${(!pendingChanges || this._saving) ? "disabled" : ""}>Änderungen anwenden${pendingChanges ? ` (${pendingChanges})` : ""}</button>
+            ${pendingChanges ? `<button class="primary" id="applyChanges" ${this._saving ? "disabled" : ""}>Änderungen anwenden (${pendingChanges})</button>` : ""}
             <button class="secondary" id="refresh">Aktualisieren${this._loading ? " …" : ""}</button>
             <div class="header-actions-menu">
             <button id="moreActionsToggle" class="secondary more-actions-toggle" type="button" title="Weitere Aktionen" aria-label="Weitere Aktionen öffnen" aria-expanded="false">⋮ Mehr</button>
@@ -2889,6 +2889,7 @@ export class BepacomExplorerView extends HTMLElement {
       icon: this._statusIcon(label, value),
       tone: this._statusClass(label, value),
     }));
+    dashboard.language = this._language;
     dashboard.model = {
       open: !!this._statusOpen,
       tab: ["configuration", "developer"].includes(this._dashboardTab) ? this._dashboardTab : "live",

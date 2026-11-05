@@ -1,7 +1,9 @@
-# Engelsoft Beacon BACnet/IP 1.6.3
+# Engelsoft Beacon BACnet/IP 1.6.4
 
-## 1.6.3 - 2026-11-04
+## 1.6.4 - 2026-11-05
 
-- Require administrator privileges for all twelve BACnet Explorer WebSocket commands, including reads, device writes, override changes, entity removal and integration reloads.
-- Reject non-admin requests before scheduling handlers or accessing BACnet devices and integration configuration.
-- Add regression coverage for every registered Explorer command and administrator authorization.
+- Lead HACS installation instructions with searching the default catalog; retain custom repositories as a fallback.
+- Improve English Explorer translations and language-aware live dashboard date and number formatting.
+- Refine the light background and align header action buttons.
+- Clean up pending Protocol V2 commands on send failures, cancellation and disconnects without retrying ambiguously delivered writes.
+- Preserve administrator authorization for all twelve Explorer WebSocket commands.

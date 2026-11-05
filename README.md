@@ -1,8 +1,8 @@
 # Engelsoft Beacon BACnet/IP for Home Assistant
 
-![Version](https://img.shields.io/badge/Version-1.6.3-gold)
+![Version](https://img.shields.io/badge/Version-1.6.4-gold)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.6.0%2B-41BDF5)
-![HACS](https://img.shields.io/badge/HACS-Custom-orange)
+![HACS](https://img.shields.io/badge/HACS-Default-41BDF5)
 [![GitHub Downloads](https://img.shields.io/github/downloads/engelsofta/ha-bepacom-bacnet/total?label=Downloads)](https://github.com/engelsofta/ha-bepacom-bacnet/releases)
 
 The Engelsoft Beacon BACnet/IP integration connects BACnet/IP data points from **Engelsoft BACstac** to Home Assistant. It automatically discovers supported BACnet objects, creates suitable Home Assistant entities, and updates them primarily through managed WebSocket/COV notifications. The integrated **BACnet Explorer** provides a central interface for managing, customizing, and diagnosing BACnet points.
@@ -42,7 +42,7 @@ The Engelsoft Beacon BACnet/IP integration connects BACnet/IP data points from *
 ## Requirements
 
 - Home Assistant `2026.6.0` or newer
-- HACS for the recommended custom-repository installation
+- HACS for the recommended installation
 - the **[Engelsoft BACstac Home Assistant Add-on](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)** installed and running
 - network access from Home Assistant to the add-on's HTTP and WebSocket API
 - TCP port `8099` by default, unless configured differently in the add-on
@@ -62,13 +62,11 @@ Configure and start BACstac. Verify that its HTTP API is reachable from Home Ass
 ### 2. Install through HACS
 
 1. Open HACS in Home Assistant.
-2. Open the menu in the upper-right corner and select **Custom repositories**.
-3. Enter `https://github.com/engelsofta/ha-bepacom-bacnet`.
-4. Select **Integration** as the type and add the repository.
-5. Find and download **Engelsoft Beacon BACnet/IP**.
-6. Restart Home Assistant completely.
+2. Search for **Engelsoft Beacon BACnet/IP** in the default catalog.
+3. Download the integration.
+4. Restart Home Assistant completely.
 
-See the official [HACS custom repository instructions](https://www.hacs.dev/docs/faq/custom_repositories/) for details.
+If the integration does not appear in your catalog, add it as a fallback through **HACS → Custom repositories**: enter `https://github.com/engelsofta/ha-bepacom-bacnet`, select **Integration**, then search for and download **Engelsoft Beacon BACnet/IP**.
 
 ### 3. Manual installation
 

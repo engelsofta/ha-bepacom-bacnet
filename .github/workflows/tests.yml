@@ -36,7 +36,7 @@ jobs:
         run: pnpm run check:frontend
 
       - name: Run Explorer regression tests
-        run: node --test custom_components/bepacom/tests/test_explorer_search.cjs
+        run: node --test custom_components/bepacom/tests/test_explorer_search.cjs custom_components/bepacom/tests/test_i18n.cjs
 
       - name: Build frontend
         run: pnpm run build:frontend

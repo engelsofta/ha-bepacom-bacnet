@@ -52,7 +52,7 @@ export const ENGELSOFT_THEME = `
     --text-primary-color:var(--es-ink); --card-background-color:var(--es-cell);
     --secondary-background-color:var(--es-elevated); --divider-color:var(--es-line);
     --bepacom-border:var(--es-line); color:var(--es-ink); color-scheme:light;
-    background:linear-gradient(115deg,rgba(224,232,239,.38),rgba(237,231,216,.32)),
+    background:linear-gradient(115deg,rgba(244,247,250,.88),rgba(250,247,240,.86)),
       url('/bepacom_static/engelsoft-background-light.png') center center / cover fixed,#dfe5e9;
   }
   .engelsoft-shell { display:grid; grid-template-columns:var(--es-rail) minmax(0,1fr); gap:18px; width:100%; max-width:1840px; margin:auto; flex:1; min-height:0; height:100%; align-items:start; }
@@ -129,6 +129,7 @@ export const ENGELSOFT_THEME = `
   .wrap button.primary { color:var(--es-ink); border:1px solid var(--es-line); border-radius:var(--es-control-radius); background:var(--es-active); box-shadow:none; font-weight:550; }
   .wrap button.primary:disabled { opacity:.35; }
   .wrap button:focus-visible,.wrap a:focus-visible,.wrap input:focus-visible,.wrap select:focus-visible { outline:2px solid var(--es-accent); outline-offset:3px; }
+  .wrap .header-primary-actions > button,.wrap .header-primary-actions .more-actions-toggle { box-sizing:border-box; height:36px; min-height:36px; padding:0 14px; display:inline-flex; align-items:center; justify-content:center; line-height:1.2; }
   .wrap .header-actions-menu.open > .header-action-buttons { border-color:var(--es-line); background:var(--es-elevated); border-radius:14px; box-shadow:var(--es-shadow); }
   .wrap .card,.wrap .toolbar,.wrap .table-wrap,.wrap .side,.wrap .main-dashboard .dashboard-shell { border:1px solid var(--es-line); border-radius:14px; background:var(--es-inset); box-shadow:none; backdrop-filter:none; }
   .wrap .table-wrap { border-radius:13px; }

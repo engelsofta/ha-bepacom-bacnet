@@ -1,20 +1,19 @@
-# Release checklist for 1.6.2
+# Release checklist for 1.6.4
 
 ## Prepared
 
-- [x] Manifest, runtime version, README badge and release notes use 1.6.2.
-- [x] BACstac setup guidance, retry menus and German/English translations included.
-- [x] API tokens and connection titles redacted from diagnostics.
-- [x] Frontend unchanged; cache build remains 0722.
+- [x] Version metadata and release notes updated to 1.6.4.
+- [x] HACS default catalog instructions with custom repository fallback.
+- [x] English GUI, locale formatting, light appearance and header controls included.
+- [x] Pending Protocol V2 command cleanup included; admin authorization retained.
+- [x] Frontend type-check, build, 16 Node regression tests, browser regression and nine protocol lifecycle tests passed locally.
 
 ## Publication gates
 
-- [ ] Tests, Validate, HACS validation and Hassfest validation pass on the release commit.
-- [ ] Publish stable release 1.6.2 only after those checks pass.
-- [ ] Verify the generated beacon.zip against the tagged source and inspect its contents for private data.
+- [ ] Tests, Validate, HACS and Hassfest pass on the release commit.
+- [ ] Publish stable release 1.6.4 after checks pass.
+- [ ] Verify beacon.zip against the tagged integration files.
 
 ## Live installation
 
-- [ ] Install through HACS and restart Home Assistant.
-- [ ] Verify installation links and retry/manual navigation with BACstac stopped and running.
-- [ ] Verify the incompatible-version message against an older gateway.
+- [ ] Install through HACS, restart Home Assistant and reload the browser.

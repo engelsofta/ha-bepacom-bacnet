@@ -5,6 +5,92 @@ export function normalizeLanguage(value: unknown): BepacomLanguage {
 }
 
 const ENGLISH: Array<[string, string]> = [
+  ["Verarbeitung", "Processing"],
+  ["Push-Verbindung", "Push connection"],
+  ["verknüpfte virtuelle Entitäten", "linked virtual entities"],
+  ["verknüpfte virtuelle Entität", "linked virtual entity"],
+  ["verknüpfte Entitäten", "linked entities"],
+  ["verknüpfte Entität", "linked entity"],
+  ["Bitte korrigiere zuerst die markierten Eingaben.", "Please correct the highlighted fields first."],
+  ["Home Assistant ist nicht verbunden", "Home Assistant is not connected"],
+  ["Virtuelle Entität gelöscht. Bitte Integration neu laden.", "Virtual entity deleted. Please reload the integration."],
+  ["Override zurückgesetzt. Spätestens nach einem Reload der Integration ist alles vollständig wirksam.", "Override reset. Reload the integration to apply all changes."],
+  ["Integration wird bereits neu geladen. Bitte einen Moment warten.", "The integration is already reloading. Please wait."],
+  ["Integration wird bereits neu geladen. Bitte kurz warten.", "The integration is already reloading. Please wait."],
+  ["Während des Reloads können Entitäten kurz nicht verfügbar sein.", "Entities may briefly become unavailable during the reload."],
+  ["Integration wird neu geladen …", "Reloading the integration …"],
+  ["Neuladen wurde gestartet. Die Ansicht wird gleich aktualisiert.", "Reload started. The view will refresh shortly."],
+  ["Bitte einen Schreibwert eintragen.", "Please enter a value to write."],
+  ["Die Importdatei enthält mehr als 2000 Overrides.", "The import file contains more than 2,000 overrides."],
+  ["Bitte Integration neu laden.", "Please reload the integration."],
+  ["Für diesen BACnet-Punkt ist noch keine virtuelle Entität angelegt.", "No virtual entity has been created for this BACnet point yet."],
+  ["Ungespeicherte Änderungen verwerfen und das BACstac Add-on öffnen?", "Discard unsaved changes and open the BACstac app?"],
+  ["Beim GLT/SET/AS-Profil wird das binaryValue mit derselben Objekt-ID verwendet. Alle Schreib- und Freigabevorgänge erfolgen fest auf BACnet-Priorität 8.", "The GLT/SET/AS profile uses the binaryValue with the same object ID. All write and release operations use BACnet priority 8."],
+  ["Nicht angelegt (als Rückmeldung verwendet)", "Not created (used as feedback)"],
+  ["Keine – Zustand aus dem MSO", "None – use the MSO state"],
+  ["Bei Auswahl kommt der Schalterzustand aus diesem MSI. Dessen separate HA-Entität wird entfernt.", "When selected, this MSI provides the switch state. Its separate HA entity is removed."],
+  ["Keine eigene HA-Entität", "No separate HA entity"],
+  ["Rückmeldung für", "Feedback for"],
+  ["Dieser MSI wird intern für den Schalter verwendet. Die zugehörige Sensor-Entität wird nicht angelegt.", "This MSI is used internally for switch feedback. Its sensor entity is not created."],
+  ["Im Point Inspector öffnen", "Open in Point Inspector"],
+  ["Verarbeitungskette mit simulierter Datenfluss-Animation", "Processing pipeline with simulated data flow animation"],
+  ["Gateway-Verbindung", "Gateway connection"],
+  ["Antwortzeit", "Response time"],
+  ["Befehlsverarbeitung", "Command processing"],
+  ["Statusbereiche", "Status sections"],
+  ["Live-Log", "Live log"],
+  ["Push-Diagnose", "Push diagnostics"],
+  ["Filterquote", "Filter rate"],
+  ["Unterdrückte gleiche Werte", "Suppressed unchanged values"],
+  ["gespeichert", "stored"],
+  ["im Filter", "matching filters"],
+  ["letzte Minute", "last minute"],
+  ["Spitze", "Peak"],
+  ["Fortsetzen", "Resume"],
+  ["Pausieren", "Pause"],
+  ["Gerätemodell", "Device model"],
+  ["Lädt nicht", "Not charging"],
+  ["Lädt", "Charging"],
+  ["Geöffnet", "Open"],
+  ["Nicht belegt", "Unoccupied"],
+  ["Update verfügbar", "Update available"],
+  ["nach Reload verfügbar", "available after reload"],
+  ["Nach dem Neuladen der Integration verfügbar", "Available after reloading the integration"],
+  ["Aktionen schließen", "Close actions"],
+  ["Aktionen öffnen", "Open actions"],
+  ["Batterie lädt", "Battery charging"],
+  ["Wartet auf Gerät", "Waiting for device"],
+  ["Läuft nicht", "Not running"],
+  ["erkannt", "detected"],
+  ["Zurücksetzen", "Reset"],
+  ["Batterie schwach", "Battery low"],
+  ["Batterie in Ordnung", "Battery normal"],
+  ["Kein Kohlenmonoxid", "No carbon monoxide"],
+  ["Kalt", "Cold"],
+  ["Geschlossen", "Closed"],
+  ["Kein Gas", "No gas"],
+  ["Keine Hitze", "No heat"],
+  ["Kein Licht", "No light"],
+  ["Entriegelt", "Unlocked"],
+  ["Verriegelt", "Locked"],
+  ["Feucht", "Wet"],
+  ["Trocken", "Dry"],
+  ["Keine Bewegung", "No motion"],
+  ["In Bewegung", "Moving"],
+  ["Stillstand", "Stopped"],
+  ["Belegt", "Occupied"],
+  ["Eingesteckt", "Plugged in"],
+  ["Ausgesteckt", "Unplugged"],
+  ["Kein Strom", "No power"],
+  ["Anwesend", "Present"],
+  ["Abwesend", "Away"],
+  ["Unsicher", "Unsafe"],
+  ["Sicher", "Safe"],
+  ["Kein Rauch", "No smoke"],
+  ["Kein Geräusch", "No sound"],
+  ["Keine Manipulation", "No tampering"],
+  ["Aktuell", "Up to date"],
+  ["Keine Vibration", "No vibration"],
   ["Entity-ID: nur Kleinbuchstaben, Zahlen und Unterstriche im Format domain.name.", "Entity ID: use only lowercase letters, numbers and underscores in the format domain.name."],
   ["Der Mindestwert muss kleiner als der Höchstwert sein.", "The minimum must be lower than the maximum."],
   ["Die Schrittweite muss größer als 0 sein.", "The step size must be greater than 0."],
@@ -263,6 +349,12 @@ const ENGLISH: Array<[string, string]> = [
 ];
 
 const ORDERED_ENGLISH = [...ENGLISH].sort((a, b) => b[0].length - a[0].length);
+const ENGLISH_BY_GERMAN = new Map(ORDERED_ENGLISH);
+const WORD_CHARACTER = /[\p{L}\p{N}_]/u;
+const ENGLISH_PATTERN = new RegExp(ORDERED_ENGLISH.map(([german]) => {
+  const escaped = german.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return `${WORD_CHARACTER.test(german[0]) ? "(?<![\\p{L}\\p{N}_])" : ""}${escaped}${WORD_CHARACTER.test(german.at(-1) || "") ? "(?![\\p{L}\\p{N}_])" : ""}`;
+}).join("|"), "gu");
 
 export function translateText(value: string, language: BepacomLanguage): string {
   if (language !== "en" || !value) return value;
@@ -274,16 +366,19 @@ export function translateText(value: string, language: BepacomLanguage): string 
   };
   const trimmed = value.trim();
   if (exact[trimmed]) return value.replace(trimmed, exact[trimmed]);
-  let result = value;
-  for (const [german, english] of ORDERED_ENGLISH) result = result.split(german).join(english);
-  result = result
+  // Resolve complete dynamic phrases before their individual words. Use one
+  // literal pass so translated output is never translated again or inside words.
+  const result = value
     .replace(/vor (\d+)\s*(ms|s|min|h)\b/g, "$1 $2 ago")
-    .replace(/(\d+) Änderungen? wartet(?:en)?/g, (_match, count) => `${count} pending change${count === "1" ? "" : "s"}`)
+    .replace(/(\d+) Änderung(?:en)? (?:wartet(?:en)?|warten)/g, (_match, count) => `${count} pending change${count === "1" ? "" : "s"}`)
+    .replace(/(\d+) verknüpfte virtuelle Entität(?:en)?/g, (_match, count) => `${count} linked virtual entit${count === "1" ? "y" : "ies"}`)
     .replace(/(\d+) verknüpfte Entität(?:en)?/g, (_match, count) => `${count} linked entit${count === "1" ? "y" : "ies"}`)
-    .replace(/(\d+) Änderungen?/g, (_match, count) => `${count} change${count === "1" ? "" : "s"}`)
-    .replace(/(\d+) Overrides importieren/g, "$1 Import overrides")
-    .replace(/(\d+) unbekannte überspringen/g, "$1 unknown skipped");
-  return result;
+    .replace(/(\d+) Overrides importieren/g, "Import $1 overrides")
+    .replace(/(\d+) Overrides importiert/g, "$1 overrides imported")
+    .replace(/(\d+) unbekannte Punkte übersprungen/g, "$1 unknown points skipped")
+    .replace(/(\d+) unbekannte überspringen/g, "skip $1 unknown points");
+  return result.replace(ENGLISH_PATTERN, (german) => ENGLISH_BY_GERMAN.get(german) || german)
+    .replace(/(\d+) (?:Änderung(?:en)?|Changes)/g, (_match, count) => `${count} change${count === "1" ? "" : "s"}`);
 }
 
 const TRANSLATED_ATTRIBUTES = ["title", "aria-label", "placeholder"];

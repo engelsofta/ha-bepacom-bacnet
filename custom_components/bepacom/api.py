@@ -81,6 +81,7 @@ class BepacomClient:
 
     async def async_close(self) -> None:
         """Close HTTP session."""
+        self.set_protocol_socket(None)
         if self._session:
             await self._session.close()
             self._session = None
@@ -90,6 +91,14 @@ class BepacomClient:
         self, websocket: aiohttp.ClientWebSocketResponse | None
     ) -> None:
         """Expose the manager-owned V2 socket for bidirectional commands."""
+        if websocket is not self._protocol_socket:
+            pending = list(self._protocol_pending.values())
+            self._protocol_pending.clear()
+            for future in pending:
+                if not future.done():
+                    future.set_exception(CannotConnect(
+                        "BACstac connection lost; command result is unknown"
+                    ))
         self._protocol_socket = websocket
 
     async def _async_protocol_command(
@@ -110,24 +119,35 @@ class BepacomClient:
             self._protocol_commands += 1
             future = asyncio.get_running_loop().create_future()
             self._protocol_pending[request_id] = future
-        await websocket.send_json(
-            {
-                "type": "command",
-                "id": request_id,
-                "command": command,
-                "payload": payload,
-            }
-        )
-        if future is not None:
-            try:
-                await asyncio.wait_for(future, timeout=20)
-                self._protocol_command_successes += 1
-                self._protocol_command_time_total += time.monotonic() - started
-            except Exception:
+        try:
+            # Bound both sending and waiting; a blocked send must not leak a
+            # pending request either. Never retry an ambiguously delivered write.
+            async with asyncio.timeout(20):
+                await websocket.send_json(
+                    {
+                        "type": "command",
+                        "id": request_id,
+                        "command": command,
+                        "payload": payload,
+                    }
+                )
+                if future is not None:
+                    await future
+                    self._protocol_command_successes += 1
+                    self._protocol_command_time_total += time.monotonic() - started
+        except Exception:
+            if future is not None:
                 self._protocol_command_errors += 1
-                raise
-            finally:
+            raise
+        finally:
+            if future is not None:
                 self._protocol_pending.pop(request_id, None)
+                if not future.done():
+                    future.cancel()
+                elif not future.cancelled():
+                    # A disconnect can fail the future while send_json itself
+                    # raises. Consume that exception even when we never awaited it.
+                    future.exception()
         return True
 
     def handle_protocol_result(self, message: dict[str, Any]) -> None:
