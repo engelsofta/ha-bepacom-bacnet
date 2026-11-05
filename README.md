@@ -2,7 +2,7 @@
 
 ![Version](https://img.shields.io/badge/Version-1.6.4-gold)
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2026.6.0%2B-41BDF5)
-![HACS](https://img.shields.io/badge/HACS-Default-41BDF5)
+![Marketplace](https://img.shields.io/badge/Home%20Assistant-Marketplace-41BDF5)
 [![GitHub Downloads](https://img.shields.io/github/downloads/engelsofta/ha-bepacom-bacnet/total?label=Downloads)](https://github.com/engelsofta/ha-bepacom-bacnet/releases)
 
 The Engelsoft Beacon BACnet/IP integration connects BACnet/IP data points from **Engelsoft BACstac** to Home Assistant. It automatically discovers supported BACnet objects, creates suitable Home Assistant entities, and updates them primarily through managed WebSocket/COV notifications. The integrated **BACnet Explorer** provides a central interface for managing, customizing, and diagnosing BACnet points.
@@ -42,7 +42,7 @@ The Engelsoft Beacon BACnet/IP integration connects BACnet/IP data points from *
 ## Requirements
 
 - Home Assistant `2026.6.0` or newer
-- HACS for the recommended installation
+- the built-in Marketplace on Home Assistant 2026.11 or newer (HACS on older supported versions)
 - the **[Engelsoft BACstac Home Assistant Add-on](https://github.com/engelsofta/engelsoft-bacstac-ha-addon)** installed and running
 - network access from Home Assistant to the add-on's HTTP and WebSocket API
 - TCP port `8099` by default, unless configured differently in the add-on
@@ -59,14 +59,20 @@ Install the add-on from:
 
 Configure and start BACstac. Verify that its HTTP API is reachable from Home Assistant. The integration uses port `8099` by default.
 
-### 2. Install through HACS
+### 2. Install through the Marketplace
 
-1. Open HACS in Home Assistant.
-2. Search for **Engelsoft Beacon BACnet/IP** in the default catalog.
-3. Download the integration.
-4. Restart Home Assistant completely.
+On **Home Assistant 2026.11 or newer**, the Marketplace is built in; a separate HACS installation is not needed.
 
-If the integration does not appear in your catalog, add it as a fallback through **HACS → Custom repositories**: enter `https://github.com/engelsofta/ha-bepacom-bacnet`, select **Integration**, then search for and download **Engelsoft Beacon BACnet/IP**.
+1. Open **Settings → Marketplace** and accept the notice if prompted.
+2. Search for **Engelsoft Beacon BACnet/IP** in the catalog.
+3. Open the integration and select **Install**.
+4. Restart Home Assistant after installation if prompted.
+
+If the integration is not listed yet, select **Add from link** in the upper-right corner, enter `https://github.com/engelsofta/ha-bepacom-bacnet`, and select **Add**. Connect GitHub if prompted, then open the added repository and install it.
+
+On **Home Assistant 2026.10 or older**, use HACS: search for **Engelsoft Beacon BACnet/IP**, download it, and restart Home Assistant. If it is missing, add the repository above under **Custom repositories** with type **Integration**.
+
+See the official [Marketplace documentation](https://www.home-assistant.io/integrations/marketplace/) for details.
 
 ### 3. Manual installation
 
@@ -303,7 +309,7 @@ Debug logging can produce a large number of messages. Disable it again after tro
 
 ## Updating
 
-1. Install the new version through HACS, or replace the integration directory manually.
+1. Install the new version through the Marketplace (HACS on older Home Assistant versions), or replace the integration directory manually.
 2. Restart Home Assistant completely.
 3. Clear or bypass the browser cache if the Explorer still shows the previous frontend build.
 4. Review the Explorer diagnostics and apply any pending point-setting changes.
